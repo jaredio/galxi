@@ -22,17 +22,10 @@ import {
 import { nodeTypeOptions } from './constants/nodeOptions';
 import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
-import { networkData } from './data/network';
 import { useForceGraph } from './hooks/useForceGraph';
 import { linkTouchesNode, makeEdgeKey, makeLinkKey, resolveAxis, resolveId, shortenSegment } from './lib/graph-utils';
-import type {
-  NetworkLink,
-  NetworkNode,
-  NodePositionMap,
-  NodeType,
-  SimulationLink,
-  SimulationNode,
-} from './types/graph';
+import type { NodePositionMap, NodeType, SimulationLink, SimulationNode } from './types/graph';
+import { useGraphStore } from './state/graphStore';
 
 type CanvasContextMenuState = {
   kind: 'canvas';
@@ -70,8 +63,10 @@ const App = () => {
   const nodePositionsRef = useRef<NodePositionMap>({});
   const panelViewportRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
-  const [nodes, setNodes] = useState<NetworkNode[]>(() => networkData.nodes.map((node) => ({ ...node })));
-  const [links, setLinks] = useState<NetworkLink[]>(() => networkData.links.map((link) => ({ ...link })));
+  const nodes = useGraphStore((state) => state.nodes);
+  const links = useGraphStore((state) => state.links);
+  const setNodes = useGraphStore((state) => state.setNodes);
+  const setLinks = useGraphStore((state) => state.setLinks);
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
