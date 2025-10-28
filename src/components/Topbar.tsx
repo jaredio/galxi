@@ -28,10 +28,10 @@ export const Topbar = ({ activeTab, onSelectTab }: TopbarProps) => (
         </nav>
       </div>
       <div className="action-group">
-        <button type="button" className="action-button">
+        <button type="button" className="action-button" disabled title="Sync coming soon">
           Sync
         </button>
-        <button type="button" className="action-button primary">
+        <button type="button" className="action-button primary" disabled title="Share coming soon">
           Share
         </button>
       </div>

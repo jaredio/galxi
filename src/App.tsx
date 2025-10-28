@@ -55,7 +55,9 @@ type NodeFormState =
     };
 
 const createNodeId = () =>
-  typeof globalThis.crypto?.randomUUID === 'function' ? globalThis.crypto.randomUUID() : `node-${Date.now()}`;
+  typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `node-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 const App = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -78,6 +80,11 @@ const App = () => {
     type: 'vm',
     group: '',
   });
+  const previousHighlightRef = useRef<{
+    activeNodeId: string | null;
+    hoveredNodeId: string | null;
+    hoveredEdgeKey: string | null;
+  }>({ activeNodeId: null, hoveredNodeId: null, hoveredEdgeKey: null });
   const [panelGeometry, setPanelGeometry] = useState<{ x: number; y: number; width: number; height: number }>(() => ({
     x: 72,
     y: 96,
@@ -476,8 +483,21 @@ const App = () => {
   }, [nodeForm, links, nodes]);
 
   useEffect(() => {
-    const edgeHighlighted = (link: SimulationLink) =>
-      linkTouchesNode(link, activeNodeId) || makeEdgeKey(link) === hoveredEdgeKey;
+    const nodeSelection = nodeSelectionRef.current;
+    const linkSelection = linkSelectionRef.current;
+    const linkLabelSelection = linkLabelSelectionRef.current;
+
+    if (!nodeSelection || !linkSelection || !linkLabelSelection) {
+      previousHighlightRef.current = { activeNodeId, hoveredNodeId, hoveredEdgeKey };
+      return;
+    }
+
+    const previous = previousHighlightRef.current;
+    const nodesToUpdate = new Set<string>();
+    if (previous.activeNodeId) nodesToUpdate.add(previous.activeNodeId);
+    if (previous.hoveredNodeId) nodesToUpdate.add(previous.hoveredNodeId);
+    if (activeNodeId) nodesToUpdate.add(activeNodeId);
+    if (hoveredNodeId) nodesToUpdate.add(hoveredNodeId);
 
     const nodeRadiusFor = (nodeId: string) => {
       if (nodeId === activeNodeId) {
@@ -489,12 +509,13 @@ const App = () => {
       return NODE_BASE_RADIUS;
     };
 
-    if (nodeSelectionRef.current) {
-      nodeSelectionRef.current
+    if (nodesToUpdate.size > 0) {
+      const subset = nodeSelection.filter((datum) => nodesToUpdate.has(datum.id));
+      subset
         .classed('node--active', (datum) => datum.id === activeNodeId)
         .classed('node--hovered', (datum) => datum.id === hoveredNodeId);
 
-      nodeSelectionRef.current
+      subset
         .select<SVGImageElement>('image.node-icon')
         .attr('x', (datum) => -nodeRadiusFor(datum.id))
         .attr('y', (datum) => -nodeRadiusFor(datum.id))
@@ -504,62 +525,91 @@ const App = () => {
           datum.id === activeNodeId || datum.id === hoveredNodeId ? 'url(#node-active-glow)' : null
         );
 
-      nodeSelectionRef.current
+      subset
         .select<SVGTextElement>('text.node-label')
         .attr('y', (datum) => nodeRadiusFor(datum.id) + LABEL_OFFSET)
         .attr('fill', (datum) => (datum.id === activeNodeId ? textPrimary : textSecondary));
     }
 
-    if (linkSelectionRef.current) {
-      linkSelectionRef.current.each(function updateLinkVisuals(datum) {
+    const edgeSubset = linkSelection.filter((datum) => {
+      const sourceId = resolveId(datum.source);
+      const targetId = resolveId(datum.target);
+
+      if (nodesToUpdate.has(sourceId) || nodesToUpdate.has(targetId)) {
+        return true;
+      }
+
+      const edgeKey = makeEdgeKey(datum);
+      return edgeKey === hoveredEdgeKey || edgeKey === previous.hoveredEdgeKey;
+    });
+
+    edgeSubset.each(function updateEdge(datum) {
+      const sourceX = resolveAxis(datum.source, 'x');
+      const sourceY = resolveAxis(datum.source, 'y');
+      const targetX = resolveAxis(datum.target, 'x');
+      const targetY = resolveAxis(datum.target, 'y');
+
+      const sourceRadius = nodeRadiusFor(resolveId(datum.source));
+      const targetRadius = nodeRadiusFor(resolveId(datum.target));
+
+      const { sx, sy, tx, ty } = shortenSegment(
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourceRadius + LINK_SOURCE_PADDING,
+        targetRadius + LINK_TARGET_PADDING
+      );
+
+      const highlighted =
+        linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey;
+
+      d3.select<SVGLineElement, SimulationLink>(this)
+        .attr('x1', sx)
+        .attr('y1', sy)
+        .attr('x2', tx)
+        .attr('y2', ty)
+        .attr('stroke', highlighted ? accent : edgeBase)
+        .attr('stroke-width', highlighted ? 2.4 : 1.6)
+        .attr('stroke-opacity', highlighted ? 0.95 : 0.35)
+        .attr('marker-end', highlighted ? 'url(#arrowhead-accent)' : 'url(#arrowhead-base)');
+    });
+
+    const labelSubset = linkLabelSelection.filter((datum) => {
+      const sourceId = resolveId(datum.source);
+      const targetId = resolveId(datum.target);
+
+      if (nodesToUpdate.has(sourceId) || nodesToUpdate.has(targetId)) {
+        return true;
+      }
+
+      const edgeKey = makeEdgeKey(datum);
+      return edgeKey === hoveredEdgeKey || edgeKey === previous.hoveredEdgeKey;
+    });
+
+    labelSubset
+      .attr('x', (datum) => {
         const sourceX = resolveAxis(datum.source, 'x');
-        const sourceY = resolveAxis(datum.source, 'y');
         const targetX = resolveAxis(datum.target, 'x');
+        return (sourceX + targetX) / 2;
+      })
+      .attr('y', (datum) => {
+        const sourceY = resolveAxis(datum.source, 'y');
         const targetY = resolveAxis(datum.target, 'y');
+        return (sourceY + targetY) / 2;
+      })
+      .attr('fill', (datum) =>
+        linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey ? accent : textSecondary
+      )
+      .attr('font-weight', (datum) =>
+        linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey ? 600 : 500
+      )
+      .attr('opacity', (datum) =>
+        linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey ? 1 : 0.35
+      );
 
-        const sourceRadius = nodeRadiusFor(resolveId(datum.source));
-        const targetRadius = nodeRadiusFor(resolveId(datum.target));
-
-        const { sx, sy, tx, ty } = shortenSegment(
-          sourceX,
-          sourceY,
-          targetX,
-          targetY,
-          sourceRadius + LINK_SOURCE_PADDING,
-          targetRadius + LINK_TARGET_PADDING
-        );
-
-        const isHighlighted = edgeHighlighted(datum);
-
-        d3.select<SVGLineElement, SimulationLink>(this)
-          .attr('x1', sx)
-          .attr('y1', sy)
-          .attr('x2', tx)
-          .attr('y2', ty)
-          .attr('stroke', isHighlighted ? accent : edgeBase)
-          .attr('stroke-width', isHighlighted ? 2.4 : 1.6)
-          .attr('stroke-opacity', isHighlighted ? 0.95 : 0.35)
-          .attr('marker-end', isHighlighted ? 'url(#arrowhead-accent)' : 'url(#arrowhead-base)');
-      });
-    }
-
-    if (linkLabelSelectionRef.current) {
-      linkLabelSelectionRef.current
-        .attr('x', (datum) => {
-          const sourceX = resolveAxis(datum.source, 'x');
-          const targetX = resolveAxis(datum.target, 'x');
-          return (sourceX + targetX) / 2;
-        })
-        .attr('y', (datum) => {
-          const sourceY = resolveAxis(datum.source, 'y');
-          const targetY = resolveAxis(datum.target, 'y');
-          return (sourceY + targetY) / 2;
-        })
-        .attr('fill', (datum) => (edgeHighlighted(datum) ? accent : textSecondary))
-        .attr('font-weight', (datum) => (edgeHighlighted(datum) ? 600 : 500))
-        .attr('opacity', (datum) => (edgeHighlighted(datum) ? 1 : 0.35));
-    }
-  }, [activeNodeId, hoveredNodeId, hoveredEdgeKey, linkLabelSelectionRef, linkSelectionRef, nodeSelectionRef, nodes, links]);
+    previousHighlightRef.current = { activeNodeId, hoveredNodeId, hoveredEdgeKey };
+  }, [activeNodeId, hoveredNodeId, hoveredEdgeKey, nodes, links, accent, edgeBase, textPrimary, textSecondary]);
 
   const handleZoomIn = useCallback(() => {
     applyZoomScalar(1.25);

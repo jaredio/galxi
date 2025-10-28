@@ -5,7 +5,7 @@ import type { D3DragEvent, ZoomBehavior, ZoomTransform } from 'd3';
 
 import { NODE_BASE_RADIUS, LINK_SOURCE_PADDING, LINK_TARGET_PADDING, LABEL_OFFSET } from '../constants/graph';
 import { getNodeIcon } from '../constants/nodeIcons';
-import { accent, edgeBase, textPrimary, textSecondary } from '../constants/theme';
+import { accent, edgeBase, textSecondary } from '../constants/theme';
 import { makeEdgeKey, resolveAxis, shortenSegment } from '../lib/graph-utils';
 import type {
   NetworkLink,
@@ -33,6 +33,8 @@ type UseForceGraphArgs = ForceGraphCallbacks & {
   zoomTransformRef: MutableRefObject<ZoomTransform>;
 };
 
+const makeSimulationLink = (link: NetworkLink): SimulationLink => ({ ...link });
+
 export const useForceGraph = ({
   svgRef,
   nodes,
@@ -47,12 +49,19 @@ export const useForceGraph = ({
   onContextMenuDismiss,
   onNodeContextMenu,
 }: UseForceGraphArgs) => {
+  const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, any, any, any> | null>(null);
+  const containerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const nodeLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const linkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const linkLabelLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+
   const nodeSelectionRef = useRef<d3.Selection<SVGGElement, SimulationNode, SVGGElement, unknown> | null>(null);
   const linkSelectionRef = useRef<d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown> | null>(null);
   const linkLabelSelectionRef = useRef<d3.Selection<SVGTextElement, SimulationLink, SVGGElement, unknown> | null>(
     null
   );
   const zoomBehaviourRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const viewDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   useEffect(() => {
     const svgElement = svgRef.current;
@@ -61,207 +70,28 @@ export const useForceGraph = ({
     }
 
     const svg = d3.select(svgElement);
-    svg.selectAll('*').remove();
+    svgSelectionRef.current = svg;
     svg.attr('data-theme', 'galxi').style('touch-action', 'none');
 
-    const width = svgElement.clientWidth || window.innerWidth;
-    const height = svgElement.clientHeight || window.innerHeight;
+    const updateViewBox = () => {
+      const width = svgElement.clientWidth || window.innerWidth;
+      const height = svgElement.clientHeight || window.innerHeight;
+      viewDimensionsRef.current = { width, height };
+      svg.attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`);
+    };
 
-    svg.attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`);
+    updateViewBox();
 
     const container = svg.append('g').attr('class', 'graph-root');
+    containerRef.current = container;
     const linkLayer = container.append('g').attr('class', 'link-layer');
     const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
     const nodeLayer = container.append('g').attr('class', 'node-layer');
-
-    const simNodes: SimulationNode[] = nodes.map((node) => {
-      if (!nodePositionsRef.current[node.id]) {
-        nodePositionsRef.current[node.id] = {
-          x: (Math.random() - 0.5) * width * 0.6,
-          y: (Math.random() - 0.5) * height * 0.6,
-        };
-      }
-      const { x, y } = nodePositionsRef.current[node.id];
-      return {
-        ...node,
-        x,
-        y,
-        fx: x,
-        fy: y,
-      };
-    });
-
-    const simLinks: SimulationLink[] = links.map((link) => ({ ...link }));
-
-    const linkSelection = linkLayer
-      .selectAll<SVGLineElement, SimulationLink>('line')
-      .data(simLinks)
-      .join('line')
-      .attr('class', 'link-line')
-      .attr('stroke', edgeBase)
-      .attr('stroke-width', 1.6)
-      .attr('stroke-linecap', 'round')
-      .attr('stroke-opacity', 0.45)
-      .style('cursor', 'pointer')
-      .attr('marker-end', 'url(#arrowhead-base)');
-
-    const linkLabelSelection = linkLabelLayer
-      .selectAll<SVGTextElement, SimulationLink>('text')
-      .data(simLinks)
-      .join('text')
-      .attr('class', 'link-label')
-      .attr('fill', textSecondary)
-      .attr('font-size', 11)
-      .attr('opacity', 0.35)
-      .text((datum) => datum.relation);
-
-    const nodeSelection = nodeLayer
-      .selectAll<SVGGElement, SimulationNode>('g')
-      .data(simNodes)
-      .join('g')
-      .attr('class', 'node')
-      .style('cursor', 'pointer');
-
-    nodeSelection
-      .append('image')
-      .attr('class', 'node-icon')
-      .attr('href', (datum) => getNodeIcon(datum.type))
-      .attr('x', -NODE_BASE_RADIUS)
-      .attr('y', -NODE_BASE_RADIUS)
-      .attr('width', NODE_BASE_RADIUS * 2)
-      .attr('height', NODE_BASE_RADIUS * 2)
-      .attr('preserveAspectRatio', 'xMidYMid meet');
-
-    nodeSelection
-      .append('text')
-      .attr('class', 'node-label')
-      .attr('text-anchor', 'middle')
-      .attr('y', NODE_BASE_RADIUS + LABEL_OFFSET)
-      .attr('fill', textPrimary)
-      .text((datum) => datum.label);
-
-    const updatePositions = () => {
-      linkSelection.each(function updateLink(datum) {
-        const sourceX = resolveAxis(datum.source, 'x');
-        const sourceY = resolveAxis(datum.source, 'y');
-        const targetX = resolveAxis(datum.target, 'x');
-        const targetY = resolveAxis(datum.target, 'y');
-
-        const { sx, sy, tx, ty } = shortenSegment(
-          sourceX,
-          sourceY,
-          targetX,
-          targetY,
-          NODE_BASE_RADIUS + LINK_SOURCE_PADDING,
-          NODE_BASE_RADIUS + LINK_TARGET_PADDING
-        );
-
-        d3.select<SVGLineElement, SimulationLink>(this)
-          .attr('x1', sx)
-          .attr('y1', sy)
-          .attr('x2', tx)
-          .attr('y2', ty);
-      });
-
-      linkLabelSelection
-        .attr('x', (datum) => {
-          const sourceX = resolveAxis(datum.source, 'x');
-          const targetX = resolveAxis(datum.target, 'x');
-          return (sourceX + targetX) / 2;
-        })
-        .attr('y', (datum) => {
-          const sourceY = resolveAxis(datum.source, 'y');
-          const targetY = resolveAxis(datum.target, 'y');
-          return (sourceY + targetY) / 2;
-        });
-
-      nodeSelection.attr('transform', (datum) => `translate(${datum.x ?? 0},${datum.y ?? 0})`);
-      nodeSelection.each((datum) => {
-        nodePositionsRef.current[datum.id] = {
-          x: datum.x ?? 0,
-          y: datum.y ?? 0,
-        };
-      });
-    };
-
-    nodeSelection
-      .on('mouseenter', (_event: MouseEvent, datum: SimulationNode) => {
-        onNodeHover(datum.id);
-      })
-      .on('mouseleave', () => {
-        onNodeHover(null);
-      })
-      .on('click', (event: MouseEvent, datum: SimulationNode) => {
-        event.stopPropagation();
-        onContextMenuDismiss();
-        onEdgeHover(null);
-        onNodeClick(datum);
-        onNodeHover(datum.id);
-      })
-      .on('dblclick', (event: MouseEvent, datum: SimulationNode) => {
-        event.stopPropagation();
-        onContextMenuDismiss();
-        onEdgeHover(null);
-        onNodeClick(datum);
-        onNodeHover(datum.id);
-        onNodeDoubleClick(datum);
-      })
-      .on('contextmenu', (event: MouseEvent, datum: SimulationNode) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onNodeContextMenu(event, datum);
-      });
-
-    linkSelection
-      .on('mouseenter', (_event: MouseEvent, datum: SimulationLink) => {
-        onEdgeHover(makeEdgeKey(datum));
-      })
-      .on('mouseleave', () => {
-        onEdgeHover(null);
-      });
-
-    svg.on('click', (event: MouseEvent) => {
-      if (event.target === svgElement) {
-        onCanvasClick();
-      }
-    });
-
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 2.5])
-      .on('zoom', (zoomEvent) => {
-        container.attr('transform', zoomEvent.transform.toString());
-        zoomTransformRef.current = zoomEvent.transform;
-      });
-
-    zoomBehaviourRef.current = zoom;
-    svg.call(zoom).call(zoom.transform, zoomTransformRef.current);
-
-    const dragBehaviour = d3
-      .drag<SVGGElement, SimulationNode>()
-      .on('drag', (dragEvent: D3DragEvent<SVGGElement, SimulationNode, SimulationNode>, datum: SimulationNode) => {
-        datum.x = dragEvent.x;
-        datum.y = dragEvent.y;
-        datum.fx = dragEvent.x;
-        datum.fy = dragEvent.y;
-        datum.vx = 0;
-        datum.vy = 0;
-        updatePositions();
-      })
-      .on('end', (dragEvent: D3DragEvent<SVGGElement, SimulationNode, SimulationNode>, datum: SimulationNode) => {
-        datum.x = dragEvent.x;
-        datum.y = dragEvent.y;
-        datum.fx = dragEvent.x;
-        datum.fy = dragEvent.y;
-        datum.vx = 0;
-        datum.vy = 0;
-        updatePositions();
-      });
-
-    nodeSelection.call(dragBehaviour);
+    linkLayerRef.current = linkLayer;
+    linkLabelLayerRef.current = linkLabelLayer;
+    nodeLayerRef.current = nodeLayer;
 
     const defs = svg.append('defs');
-
     const markerData = [
       { id: 'arrowhead-base', color: edgeBase },
       { id: 'arrowhead-accent', color: accent },
@@ -295,6 +125,77 @@ export const useForceGraph = ({
     glowMerge.append('feMergeNode').attr('in', 'coloredBlur');
     glowMerge.append('feMergeNode').attr('in', 'SourceGraphic');
 
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 2.5])
+      .on('zoom', (event) => {
+        container.attr('transform', event.transform.toString());
+        zoomTransformRef.current = event.transform;
+      });
+
+    zoomBehaviourRef.current = zoom;
+    svg.call(zoom);
+    svg.call(zoom.transform, zoomTransformRef.current);
+
+    svg.on('click', (event: MouseEvent) => {
+      if (event.target === svgElement) {
+        onContextMenuDismiss();
+        onCanvasClick();
+      }
+    });
+
+    const handleResize = () => updateViewBox();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      svg.on('.zoom', null);
+      svg.on('click', null);
+      svg.selectAll('*').remove();
+      nodeSelectionRef.current = null;
+      linkSelectionRef.current = null;
+      linkLabelSelectionRef.current = null;
+      containerRef.current = null;
+      nodeLayerRef.current = null;
+      linkLayerRef.current = null;
+      linkLabelLayerRef.current = null;
+      svgSelectionRef.current = null;
+    };
+  }, [svgRef, zoomTransformRef, onCanvasClick, onContextMenuDismiss]);
+
+  useEffect(() => {
+    const nodeLayer = nodeLayerRef.current;
+    const linkLayer = linkLayerRef.current;
+    const linkLabelLayer = linkLabelLayerRef.current;
+    const svgElement = svgRef.current;
+
+    if (!nodeLayer || !linkLayer || !linkLabelLayer || !svgElement) {
+      return;
+    }
+
+    const { width, height } = viewDimensionsRef.current;
+    const viewWidth = width || svgElement.clientWidth || window.innerWidth;
+    const viewHeight = height || svgElement.clientHeight || window.innerHeight;
+
+    const simNodes: SimulationNode[] = nodes.map((node) => {
+      if (!nodePositionsRef.current[node.id]) {
+        nodePositionsRef.current[node.id] = {
+          x: (Math.random() - 0.5) * viewWidth * 0.6,
+          y: (Math.random() - 0.5) * viewHeight * 0.6,
+        };
+      }
+      const { x, y } = nodePositionsRef.current[node.id];
+      return {
+        ...node,
+        x,
+        y,
+        fx: x,
+        fy: y,
+      };
+    });
+
+    const simLinks: SimulationLink[] = links.map(makeSimulationLink);
+
     const simulation = d3
       .forceSimulation<SimulationNode>(simNodes)
       .force(
@@ -311,38 +212,198 @@ export const useForceGraph = ({
       .alphaDecay(0.12)
       .stop();
 
-    for (let i = 0; i < 200; i += 1) {
+    for (let tick = 0; tick < 200; tick += 1) {
       simulation.tick();
     }
 
-    simNodes.forEach((node) => {
-      node.fx = node.x ?? 0;
-      node.fy = node.y ?? 0;
-      node.vx = 0;
-      node.vy = 0;
-    });
+    const nodesSelection = nodeLayer
+      .selectAll<SVGGElement, SimulationNode>('g')
+      .data(simNodes, (datum) => datum.id)
+      .join(
+        (enter) => {
+          const group = enter.append('g').attr('class', 'node').style('cursor', 'pointer');
+
+          group
+            .append('image')
+            .attr('class', 'node-icon')
+            .attr('preserveAspectRatio', 'xMidYMid meet');
+
+          group
+            .append('text')
+            .attr('class', 'node-label')
+            .attr('text-anchor', 'middle');
+
+          return group;
+        },
+        (update) => update,
+        (exit) => exit.remove()
+      );
+
+    nodesSelection
+      .select<SVGImageElement>('image.node-icon')
+      .attr('href', (datum) => getNodeIcon(datum.type))
+      .attr('width', NODE_BASE_RADIUS * 2)
+      .attr('height', NODE_BASE_RADIUS * 2)
+      .attr('x', -NODE_BASE_RADIUS)
+      .attr('y', -NODE_BASE_RADIUS);
+
+    nodesSelection
+      .select<SVGTextElement>('text.node-label')
+      .attr('fill', textSecondary)
+      .attr('y', NODE_BASE_RADIUS + LABEL_OFFSET)
+      .text((datum) => datum.label);
+
+    const linkSelection = linkLayer
+      .selectAll<SVGLineElement, SimulationLink>('line')
+      .data(simLinks, (datum) => makeEdgeKey(datum))
+      .join(
+        (enter) =>
+          enter
+            .append('line')
+            .attr('class', 'link-line')
+            .attr('stroke-linecap', 'round')
+            .style('cursor', 'pointer'),
+        (update) => update,
+        (exit) => exit.remove()
+      )
+      .attr('stroke', edgeBase)
+      .attr('stroke-width', 1.6)
+      .attr('stroke-opacity', 0.45)
+      .attr('marker-end', 'url(#arrowhead-base)');
+
+    const linkLabelSelection = linkLabelLayer
+      .selectAll<SVGTextElement, SimulationLink>('text')
+      .data(simLinks, (datum) => makeEdgeKey(datum))
+      .join(
+        (enter) =>
+          enter
+            .append('text')
+            .attr('class', 'link-label')
+            .attr('font-size', 11),
+        (update) => update,
+        (exit) => exit.remove()
+      )
+      .attr('opacity', 0.35)
+      .attr('fill', textSecondary)
+      .text((datum) => datum.relation);
+
+    const updatePositions = () => {
+      linkSelection.each(function repositionLink(datum) {
+        const sourceX = resolveAxis(datum.source, 'x');
+        const sourceY = resolveAxis(datum.source, 'y');
+        const targetX = resolveAxis(datum.target, 'x');
+        const targetY = resolveAxis(datum.target, 'y');
+
+        const { sx, sy, tx, ty } = shortenSegment(
+          sourceX,
+          sourceY,
+          targetX,
+          targetY,
+          NODE_BASE_RADIUS + LINK_SOURCE_PADDING,
+          NODE_BASE_RADIUS + LINK_TARGET_PADDING
+        );
+
+        d3.select<SVGLineElement, SimulationLink>(this)
+          .attr('x1', sx)
+          .attr('y1', sy)
+          .attr('x2', tx)
+          .attr('y2', ty);
+      });
+
+      linkLabelSelection
+        .attr('x', (datum) => {
+          const sourceX = resolveAxis(datum.source, 'x');
+          const targetX = resolveAxis(datum.target, 'x');
+          return (sourceX + targetX) / 2;
+        })
+        .attr('y', (datum) => {
+          const sourceY = resolveAxis(datum.source, 'y');
+          const targetY = resolveAxis(datum.target, 'y');
+          return (sourceY + targetY) / 2;
+        });
+
+      nodesSelection.attr('transform', (datum) => `translate(${datum.x ?? 0},${datum.y ?? 0})`);
+
+      nodesSelection.each((datum) => {
+        nodePositionsRef.current[datum.id] = {
+          x: datum.x ?? 0,
+          y: datum.y ?? 0,
+        };
+      });
+    };
+
+    nodesSelection
+      .on('mouseenter', (_event: MouseEvent, datum: SimulationNode) => {
+        onNodeHover(datum.id);
+      })
+      .on('mouseleave', () => {
+        onNodeHover(null);
+      })
+      .on('click', (event: MouseEvent, datum: SimulationNode) => {
+        event.stopPropagation();
+        onContextMenuDismiss();
+        onEdgeHover(null);
+        onNodeClick(datum);
+        onNodeHover(datum.id);
+      })
+      .on('dblclick', (event: MouseEvent, datum: SimulationNode) => {
+        event.stopPropagation();
+        onContextMenuDismiss();
+        onEdgeHover(null);
+        onNodeClick(datum);
+        onNodeHover(datum.id);
+        onNodeDoubleClick(datum);
+      })
+      .on('contextmenu', (event: MouseEvent, datum: SimulationNode) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onNodeContextMenu(event, datum);
+      });
+
+    const dragBehaviour = d3
+      .drag<SVGGElement, SimulationNode>()
+      .on('drag', (dragEvent: D3DragEvent<SVGGElement, SimulationNode, SimulationNode>, datum: SimulationNode) => {
+        datum.x = dragEvent.x;
+        datum.y = dragEvent.y;
+        datum.fx = dragEvent.x;
+        datum.fy = dragEvent.y;
+        datum.vx = 0;
+        datum.vy = 0;
+        updatePositions();
+      })
+      .on('end', (dragEvent: D3DragEvent<SVGGElement, SimulationNode, SimulationNode>, datum: SimulationNode) => {
+        datum.x = dragEvent.x;
+        datum.y = dragEvent.y;
+        datum.fx = dragEvent.x;
+        datum.fy = dragEvent.y;
+        datum.vx = 0;
+        datum.vy = 0;
+        updatePositions();
+      });
+
+    nodesSelection.call(dragBehaviour);
+
+    linkSelection
+      .on('mouseenter', (_event: MouseEvent, datum: SimulationLink) => {
+        onEdgeHover(makeEdgeKey(datum));
+      })
+      .on('mouseleave', () => {
+        onEdgeHover(null);
+      });
 
     updatePositions();
 
-    nodeSelectionRef.current = nodeSelection;
+    nodeSelectionRef.current = nodesSelection;
     linkSelectionRef.current = linkSelection;
     linkLabelSelectionRef.current = linkLabelSelection;
-
-    return () => {
-      svg.on('.zoom', null);
-      svg.on('click', null);
-    };
   }, [
-    svgRef,
     nodes,
     links,
     nodePositionsRef,
-    zoomTransformRef,
     onNodeHover,
     onNodeClick,
     onNodeDoubleClick,
     onEdgeHover,
-    onCanvasClick,
     onContextMenuDismiss,
     onNodeContextMenu,
   ]);
@@ -375,8 +436,8 @@ export const useForceGraph = ({
     nodeSelectionRef,
     linkSelectionRef,
     linkLabelSelectionRef,
-    zoomBehaviourRef,
     applyZoomScalar,
     resetZoom,
   };
 };
+
