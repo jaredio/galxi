@@ -29,6 +29,7 @@ import type {
   NetworkLink,
   NetworkNode,
   NodePositionMap,
+  NodeType,
   SimulationLink,
   SimulationNode,
 } from './types/graph';
@@ -67,6 +68,7 @@ const App = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
   const nodePositionsRef = useRef<NodePositionMap>({});
+  const panelViewportRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   const [nodes, setNodes] = useState<NetworkNode[]>(() => networkData.nodes.map((node) => ({ ...node })));
   const [links, setLinks] = useState<NetworkLink[]>(() => networkData.links.map((link) => ({ ...link })));
@@ -81,6 +83,13 @@ const App = () => {
     type: 'vm',
     group: '',
   });
+  const [panelGeometry, setPanelGeometry] = useState<{ x: number; y: number; width: number; height: number }>(() => ({
+    x: 72,
+    y: 96,
+    width: 360,
+    height: 460,
+  }));
+  const [panelExpanded, setPanelExpanded] = useState(false);
 
   useEffect(() => {
     applyTheme(baseTheme);
@@ -99,7 +108,7 @@ const App = () => {
     const handleGlobalClick = (event: MouseEvent) => {
       if (
         (event.target as HTMLElement).closest('.context-menu') ||
-        (event.target as HTMLElement).closest('.node-editor-panel')
+        (event.target as HTMLElement).closest('.node-editor')
       ) {
         return;
       }
@@ -108,6 +117,40 @@ const App = () => {
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
+
+  const clampPanelGeometry = useCallback(
+    (geometry: { x: number; y: number; width: number; height: number }) => {
+      const viewport = panelViewportRef.current;
+      const minWidth = 280;
+      const minHeight = 240;
+      const maxWidth = 600;
+      const maxHeight = Math.max(minHeight, viewport.height ? viewport.height - 120 : 720);
+      const width = Math.min(Math.max(geometry.width, minWidth), maxWidth);
+      const height = Math.min(Math.max(geometry.height, minHeight), maxHeight);
+      const maxX = Math.max(0, (viewport.width || width) - width - 24);
+      const maxY = Math.max(0, (viewport.height || height) - height - 24);
+      const x = Math.min(Math.max(geometry.x, 24), maxX);
+      const y = Math.min(Math.max(geometry.y, 72), maxY);
+      return { x, y, width, height };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const updateViewport = () => {
+      panelViewportRef.current = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      setPanelGeometry((prev) => clampPanelGeometry(prev));
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, [clampPanelGeometry]);
 
   const handleContextMenuDismiss = useCallback(() => {
     setContextMenu(null);
@@ -160,8 +203,9 @@ const App = () => {
       setActiveNodeId(nodeId);
       setHoveredNodeId(nodeId);
       setContextMenu(null);
+      setPanelGeometry((prev) => clampPanelGeometry(prev));
     },
-    [nodes]
+    [nodes, clampPanelGeometry]
   );
 
   const openEditNodeForm = useCallback(
@@ -337,8 +381,16 @@ const App = () => {
         position,
       });
       handleContextMenuDismiss();
+      setPanelExpanded(false);
+      setPanelGeometry((prev) =>
+        clampPanelGeometry({
+          ...prev,
+          width: 360,
+          height: 460,
+        })
+      );
     },
-    [handleContextMenuDismiss]
+    [clampPanelGeometry, handleContextMenuDismiss]
   );
 
   const handleContextMenuAddNode = useCallback(() => {
@@ -347,6 +399,17 @@ const App = () => {
     }
     openCreateNodeForm({ x: contextMenu.graphX, y: contextMenu.graphY });
   }, [contextMenu, openCreateNodeForm]);
+
+  const nodeFormType = useMemo<NodeType>(() => {
+    if (!nodeForm) {
+      return formValues.type;
+    }
+    if (nodeForm.mode === 'create') {
+      return formValues.type;
+    }
+    const existing = nodes.find((node) => node.id === nodeForm.nodeId);
+    return existing?.type ?? formValues.type;
+  }, [formValues.type, nodeForm, nodes]);
 
   const handleNodeFormSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -551,6 +614,41 @@ const App = () => {
     ];
   }, [contextMenu, handleContextMenuAddNode, openNodeEditorById, removeNodeById]);
 
+  const handlePanelMove = useCallback(
+    (position: { x: number; y: number }) => {
+      setPanelGeometry((prev) => clampPanelGeometry({ ...prev, ...position }));
+    },
+    [clampPanelGeometry]
+  );
+
+  const handlePanelResize = useCallback(
+    (geometry: { x: number; y: number; width: number; height: number }) => {
+      setPanelGeometry(() =>
+        clampPanelGeometry({
+          x: geometry.x,
+          y: geometry.y,
+          width: geometry.width,
+          height: geometry.height,
+        })
+      );
+    },
+    [clampPanelGeometry]
+  );
+
+  const handlePanelToggleExpand = useCallback(() => {
+    setPanelExpanded((prev) => {
+      const next = !prev;
+      setPanelGeometry((current) =>
+        clampPanelGeometry({
+          ...current,
+          width: next ? 480 : 360,
+          height: next ? 560 : 460,
+        })
+      );
+      return next;
+    });
+  }, [clampPanelGeometry]);
+
   return (
     <div className="app">
       <Topbar activeTab={activeTab} onSelectTab={setActiveTab} />
@@ -576,6 +674,7 @@ const App = () => {
         <NodeEditorPanel
           mode={nodeForm.mode}
           values={formValues}
+          nodeType={nodeFormType}
           onLabelChange={handleLabelChange}
           onTypeChange={handleTypeChange}
           onGroupChange={handleGroupChange}
@@ -590,6 +689,12 @@ const App = () => {
           connections={nodeEditorConnections}
           onConnectionRelationChange={handleConnectionRelationChange}
           onConnectionRemove={handleConnectionRemove}
+          position={{ x: panelGeometry.x, y: panelGeometry.y }}
+          size={{ width: panelGeometry.width, height: panelGeometry.height }}
+          onMove={handlePanelMove}
+          onResize={handlePanelResize}
+          onToggleExpand={handlePanelToggleExpand}
+          isExpanded={panelExpanded}
         />
       )}
     </div>
