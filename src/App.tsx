@@ -54,6 +54,11 @@ type NodeFormState =
       nodeId: string;
     };
 
+type ConnectionDraft = {
+  sourceNodeId: string;
+  cursor: { x: number; y: number };
+};
+
 const createNodeId = () =>
   typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
@@ -80,6 +85,7 @@ const App = () => {
     type: 'vm',
     group: '',
   });
+  const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null);
   const previousHighlightRef = useRef<{
     activeNodeId: string | null;
     hoveredNodeId: string | null;
@@ -167,16 +173,70 @@ const App = () => {
   }, []);
 
   const handleCanvasBackgroundClick = useCallback(() => {
+    setConnectionDraft(null);
     setActiveNodeId(null);
+    setHoveredNodeId(null);
     setHoveredEdgeKey(null);
     setContextMenu(null);
   }, []);
 
   const handleNodeClick = useCallback((node: SimulationNode) => {
+    setConnectionDraft(null);
     setActiveNodeId(node.id);
+    setHoveredNodeId(node.id);
+    setContextMenu(null);
   }, []);
 
+  const handleNodeAuxClick = useCallback(
+    (_event: MouseEvent, node: SimulationNode) => {
+      const sourcePosition =
+        nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
+
+      if (connectionDraft) {
+        if (connectionDraft.sourceNodeId === node.id) {
+          setConnectionDraft(null);
+          return;
+        }
+
+        const sourceId = connectionDraft.sourceNodeId;
+        const targetId = node.id;
+        const linkExists = links.some(
+          (link) => link.source === sourceId && link.target === targetId
+        );
+
+        if (!linkExists) {
+          setLinks((prev) => [
+            ...prev,
+            {
+              source: sourceId,
+              target: targetId,
+              relation: 'linked',
+            },
+          ]);
+        }
+
+        setConnectionDraft(null);
+        setActiveNodeId(targetId);
+        setHoveredNodeId(targetId);
+        setHoveredEdgeKey(null);
+        setContextMenu(null);
+        return;
+      }
+
+      setConnectionDraft({
+        sourceNodeId: node.id,
+        cursor: { x: sourcePosition.x, y: sourcePosition.y },
+      });
+      setActiveNodeId(node.id);
+      setHoveredNodeId(node.id);
+      setContextMenu(null);
+    },
+    [connectionDraft, links, setLinks]
+  );
+
   const handleNodeContextMenu = useCallback((event: MouseEvent, node: SimulationNode) => {
+    event.preventDefault();
+    setConnectionDraft(null);
     setActiveNodeId(node.id);
     setHoveredNodeId(node.id);
     setContextMenu({
@@ -232,6 +292,7 @@ const App = () => {
   const removeNodeById = useCallback((nodeId: string) => {
     setNodes((prev) => prev.filter((node) => node.id !== nodeId));
     setLinks((prev) => prev.filter((link) => link.source !== nodeId && link.target !== nodeId));
+    setConnectionDraft((current) => (current?.sourceNodeId === nodeId ? null : current));
     setNodeForm((current) => {
       if (current && current.mode === 'edit' && current.nodeId === nodeId) {
         return null;
@@ -268,9 +329,11 @@ const App = () => {
     links,
     nodePositionsRef,
     zoomTransformRef,
+    connectionDraft,
     onNodeHover: handleNodeHover,
     onNodeClick: handleNodeClick,
     onNodeDoubleClick: openEditNodeForm,
+    onNodeAuxClick: handleNodeAuxClick,
     onNodeContextMenu: handleNodeContextMenu,
     onEdgeHover: handleEdgeHover,
     onCanvasClick: handleCanvasBackgroundClick,
@@ -280,13 +343,18 @@ const App = () => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        setConnectionDraft(null);
         if (nodeForm) {
           setNodeForm(null);
           return;
         }
         if (contextMenu) {
           handleContextMenuDismiss();
+          return;
         }
+        setActiveNodeId(null);
+        setHoveredNodeId(null);
+        setHoveredEdgeKey(null);
       }
 
       if (nodeForm) {
@@ -330,7 +398,7 @@ const App = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeNodeId, contextMenu, handleContextMenuDismiss, nodeForm, nodes, removeNodeById]);
+  }, [activeNodeId, connectionDraft, contextMenu, handleContextMenuDismiss, nodeForm, nodes, removeNodeById]);
 
   const getGraphCoordinates = useCallback(
     (event: ReactMouseEvent<SVGSVGElement>) => {
@@ -357,6 +425,9 @@ const App = () => {
         return;
       }
       const position = getGraphCoordinates(event);
+      if (connectionDraft) {
+        setConnectionDraft(null);
+      }
       setActiveNodeId(null);
       setHoveredNodeId(null);
       setHoveredEdgeKey(null);
@@ -366,6 +437,25 @@ const App = () => {
         screenY: event.clientY,
         graphX: position.x,
         graphY: position.y,
+      });
+    },
+    [connectionDraft, getGraphCoordinates]
+  );
+
+  const handleCanvasMouseMove = useCallback(
+    (event: ReactMouseEvent<SVGSVGElement>) => {
+      setConnectionDraft((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const position = getGraphCoordinates(event);
+        if (position.x === prev.cursor.x && position.y === prev.cursor.y) {
+          return prev;
+        }
+        return {
+          ...prev,
+          cursor: position,
+        };
       });
     },
     [getGraphCoordinates]
@@ -699,7 +789,12 @@ const App = () => {
       <Topbar activeTab={activeTab} onSelectTab={setActiveTab} />
 
       <main className="canvas-shell">
-        <svg ref={svgRef} className="mindmap-canvas" onContextMenu={handleCanvasContextMenu} />
+        <svg
+          ref={svgRef}
+          className="mindmap-canvas"
+          onContextMenu={handleCanvasContextMenu}
+          onMouseMove={handleCanvasMouseMove}
+        />
 
         {nodes.length === 0 && <EmptyState onCreateNode={handleEmptyStateCreate} />}
 
@@ -747,3 +842,9 @@ const App = () => {
 };
 
 export default App;
+
+
+
+
+
+

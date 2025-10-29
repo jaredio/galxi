@@ -15,10 +15,16 @@ import type {
   SimulationNode,
 } from '../types/graph';
 
+type ConnectionDraft = {
+  sourceNodeId: string;
+  cursor: { x: number; y: number };
+} | null;
+
 type ForceGraphCallbacks = {
   onNodeHover: (nodeId: string | null) => void;
   onNodeClick: (node: SimulationNode) => void;
   onNodeDoubleClick: (node: SimulationNode) => void;
+  onNodeAuxClick: (event: MouseEvent, node: SimulationNode) => void;
   onEdgeHover: (edgeKey: string | null) => void;
   onCanvasClick: () => void;
   onContextMenuDismiss: () => void;
@@ -31,6 +37,7 @@ type UseForceGraphArgs = ForceGraphCallbacks & {
   links: NetworkLink[];
   nodePositionsRef: MutableRefObject<NodePositionMap>;
   zoomTransformRef: MutableRefObject<ZoomTransform>;
+  connectionDraft: ConnectionDraft;
 };
 
 const makeSimulationLink = (link: NetworkLink): SimulationLink => ({ ...link });
@@ -41,9 +48,11 @@ export const useForceGraph = ({
   links,
   nodePositionsRef,
   zoomTransformRef,
+  connectionDraft,
   onNodeHover,
   onNodeClick,
   onNodeDoubleClick,
+  onNodeAuxClick,
   onEdgeHover,
   onCanvasClick,
   onContextMenuDismiss,
@@ -54,6 +63,8 @@ export const useForceGraph = ({
   const nodeLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLabelLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const draftLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const draftLineRef = useRef<d3.Selection<SVGLineElement, any, any, any> | null>(null);
 
   const nodeSelectionRef = useRef<d3.Selection<SVGGElement, SimulationNode, SVGGElement, unknown> | null>(null);
   const linkSelectionRef = useRef<d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown> | null>(null);
@@ -87,9 +98,22 @@ export const useForceGraph = ({
     const linkLayer = container.append('g').attr('class', 'link-layer');
     const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
     const nodeLayer = container.append('g').attr('class', 'node-layer');
+    const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
     linkLayerRef.current = linkLayer;
     linkLabelLayerRef.current = linkLabelLayer;
     nodeLayerRef.current = nodeLayer;
+    draftLayerRef.current = draftLayer;
+
+    const draftLine = draftLayer
+      .append('line')
+      .attr('class', 'draft-link')
+      .attr('stroke', accent)
+      .attr('stroke-width', 1.8)
+      .attr('stroke-dasharray', '6 8')
+      .attr('stroke-dashoffset', 0)
+      .attr('marker-end', 'url(#arrowhead-accent)')
+      .attr('visibility', 'hidden');
+    draftLineRef.current = draftLine;
 
     const defs = svg.append('defs');
     const markerData = [
@@ -134,8 +158,7 @@ export const useForceGraph = ({
       });
 
     zoomBehaviourRef.current = zoom;
-    svg.call(zoom);
-    svg.call(zoom.transform, zoomTransformRef.current);
+    svg.call(zoom).call(zoom.transform, zoomTransformRef.current);
 
     svg.on('click', (event: MouseEvent) => {
       if (event.target === svgElement) {
@@ -159,6 +182,8 @@ export const useForceGraph = ({
       nodeLayerRef.current = null;
       linkLayerRef.current = null;
       linkLabelLayerRef.current = null;
+      draftLayerRef.current = null;
+      draftLineRef.current = null;
       svgSelectionRef.current = null;
     };
   }, [svgRef, zoomTransformRef, onCanvasClick, onContextMenuDismiss]);
@@ -194,7 +219,7 @@ export const useForceGraph = ({
       };
     });
 
-    const simLinks: SimulationLink[] = links.map(makeSimulationLink);
+    const simLinks = links.map(makeSimulationLink);
 
     const simulation = d3
       .forceSimulation<SimulationNode>(simNodes)
@@ -217,7 +242,7 @@ export const useForceGraph = ({
     }
 
     const nodesSelection = nodeLayer
-      .selectAll<SVGGElement, SimulationNode>('g')
+      .selectAll<SVGGElement, SimulationNode>('g.node')
       .data(simNodes, (datum) => datum.id)
       .join(
         (enter) => {
@@ -254,7 +279,7 @@ export const useForceGraph = ({
       .text((datum) => datum.label);
 
     const linkSelection = linkLayer
-      .selectAll<SVGLineElement, SimulationLink>('line')
+      .selectAll<SVGLineElement, SimulationLink>('line.link-line')
       .data(simLinks, (datum) => makeEdgeKey(datum))
       .join(
         (enter) =>
@@ -272,7 +297,7 @@ export const useForceGraph = ({
       .attr('marker-end', 'url(#arrowhead-base)');
 
     const linkLabelSelection = linkLabelLayer
-      .selectAll<SVGTextElement, SimulationLink>('text')
+      .selectAll<SVGTextElement, SimulationLink>('text.link-label')
       .data(simLinks, (datum) => makeEdgeKey(datum))
       .join(
         (enter) =>
@@ -354,6 +379,13 @@ export const useForceGraph = ({
         onNodeHover(datum.id);
         onNodeDoubleClick(datum);
       })
+      .on('auxclick', (event: MouseEvent, datum: SimulationNode) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          onNodeAuxClick(event, datum);
+        }
+      })
       .on('contextmenu', (event: MouseEvent, datum: SimulationNode) => {
         event.preventDefault();
         event.stopPropagation();
@@ -393,20 +425,51 @@ export const useForceGraph = ({
 
     updatePositions();
 
-    nodeSelectionRef.current = nodesSelection;
-    linkSelectionRef.current = linkSelection;
-    linkLabelSelectionRef.current = linkLabelSelection;
+    nodeSelectionRef.current = nodesSelection as d3.Selection<SVGGElement, SimulationNode, SVGGElement, unknown>;
+    linkSelectionRef.current = linkSelection as d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown>;
+    linkLabelSelectionRef.current = linkLabelSelection as d3.Selection<
+      SVGTextElement,
+      SimulationLink,
+      SVGGElement,
+      unknown
+    >;
   }, [
     nodes,
     links,
     nodePositionsRef,
     onNodeHover,
     onNodeClick,
+    onNodeAuxClick,
     onNodeDoubleClick,
     onEdgeHover,
     onContextMenuDismiss,
     onNodeContextMenu,
   ]);
+
+  useEffect(() => {
+    const draftLine = draftLineRef.current;
+    if (!draftLine) {
+      return;
+    }
+
+    if (!connectionDraft) {
+      draftLine.attr('visibility', 'hidden');
+      return;
+    }
+
+    const sourcePosition = nodePositionsRef.current[connectionDraft.sourceNodeId];
+    if (!sourcePosition) {
+      draftLine.attr('visibility', 'hidden');
+      return;
+    }
+
+    draftLine
+      .attr('visibility', 'visible')
+      .attr('x1', sourcePosition.x ?? 0)
+      .attr('y1', sourcePosition.y ?? 0)
+      .attr('x2', connectionDraft.cursor.x)
+      .attr('y2', connectionDraft.cursor.y);
+  }, [connectionDraft, nodePositionsRef, nodes]);
 
   const applyZoomScalar = (scalar: number) => {
     const svgElement = svgRef.current;
@@ -440,4 +503,3 @@ export const useForceGraph = ({
     resetZoom,
   };
 };
-

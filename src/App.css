@@ -285,6 +285,21 @@
   flex: 1;
 }
 
+.draft-layer {
+  pointer-events: none;
+}
+
+.draft-link {
+  stroke-dashoffset: 0;
+  animation: draft-line-dash 1.2s linear infinite;
+}
+
+@keyframes draft-line-dash {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
 .node-editor {
   position: absolute;
   background: rgba(15, 17, 23, 0.82);
