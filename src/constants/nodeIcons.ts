@@ -10,6 +10,9 @@ export const nodeIcons: Record<NodeType, string> = {
   storage: iconStorage,
   database: iconStorage,
   gateway: iconVirtualMachine,
+  virtualNetwork: iconVirtualMachine,
+  subnet: iconFirewall,
+  logicalGroup: iconStorage,
 };
 
 export const defaultNodeIcon = iconVirtualMachine;

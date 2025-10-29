@@ -6,4 +6,7 @@ export const nodeTypeOptions: Array<{ value: NodeType; label: string }> = [
   { value: 'storage', label: 'Storage Account' },
   { value: 'database', label: 'Database' },
   { value: 'gateway', label: 'Network Gateway' },
+  { value: 'virtualNetwork', label: 'Virtual Network' },
+  { value: 'subnet', label: 'Subnet' },
+  { value: 'logicalGroup', label: 'Logical Group' },
 ];

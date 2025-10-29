@@ -7,6 +7,7 @@ import './App.css';
 
 import { ContextMenu } from './components/ContextMenu';
 import { EmptyState } from './components/EmptyState';
+import { GalxiSidebar } from './components/GalxiSidebar';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { EditIcon, PlusIcon, TrashIcon } from './components/icons';
 import { Topbar } from './components/Topbar';
@@ -59,6 +60,15 @@ type ConnectionDraft = {
   cursor: { x: number; y: number };
 };
 
+type GroupDraftType = 'virtualNetwork' | 'subnet' | 'logicalGroup';
+
+const groupDraftPresets: Record<GroupDraftType, { label: string; type: NodeType }> = {
+  virtualNetwork: { label: 'New Virtual Network', type: 'virtualNetwork' },
+  subnet: { label: 'New Subnet', type: 'subnet' },
+  logicalGroup: { label: 'Logical Group', type: 'logicalGroup' },
+};
+
+type UtilityToastState = { id: number; message: string };
 const createNodeId = () =>
   typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
@@ -98,6 +108,7 @@ const App = () => {
     height: 460,
   }));
   const [panelExpanded, setPanelExpanded] = useState(false);
+  const [utilityToast, setUtilityToast] = useState<UtilityToastState | null>(null);
 
   useEffect(() => {
     applyTheme(baseTheme);
@@ -125,6 +136,16 @@ const App = () => {
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
+
+  useEffect(() => {
+    if (!utilityToast) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setUtilityToast(null);
+    }, 2600);
+    return () => window.clearTimeout(timeoutId);
+  }, [utilityToast]);
 
   const clampPanelGeometry = useCallback(
     (geometry: { x: number; y: number; width: number; height: number }) => {
@@ -164,6 +185,10 @@ const App = () => {
     setContextMenu(null);
   }, []);
 
+  const showUtilityToast = useCallback((message: string) => {
+    setUtilityToast({ id: Date.now(), message });
+  }, []);
+
   const handleNodeHover = useCallback((nodeId: string | null) => {
     setHoveredNodeId(nodeId);
   }, []);
@@ -171,6 +196,14 @@ const App = () => {
   const handleEdgeHover = useCallback((edgeKey: string | null) => {
     setHoveredEdgeKey(edgeKey);
   }, []);
+
+  const handleThemeUtilities = useCallback(() => {
+    showUtilityToast('Theme controls coming soon.');
+  }, [showUtilityToast]);
+
+  const handleSettingsUtilities = useCallback(() => {
+    showUtilityToast('Settings panel coming soon.');
+  }, [showUtilityToast]);
 
   const handleCanvasBackgroundClick = useCallback(() => {
     setConnectionDraft(null);
@@ -418,6 +451,12 @@ const App = () => {
     []
   );
 
+  const getGraphCenterPosition = useCallback(() => {
+    const transform = zoomTransformRef.current ?? d3.zoomIdentity;
+    const [x, y] = transform.invert([0, 0]);
+    return { x, y };
+  }, []);
+
   const handleCanvasContextMenu = useCallback(
     (event: ReactMouseEvent<SVGSVGElement>) => {
       event.preventDefault();
@@ -462,11 +501,11 @@ const App = () => {
   );
 
   const openCreateNodeForm = useCallback(
-    (position: { x: number; y: number }) => {
+    (position: { x: number; y: number }, overrides?: Partial<NodeFormValues>) => {
       setFormValues({
-        label: 'New Node',
-        type: 'vm',
-        group: '',
+        label: overrides?.label ?? 'New Node',
+        type: overrides?.type ?? 'vm',
+        group: overrides?.group ?? '',
       });
       setNodeForm({
         mode: 'create',
@@ -491,6 +530,20 @@ const App = () => {
     }
     openCreateNodeForm({ x: contextMenu.graphX, y: contextMenu.graphY });
   }, [contextMenu, openCreateNodeForm]);
+
+  const handleSidebarCreateNode = useCallback(() => {
+    const position = getGraphCenterPosition();
+    openCreateNodeForm(position);
+  }, [getGraphCenterPosition, openCreateNodeForm]);
+
+  const handleSidebarCreateGroup = useCallback(
+    (groupType: GroupDraftType) => {
+      const position = getGraphCenterPosition();
+      const preset = groupDraftPresets[groupType];
+      openCreateNodeForm(position, preset);
+    },
+    [getGraphCenterPosition, openCreateNodeForm]
+  );
 
   const nodeFormType = useMemo<NodeType>(() => {
     if (!nodeForm) {
@@ -714,8 +767,9 @@ const App = () => {
   }, [resetZoom]);
 
   const handleEmptyStateCreate = useCallback(() => {
-    openCreateNodeForm({ x: 0, y: 0 });
-  }, [openCreateNodeForm]);
+    const position = getGraphCenterPosition();
+    openCreateNodeForm(position);
+  }, [getGraphCenterPosition, openCreateNodeForm]);
 
   const contextMenuItems = useMemo(() => {
     if (!contextMenu) {
@@ -787,6 +841,12 @@ const App = () => {
   return (
     <div className="app">
       <Topbar activeTab={activeTab} onSelectTab={setActiveTab} />
+      <GalxiSidebar
+        onCreateNode={handleSidebarCreateNode}
+        onCreateGroup={handleSidebarCreateGroup}
+        onOpenTheme={handleThemeUtilities}
+        onOpenSettings={handleSettingsUtilities}
+      />
 
       <main className="canvas-shell">
         <svg
@@ -836,6 +896,12 @@ const App = () => {
           onToggleExpand={handlePanelToggleExpand}
           isExpanded={panelExpanded}
         />
+      )}
+
+      {utilityToast && (
+        <div className="utility-toast" role="status">
+          {utilityToast.message}
+        </div>
       )}
     </div>
   );

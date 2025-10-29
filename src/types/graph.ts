@@ -1,6 +1,14 @@
 import type { SimulationLinkDatum, SimulationNodeDatum } from 'd3';
 
-export type NodeType = 'vm' | 'firewall' | 'storage' | 'database' | 'gateway';
+export type NodeType =
+  | 'vm'
+  | 'firewall'
+  | 'storage'
+  | 'database'
+  | 'gateway'
+  | 'virtualNetwork'
+  | 'subnet'
+  | 'logicalGroup';
 
 export interface NetworkNode {
   id: string;
