@@ -26,6 +26,7 @@ type ForceGraphCallbacks = {
   onNodeDoubleClick: (node: SimulationNode) => void;
   onNodeAuxClick: (event: MouseEvent, node: SimulationNode) => void;
   onEdgeHover: (edgeKey: string | null) => void;
+  onLinkContextMenu: (event: MouseEvent, link: SimulationLink) => void;
   onCanvasClick: () => void;
   onContextMenuDismiss: () => void;
   onNodeContextMenu: (event: MouseEvent, node: SimulationNode) => void;
@@ -54,6 +55,7 @@ export const useForceGraph = ({
   onNodeDoubleClick,
   onNodeAuxClick,
   onEdgeHover,
+  onLinkContextMenu,
   onCanvasClick,
   onContextMenuDismiss,
   onNodeContextMenu,
@@ -61,6 +63,7 @@ export const useForceGraph = ({
   const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, any, any, any> | null>(null);
   const containerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const nodeLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const linkHitLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLabelLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const draftLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
@@ -68,6 +71,7 @@ export const useForceGraph = ({
 
   const nodeSelectionRef = useRef<d3.Selection<SVGGElement, SimulationNode, SVGGElement, unknown> | null>(null);
   const linkSelectionRef = useRef<d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown> | null>(null);
+  const linkHitSelectionRef = useRef<d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown> | null>(null);
   const linkLabelSelectionRef = useRef<d3.Selection<SVGTextElement, SimulationLink, SVGGElement, unknown> | null>(
     null
   );
@@ -95,10 +99,12 @@ export const useForceGraph = ({
 
     const container = svg.append('g').attr('class', 'graph-root');
     containerRef.current = container;
+    const linkHitLayer = container.append('g').attr('class', 'link-hit-layer');
     const linkLayer = container.append('g').attr('class', 'link-layer');
     const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
     const nodeLayer = container.append('g').attr('class', 'node-layer');
     const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
+    linkHitLayerRef.current = linkHitLayer;
     linkLayerRef.current = linkLayer;
     linkLabelLayerRef.current = linkLabelLayer;
     nodeLayerRef.current = nodeLayer;
@@ -177,9 +183,11 @@ export const useForceGraph = ({
       svg.selectAll('*').remove();
       nodeSelectionRef.current = null;
       linkSelectionRef.current = null;
+      linkHitSelectionRef.current = null;
       linkLabelSelectionRef.current = null;
       containerRef.current = null;
       nodeLayerRef.current = null;
+      linkHitLayerRef.current = null;
       linkLayerRef.current = null;
       linkLabelLayerRef.current = null;
       draftLayerRef.current = null;
@@ -190,11 +198,12 @@ export const useForceGraph = ({
 
   useEffect(() => {
     const nodeLayer = nodeLayerRef.current;
+    const linkHitLayer = linkHitLayerRef.current;
     const linkLayer = linkLayerRef.current;
     const linkLabelLayer = linkLabelLayerRef.current;
     const svgElement = svgRef.current;
 
-    if (!nodeLayer || !linkLayer || !linkLabelLayer || !svgElement) {
+    if (!nodeLayer || !linkHitLayer || !linkLayer || !linkLabelLayer || !svgElement) {
       return;
     }
 
@@ -278,6 +287,23 @@ export const useForceGraph = ({
       .attr('y', NODE_BASE_RADIUS + LABEL_OFFSET)
       .text((datum) => datum.label);
 
+    const linkHitSelection = linkHitLayer
+      .selectAll<SVGLineElement, SimulationLink>('line.link-hit')
+      .data(simLinks, (datum) => makeEdgeKey(datum))
+      .join(
+        (enter) =>
+          enter
+            .append('line')
+            .attr('class', 'link-hit')
+            .attr('stroke', 'transparent')
+            .attr('stroke-width', 14)
+            .attr('stroke-linecap', 'round')
+            .style('pointer-events', 'stroke')
+            .style('cursor', 'pointer'),
+        (update) => update,
+        (exit) => exit.remove()
+      );
+
     const linkSelection = linkLayer
       .selectAll<SVGLineElement, SimulationLink>('line.link-line')
       .data(simLinks, (datum) => makeEdgeKey(datum))
@@ -313,27 +339,34 @@ export const useForceGraph = ({
       .text((datum) => datum.relation);
 
     const updatePositions = () => {
-      linkSelection.each(function repositionLink(datum) {
-        const sourceX = resolveAxis(datum.source, 'x');
-        const sourceY = resolveAxis(datum.source, 'y');
-        const targetX = resolveAxis(datum.target, 'x');
-        const targetY = resolveAxis(datum.target, 'y');
+      const repositionLink = (
+        selection: d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown>
+      ) => {
+        selection.each(function reposition(datum) {
+          const sourceX = resolveAxis(datum.source, 'x');
+          const sourceY = resolveAxis(datum.source, 'y');
+          const targetX = resolveAxis(datum.target, 'x');
+          const targetY = resolveAxis(datum.target, 'y');
 
-        const { sx, sy, tx, ty } = shortenSegment(
-          sourceX,
-          sourceY,
-          targetX,
-          targetY,
-          NODE_BASE_RADIUS + LINK_SOURCE_PADDING,
-          NODE_BASE_RADIUS + LINK_TARGET_PADDING
-        );
+          const { sx, sy, tx, ty } = shortenSegment(
+            sourceX,
+            sourceY,
+            targetX,
+            targetY,
+            NODE_BASE_RADIUS + LINK_SOURCE_PADDING,
+            NODE_BASE_RADIUS + LINK_TARGET_PADDING
+          );
 
-        d3.select<SVGLineElement, SimulationLink>(this)
-          .attr('x1', sx)
-          .attr('y1', sy)
-          .attr('x2', tx)
-          .attr('y2', ty);
-      });
+          d3.select<SVGLineElement, SimulationLink>(this)
+            .attr('x1', sx)
+            .attr('y1', sy)
+            .attr('x2', tx)
+            .attr('y2', ty);
+        });
+      };
+
+      repositionLink(linkSelection);
+      repositionLink(linkHitSelection);
 
       linkLabelSelection
         .attr('x', (datum) => {
@@ -415,18 +448,39 @@ export const useForceGraph = ({
 
     nodesSelection.call(dragBehaviour);
 
-    linkSelection
-      .on('mouseenter', (_event: MouseEvent, datum: SimulationLink) => {
-        onEdgeHover(makeEdgeKey(datum));
+    const handleLinkEnter = (_event: MouseEvent, datum: SimulationLink) => {
+      onEdgeHover(makeEdgeKey(datum));
+    };
+    const handleLinkLeave = () => {
+      onEdgeHover(null);
+    };
+
+    linkSelection.on('mouseenter', handleLinkEnter).on('mouseleave', handleLinkLeave);
+
+    linkHitSelection
+      .on('mouseenter', handleLinkEnter)
+      .on('mouseleave', handleLinkLeave)
+      .on('contextmenu', (event: MouseEvent, datum: SimulationLink) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onContextMenuDismiss();
+        onLinkContextMenu(event, datum);
       })
-      .on('mouseleave', () => {
-        onEdgeHover(null);
+      .on('click', (event: MouseEvent) => {
+        event.stopPropagation();
+        onContextMenuDismiss();
       });
 
     updatePositions();
 
     nodeSelectionRef.current = nodesSelection as d3.Selection<SVGGElement, SimulationNode, SVGGElement, unknown>;
     linkSelectionRef.current = linkSelection as d3.Selection<SVGLineElement, SimulationLink, SVGGElement, unknown>;
+    linkHitSelectionRef.current = linkHitSelection as d3.Selection<
+      SVGLineElement,
+      SimulationLink,
+      SVGGElement,
+      unknown
+    >;
     linkLabelSelectionRef.current = linkLabelSelection as d3.Selection<
       SVGTextElement,
       SimulationLink,
@@ -442,6 +496,7 @@ export const useForceGraph = ({
     onNodeAuxClick,
     onNodeDoubleClick,
     onEdgeHover,
+    onLinkContextMenu,
     onContextMenuDismiss,
     onNodeContextMenu,
   ]);

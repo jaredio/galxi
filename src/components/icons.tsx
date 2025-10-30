@@ -112,3 +112,21 @@ export const SettingsIcon = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
+
+export const LinkIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <path
+      d="M7.2 5.4l2.6-2.6a3 3 0 114.24 4.24l-1.16 1.16M12.8 14.6l-2.6 2.6a3 3 0 11-4.24-4.24l1.16-1.16"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M8.5 11.5l3-3"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);

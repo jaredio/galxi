@@ -8,6 +8,7 @@ import './App.css';
 import { ContextMenu } from './components/ContextMenu';
 import { EmptyState } from './components/EmptyState';
 import { GalxiSidebar } from './components/GalxiSidebar';
+import { ConnectionEditorPanel } from './components/ConnectionEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { EditIcon, PlusIcon, TrashIcon } from './components/icons';
 import { Topbar } from './components/Topbar';
@@ -43,7 +44,14 @@ type NodeContextMenuState = {
   nodeId: string;
 };
 
-type ContextMenuState = CanvasContextMenuState | NodeContextMenuState;
+type ConnectionContextMenuState = {
+  kind: 'connection';
+  screenX: number;
+  screenY: number;
+  edgeKey: string;
+};
+
+type ContextMenuState = CanvasContextMenuState | NodeContextMenuState | ConnectionContextMenuState;
 
 type NodeFormState =
   | {
@@ -69,6 +77,11 @@ const groupDraftPresets: Record<GroupDraftType, { label: string; type: NodeType 
 };
 
 type UtilityToastState = { id: number; message: string };
+type ConnectionFormState = {
+  mode: 'edit';
+  linkKey: string;
+  relation: string;
+};
 const createNodeId = () =>
   typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
@@ -109,6 +122,7 @@ const App = () => {
   }));
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [utilityToast, setUtilityToast] = useState<UtilityToastState | null>(null);
+  const [connectionForm, setConnectionForm] = useState<ConnectionFormState | null>(null);
 
   useEffect(() => {
     applyTheme(baseTheme);
@@ -136,6 +150,16 @@ const App = () => {
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
+
+  useEffect(() => {
+    if (!connectionForm) {
+      return;
+    }
+    const exists = links.some((link) => makeLinkKey(link) === connectionForm.linkKey);
+    if (!exists) {
+      setConnectionForm(null);
+    }
+  }, [connectionForm, links]);
 
   useEffect(() => {
     if (!utilityToast) {
@@ -211,50 +235,67 @@ const App = () => {
     setHoveredNodeId(null);
     setHoveredEdgeKey(null);
     setContextMenu(null);
+    setConnectionForm(null);
   }, []);
 
-  const handleNodeClick = useCallback((node: SimulationNode) => {
-    setConnectionDraft(null);
-    setActiveNodeId(node.id);
-    setHoveredNodeId(node.id);
-    setContextMenu(null);
-  }, []);
+  const finalizeConnectionDraft = useCallback(
+    (targetNodeId: string) => {
+      if (!connectionDraft) {
+        return false;
+      }
+      if (connectionDraft.sourceNodeId === targetNodeId) {
+        setConnectionDraft(null);
+        return true;
+      }
+
+      const sourceId = connectionDraft.sourceNodeId;
+      const linkExists = links.some((link) => link.source === sourceId && link.target === targetNodeId);
+
+      if (!linkExists) {
+        setLinks((prev) => [
+          ...prev,
+          {
+            source: sourceId,
+            target: targetNodeId,
+            relation: 'linked',
+          },
+        ]);
+      }
+
+      setConnectionDraft(null);
+      setActiveNodeId(targetNodeId);
+      setHoveredNodeId(targetNodeId);
+      setHoveredEdgeKey(null);
+      setContextMenu(null);
+      setConnectionForm(null);
+      return true;
+    },
+    [connectionDraft, links, setLinks]
+  );
+
+  const handleNodeClick = useCallback(
+    (node: SimulationNode) => {
+      if (finalizeConnectionDraft(node.id)) {
+        return;
+      }
+
+      setConnectionDraft(null);
+      setActiveNodeId(node.id);
+      setHoveredNodeId(node.id);
+      setContextMenu(null);
+      setConnectionForm(null);
+    },
+    [finalizeConnectionDraft]
+  );
 
   const handleNodeAuxClick = useCallback(
     (_event: MouseEvent, node: SimulationNode) => {
-      const sourcePosition =
-        nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
-
-      if (connectionDraft) {
-        if (connectionDraft.sourceNodeId === node.id) {
-          setConnectionDraft(null);
-          return;
-        }
-
-        const sourceId = connectionDraft.sourceNodeId;
-        const targetId = node.id;
-        const linkExists = links.some(
-          (link) => link.source === sourceId && link.target === targetId
-        );
-
-        if (!linkExists) {
-          setLinks((prev) => [
-            ...prev,
-            {
-              source: sourceId,
-              target: targetId,
-              relation: 'linked',
-            },
-          ]);
-        }
-
-        setConnectionDraft(null);
-        setActiveNodeId(targetId);
-        setHoveredNodeId(targetId);
-        setHoveredEdgeKey(null);
-        setContextMenu(null);
+      if (finalizeConnectionDraft(node.id)) {
         return;
       }
+
+      const sourcePosition =
+        nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
 
       setConnectionDraft({
         sourceNodeId: node.id,
@@ -263,8 +304,9 @@ const App = () => {
       setActiveNodeId(node.id);
       setHoveredNodeId(node.id);
       setContextMenu(null);
+      setConnectionForm(null);
     },
-    [connectionDraft, links, setLinks]
+    [finalizeConnectionDraft]
   );
 
   const handleNodeContextMenu = useCallback((event: MouseEvent, node: SimulationNode) => {
@@ -272,6 +314,7 @@ const App = () => {
     setConnectionDraft(null);
     setActiveNodeId(node.id);
     setHoveredNodeId(node.id);
+    setConnectionForm(null);
     setContextMenu({
       kind: 'node',
       screenX: event.clientX,
@@ -295,6 +338,7 @@ const App = () => {
         mode: 'edit',
         nodeId,
       });
+      setConnectionForm(null);
       setActiveNodeId(nodeId);
       setHoveredNodeId(nodeId);
       setContextMenu(null);
@@ -337,18 +381,39 @@ const App = () => {
     setHoveredNodeId((current) => (current === nodeId ? null : current));
     setHoveredEdgeKey(null);
     setContextMenu(null);
+    setConnectionForm(null);
   }, []);
 
-  const handleConnectionRelationChange = useCallback((key: string, relation: string) => {
-    setLinks((prev) =>
-      prev.map((link) => (makeLinkKey(link) === key ? { ...link, relation } : link))
-    );
-  }, []);
+  const handleConnectionRelationChange = useCallback(
+    (key: string, relation: string) => {
+      setLinks((prev) =>
+        prev.map((link) => (makeLinkKey(link) === key ? { ...link, relation } : link))
+      );
+    },
+    [setLinks]
+  );
 
-  const handleConnectionRemove = useCallback((key: string) => {
-    setLinks((prev) => prev.filter((link) => makeLinkKey(link) !== key));
-    setHoveredEdgeKey((current) => (current === key ? null : current));
-  }, []);
+  const removeConnectionByKey = useCallback(
+    (edgeKey: string) => {
+      setLinks((prev) => prev.filter((link) => makeLinkKey(link) !== edgeKey));
+      setHoveredEdgeKey((current) => (current === edgeKey ? null : current));
+      setConnectionForm((current) => (current?.linkKey === edgeKey ? null : current));
+      setContextMenu((current) => {
+        if (current && current.kind === 'connection' && current.edgeKey === edgeKey) {
+          return null;
+        }
+        return current;
+      });
+    },
+    [setLinks]
+  );
+
+  const handleConnectionRemove = useCallback(
+    (key: string) => {
+      removeConnectionByKey(key);
+    },
+    [removeConnectionByKey]
+  );
 
   const {
     nodeSelectionRef,
@@ -369,69 +434,23 @@ const App = () => {
     onNodeAuxClick: handleNodeAuxClick,
     onNodeContextMenu: handleNodeContextMenu,
     onEdgeHover: handleEdgeHover,
+    onLinkContextMenu: (event, link) => {
+      event.preventDefault();
+      const edgeKey = makeEdgeKey(link);
+      setConnectionDraft(null);
+      setActiveNodeId(null);
+      setConnectionForm(null);
+      setHoveredEdgeKey(edgeKey);
+      setContextMenu({
+        kind: 'connection',
+        screenX: event.clientX,
+        screenY: event.clientY,
+        edgeKey,
+      });
+    },
     onCanvasClick: handleCanvasBackgroundClick,
     onContextMenuDismiss: handleContextMenuDismiss,
   });
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setConnectionDraft(null);
-        if (nodeForm) {
-          setNodeForm(null);
-          return;
-        }
-        if (contextMenu) {
-          handleContextMenuDismiss();
-          return;
-        }
-        setActiveNodeId(null);
-        setHoveredNodeId(null);
-        setHoveredEdgeKey(null);
-      }
-
-      if (nodeForm) {
-        return;
-      }
-
-      if (event.key === 'Delete' && activeNodeId) {
-        event.preventDefault();
-        removeNodeById(activeNodeId);
-      }
-
-      if ((event.key === 'd' || event.key === 'D') && event.ctrlKey && activeNodeId) {
-        event.preventDefault();
-        const original = nodes.find((node) => node.id === activeNodeId);
-        if (!original) {
-          return;
-        }
-        const originalPosition = nodePositionsRef.current[activeNodeId] ?? { x: 0, y: 0 };
-        const newId = createNodeId();
-        const newPosition = { x: originalPosition.x + 40, y: originalPosition.y + 40 };
-        nodePositionsRef.current[newId] = newPosition;
-        setNodes((prev) => [
-          ...prev,
-          {
-            ...original,
-            id: newId,
-            label: original.label ? `${original.label} Copy` : 'Node Copy',
-          },
-        ]);
-        setLinks((prev) => [
-          ...prev,
-          ...prev
-            .filter((link) => resolveId(link.source) === activeNodeId)
-            .map((link) => ({ ...link, source: newId })),
-        ]);
-        setActiveNodeId(newId);
-        setHoveredNodeId(newId);
-        setHoveredEdgeKey(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeNodeId, connectionDraft, contextMenu, handleContextMenuDismiss, nodeForm, nodes, removeNodeById]);
 
   const getGraphCoordinates = useCallback(
     (event: ReactMouseEvent<SVGSVGElement>) => {
@@ -507,12 +526,13 @@ const App = () => {
         type: overrides?.type ?? 'vm',
         group: overrides?.group ?? '',
       });
-      setNodeForm({
-        mode: 'create',
-        position,
-      });
-      handleContextMenuDismiss();
-      setPanelExpanded(false);
+    setNodeForm({
+      mode: 'create',
+      position,
+    });
+    handleContextMenuDismiss();
+    setConnectionForm(null);
+    setPanelExpanded(false);
       setPanelGeometry((prev) =>
         clampPanelGeometry({
           ...prev,
@@ -544,6 +564,180 @@ const App = () => {
     },
     [getGraphCenterPosition, openCreateNodeForm]
   );
+
+  const connectionEditorLink = useMemo(() => {
+    if (!connectionForm) {
+      return null;
+    }
+    return links.find((link) => makeLinkKey(link) === connectionForm.linkKey) ?? null;
+  }, [connectionForm, links]);
+
+  const connectionEditorSource = useMemo(() => {
+    if (!connectionEditorLink) {
+      return null;
+    }
+    const source = nodes.find((node) => node.id === connectionEditorLink.source);
+    return source ? { id: source.id, label: source.label, type: source.type } : null;
+  }, [connectionEditorLink, nodes]);
+
+  const connectionEditorTarget = useMemo(() => {
+    if (!connectionEditorLink) {
+      return null;
+    }
+    const target = nodes.find((node) => node.id === connectionEditorLink.target);
+    return target ? { id: target.id, label: target.label, type: target.type } : null;
+  }, [connectionEditorLink, nodes]);
+
+  useEffect(() => {
+    if (!connectionForm || !connectionEditorLink) {
+      return;
+    }
+    const edgeKey = makeLinkKey(connectionEditorLink);
+    if (connectionForm.linkKey !== edgeKey || connectionForm.relation === connectionEditorLink.relation) {
+      return;
+    }
+    setConnectionForm((current) =>
+      current && current.linkKey === edgeKey
+        ? {
+            ...current,
+            relation: connectionEditorLink.relation,
+          }
+        : current
+    );
+  }, [connectionEditorLink, connectionForm]);
+
+  const openConnectionEditorByKey = useCallback(
+    (edgeKey: string) => {
+      const target = links.find((link) => makeLinkKey(link) === edgeKey);
+      if (!target) {
+        return;
+      }
+      setNodeForm(null);
+      setConnectionForm({
+        mode: 'edit',
+        linkKey: edgeKey,
+        relation: target.relation,
+      });
+      setHoveredEdgeKey(edgeKey);
+      handleContextMenuDismiss();
+      setPanelExpanded(false);
+      setPanelGeometry((prev) => clampPanelGeometry(prev));
+    },
+    [clampPanelGeometry, handleContextMenuDismiss, links]
+  );
+
+  const handleConnectionFormRelationChange = useCallback((value: string) => {
+    setConnectionForm((current) => (current ? { ...current, relation: value } : current));
+  }, []);
+
+  const handleConnectionFormClose = useCallback(() => {
+    setConnectionForm(null);
+  }, []);
+
+  const handleConnectionFormSubmit = useCallback(() => {
+    setConnectionForm((current) => {
+      if (!current) {
+        return current;
+      }
+      const nextRelation = current.relation.trim();
+      setLinks((prev) =>
+        prev.map((link) =>
+          makeLinkKey(link) === current.linkKey ? { ...link, relation: nextRelation } : link
+        )
+      );
+      return null;
+    });
+  }, [setLinks]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setConnectionDraft(null);
+        if (connectionForm) {
+          setConnectionForm(null);
+          return;
+        }
+        if (nodeForm) {
+          setNodeForm(null);
+          return;
+        }
+        if (contextMenu) {
+          handleContextMenuDismiss();
+          return;
+        }
+        setActiveNodeId(null);
+        setHoveredNodeId(null);
+        setHoveredEdgeKey(null);
+      }
+
+      if (connectionForm) {
+        if (event.key === 'Delete' && connectionEditorLink) {
+          event.preventDefault();
+          removeConnectionByKey(connectionForm.linkKey);
+          return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          event.preventDefault();
+          handleConnectionFormSubmit();
+          return;
+        }
+        return;
+      }
+
+      if (nodeForm) {
+        return;
+      }
+
+      if (event.key === 'Delete' && activeNodeId) {
+        event.preventDefault();
+        removeNodeById(activeNodeId);
+      }
+
+      if ((event.key === 'd' || event.key === 'D') && event.ctrlKey && activeNodeId) {
+        event.preventDefault();
+        const original = nodes.find((node) => node.id === activeNodeId);
+        if (!original) {
+          return;
+        }
+        const originalPosition = nodePositionsRef.current[activeNodeId] ?? { x: 0, y: 0 };
+        const newId = createNodeId();
+        const newPosition = { x: originalPosition.x + 40, y: originalPosition.y + 40 };
+        nodePositionsRef.current[newId] = newPosition;
+        setNodes((prev) => [
+          ...prev,
+          {
+            ...original,
+            id: newId,
+            label: original.label ? `${original.label} Copy` : 'Node Copy',
+          },
+        ]);
+        setLinks((prev) => [
+          ...prev,
+          ...prev
+            .filter((link) => resolveId(link.source) === activeNodeId)
+            .map((link) => ({ ...link, source: newId })),
+        ]);
+        setActiveNodeId(newId);
+        setHoveredNodeId(newId);
+        setHoveredEdgeKey(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activeNodeId,
+    connectionDraft,
+    connectionEditorLink,
+    connectionForm,
+    contextMenu,
+    handleContextMenuDismiss,
+    handleConnectionFormSubmit,
+    nodeForm,
+    nodes,
+    removeConnectionByKey,
+    removeNodeById,
+  ]);
 
   const nodeFormType = useMemo<NodeType>(() => {
     if (!nodeForm) {
@@ -786,6 +980,24 @@ const App = () => {
       ];
     }
 
+    if (contextMenu.kind === 'connection') {
+      return [
+        {
+          id: 'edit-connection',
+          label: 'Edit connection',
+          icon: <EditIcon />,
+          onSelect: () => openConnectionEditorByKey(contextMenu.edgeKey),
+        },
+        {
+          id: 'delete-connection',
+          label: 'Delete connection',
+          icon: <TrashIcon />,
+          tone: 'danger' as const,
+          onSelect: () => removeConnectionByKey(contextMenu.edgeKey),
+        },
+      ];
+    }
+
     return [
       {
         id: 'edit-node',
@@ -801,7 +1013,14 @@ const App = () => {
         onSelect: () => removeNodeById(contextMenu.nodeId),
       },
     ];
-  }, [contextMenu, handleContextMenuAddNode, openNodeEditorById, removeNodeById]);
+  }, [
+    contextMenu,
+    handleContextMenuAddNode,
+    openConnectionEditorByKey,
+    openNodeEditorById,
+    removeConnectionByKey,
+    removeNodeById,
+  ]);
 
   const handlePanelMove = useCallback(
     (position: { x: number; y: number }) => {
@@ -889,6 +1108,30 @@ const App = () => {
           connections={nodeEditorConnections}
           onConnectionRelationChange={handleConnectionRelationChange}
           onConnectionRemove={handleConnectionRemove}
+          position={{ x: panelGeometry.x, y: panelGeometry.y }}
+          size={{ width: panelGeometry.width, height: panelGeometry.height }}
+          onMove={handlePanelMove}
+          onResize={handlePanelResize}
+          onToggleExpand={handlePanelToggleExpand}
+          isExpanded={panelExpanded}
+        />
+      )}
+
+      {!nodeForm && connectionForm && connectionEditorLink && (
+        <ConnectionEditorPanel
+          relation={connectionForm.relation}
+          onRelationChange={handleConnectionFormRelationChange}
+          onSubmit={handleConnectionFormSubmit}
+          onClose={handleConnectionFormClose}
+          onDelete={() => removeConnectionByKey(connectionForm.linkKey)}
+          sourceNode={connectionEditorSource}
+          targetNode={connectionEditorTarget}
+          onOpenSourceNode={
+            connectionEditorSource ? () => openNodeEditorById(connectionEditorSource.id) : undefined
+          }
+          onOpenTargetNode={
+            connectionEditorTarget ? () => openNodeEditorById(connectionEditorTarget.id) : undefined
+          }
           position={{ x: panelGeometry.x, y: panelGeometry.y }}
           size={{ width: panelGeometry.width, height: panelGeometry.height }}
           onMove={handlePanelMove}
