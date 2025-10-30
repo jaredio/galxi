@@ -1,6 +1,8 @@
 import type { TabId } from '../constants/tabs';
 import { tabs } from '../constants/tabs';
 
+const brandLogo = new URL('../../icons/galxi_green (2).png', import.meta.url).href;
+
 type TopbarProps = {
   activeTab: TabId;
   onSelectTab: (tab: TabId) => void;
@@ -11,7 +13,7 @@ export const Topbar = ({ activeTab, onSelectTab }: TopbarProps) => (
     <div className="topbar-inner">
       <div className="left-cluster">
         <div className="brand">
-          <span className="brand-icon" />
+          <img src={brandLogo} alt="Galxi logo" className="brand-logo" />
           <span className="brand-name">galxi</span>
         </div>
         <nav className="nav-controls" aria-label="Primary">

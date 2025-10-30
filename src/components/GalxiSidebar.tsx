@@ -17,6 +17,8 @@ const groupOptions: Array<{ id: GroupType; label: string }> = [
   { id: 'logicalGroup', label: 'Logical Grouping' },
 ];
 
+const brandLogo = new URL('../../icons/galxi_green (2).png', import.meta.url).href;
+
 export const GalxiSidebar: FC<GalxiSidebarProps> = ({
   onCreateNode,
   onCreateGroup,
@@ -25,7 +27,15 @@ export const GalxiSidebar: FC<GalxiSidebarProps> = ({
 }) => (
   <aside className="galxi-sidebar" aria-label="Canvas create and utility controls">
     <div className="galxi-sidebar__section">
-      <p className="galxi-sidebar__section-title">Create</p>
+      <div className="galxi-sidebar__section-heading">
+        <img
+          src={brandLogo}
+          alt=""
+          aria-hidden="true"
+          className="galxi-sidebar__section-logo"
+        />
+        <p className="galxi-sidebar__section-title">Create</p>
+      </div>
 
       <button type="button" className="galxi-sidebar__command" onClick={onCreateNode}>
         <PlusCircleIcon className="galxi-sidebar__icon" />
@@ -58,7 +68,9 @@ export const GalxiSidebar: FC<GalxiSidebarProps> = ({
     </div>
 
     <div className="galxi-sidebar__section">
-      <p className="galxi-sidebar__section-title">Utilities</p>
+      <div className="galxi-sidebar__section-heading">
+        <p className="galxi-sidebar__section-title">Utilities</p>
+      </div>
 
       <button type="button" className="galxi-sidebar__command" onClick={onOpenTheme}>
         <PaletteIcon className="galxi-sidebar__icon" />
