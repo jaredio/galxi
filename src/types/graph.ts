@@ -10,6 +10,8 @@ export type NodeType =
   | 'subnet'
   | 'logicalGroup';
 
+export type GroupType = 'virtualNetwork' | 'subnet' | 'logicalGroup';
+
 export interface NetworkNode {
   id: string;
   label: string;
@@ -21,6 +23,16 @@ export interface NetworkLink {
   source: string;
   target: string;
   relation: string;
+}
+
+export interface CanvasGroup {
+  id: string;
+  type: GroupType;
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export type SimulationNode = NetworkNode & SimulationNodeDatum;

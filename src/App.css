@@ -210,6 +210,94 @@
   fill: var(--textSecondary);
 }
 
+.canvas-group {
+  pointer-events: all;
+}
+
+.canvas-group__frame {
+  fill: rgba(18, 20, 26, 0.32);
+  stroke: rgba(62, 207, 142, 0.25);
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 0 18px rgba(62, 207, 142, 0.08));
+  transition: stroke 0.25s ease, filter 0.25s ease;
+}
+
+.canvas-group__header {
+  fill: rgba(15, 17, 23, 0.7);
+  stroke: rgba(45, 50, 60, 0.5);
+  stroke-width: 1px;
+}
+
+.canvas-group__title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  fill: #e5e7eb;
+  user-select: none;
+}
+
+.canvas-group__icon {
+  opacity: 0.9;
+}
+
+.canvas-group--virtual-network .canvas-group__frame {
+  stroke: rgba(62, 207, 142, 0.35);
+}
+
+.canvas-group--virtual-network .canvas-group__title {
+  fill: #3ecf8e;
+}
+
+.canvas-group--subnet .canvas-group__frame {
+  stroke: rgba(70, 228, 181, 0.35);
+}
+
+.canvas-group--subnet .canvas-group__title {
+  fill: #46e4b5;
+}
+
+.canvas-group--logical .canvas-group__frame {
+  stroke: rgba(156, 163, 175, 0.4);
+}
+
+.canvas-group--logical .canvas-group__title {
+  fill: #9ca3af;
+}
+
+.canvas-group--hovered .canvas-group__frame {
+  filter: drop-shadow(0 0 24px rgba(62, 207, 142, 0.16));
+}
+
+.canvas-group--selected .canvas-group__frame {
+  stroke: #3ecf8e;
+  filter: drop-shadow(0 0 26px rgba(62, 207, 142, 0.28));
+}
+
+.canvas-group__handles {
+  pointer-events: none;
+}
+
+.canvas-group__handle {
+  fill: rgba(62, 207, 142, 0.85);
+  opacity: 0;
+  pointer-events: none;
+  rx: 4px;
+  ry: 4px;
+  transition: opacity 0.2s ease;
+}
+
+.canvas-group--selected .canvas-group__handle,
+.canvas-group--hovered .canvas-group__handle {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.group-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.3rem 1.5rem;
+}
+
 .node-label {
   font-size: 0.8rem;
   font-weight: 500;

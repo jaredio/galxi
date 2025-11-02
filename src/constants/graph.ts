@@ -4,3 +4,4 @@ export const NODE_ACTIVE_RADIUS = 22;
 export const LABEL_OFFSET = 14;
 export const LINK_SOURCE_PADDING = 6;
 export const LINK_TARGET_PADDING = 16;
+export const LINK_BASE_WIDTH = 1.6;

@@ -9,6 +9,7 @@ import { ContextMenu } from './components/ContextMenu';
 import { EmptyState } from './components/EmptyState';
 import { GalxiSidebar } from './components/GalxiSidebar';
 import { ConnectionEditorPanel } from './components/ConnectionEditorPanel';
+import { GroupEditorPanel } from './components/GroupEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { EditIcon, PlusIcon, TrashIcon } from './components/icons';
 import { Topbar } from './components/Topbar';
@@ -20,13 +21,14 @@ import {
   LABEL_OFFSET,
   LINK_SOURCE_PADDING,
   LINK_TARGET_PADDING,
+  LINK_BASE_WIDTH,
 } from './constants/graph';
 import { nodeTypeOptions } from './constants/nodeOptions';
 import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
 import { linkTouchesNode, makeEdgeKey, makeLinkKey, resolveAxis, resolveId, shortenSegment } from './lib/graph-utils';
-import type { NodePositionMap, NodeType, SimulationLink, SimulationNode } from './types/graph';
+import type { CanvasGroup, GroupType, NodePositionMap, NodeType, SimulationLink, SimulationNode } from './types/graph';
 import { useGraphStore } from './state/graphStore';
 
 type CanvasContextMenuState = {
@@ -51,7 +53,18 @@ type ConnectionContextMenuState = {
   edgeKey: string;
 };
 
-type ContextMenuState = CanvasContextMenuState | NodeContextMenuState | ConnectionContextMenuState;
+type GroupContextMenuState = {
+  kind: 'group';
+  screenX: number;
+  screenY: number;
+  groupId: string;
+};
+
+type ContextMenuState =
+  | CanvasContextMenuState
+  | NodeContextMenuState
+  | ConnectionContextMenuState
+  | GroupContextMenuState;
 
 type NodeFormState =
   | {
@@ -68,12 +81,27 @@ type ConnectionDraft = {
   cursor: { x: number; y: number };
 };
 
-type GroupDraftType = 'virtualNetwork' | 'subnet' | 'logicalGroup';
+type GroupFormState =
+  | {
+      mode: 'create';
+      groupId: string;
+    }
+  | {
+      mode: 'edit';
+      groupId: string;
+    };
 
-const groupDraftPresets: Record<GroupDraftType, { label: string; type: NodeType }> = {
-  virtualNetwork: { label: 'New Virtual Network', type: 'virtualNetwork' },
-  subnet: { label: 'New Subnet', type: 'subnet' },
-  logicalGroup: { label: 'Logical Group', type: 'logicalGroup' },
+type GroupFormValues = {
+  title: string;
+  type: GroupType;
+};
+
+type GroupDraftType = GroupType;
+
+const groupDraftPresets: Record<GroupDraftType, { title: string }> = {
+  virtualNetwork: { title: 'New Virtual Network' },
+  subnet: { title: 'New Subnet' },
+  logicalGroup: { title: 'New Logical Group' },
 };
 
 type UtilityToastState = { id: number; message: string };
@@ -87,6 +115,11 @@ const createNodeId = () =>
     ? globalThis.crypto.randomUUID()
     : `node-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+const createGroupId = () =>
+  typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `group-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 const App = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
@@ -95,12 +128,16 @@ const App = () => {
 
   const nodes = useGraphStore((state) => state.nodes);
   const links = useGraphStore((state) => state.links);
+  const groups = useGraphStore((state) => state.groups);
   const setNodes = useGraphStore((state) => state.setNodes);
   const setLinks = useGraphStore((state) => state.setLinks);
+  const setGroups = useGraphStore((state) => state.setGroups);
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [nodeForm, setNodeForm] = useState<NodeFormState | null>(null);
   const [formValues, setFormValues] = useState<NodeFormValues>({
@@ -109,6 +146,11 @@ const App = () => {
     group: '',
   });
   const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null);
+  const [groupForm, setGroupForm] = useState<GroupFormState | null>(null);
+  const [groupFormValues, setGroupFormValues] = useState<GroupFormValues>({
+    title: '',
+    type: 'virtualNetwork',
+  });
   const previousHighlightRef = useRef<{
     activeNodeId: string | null;
     hoveredNodeId: string | null;
@@ -170,6 +212,17 @@ const App = () => {
     }, 2600);
     return () => window.clearTimeout(timeoutId);
   }, [utilityToast]);
+
+  useEffect(() => {
+    if (!groupForm) {
+      return;
+    }
+    const target = groups.find((group) => group.id === groupForm.groupId);
+    if (!target) {
+      return;
+    }
+    setGroupFormValues({ title: target.title, type: target.type });
+  }, [groupForm, groups]);
 
   const clampPanelGeometry = useCallback(
     (geometry: { x: number; y: number; width: number; height: number }) => {
@@ -236,6 +289,9 @@ const App = () => {
     setHoveredEdgeKey(null);
     setContextMenu(null);
     setConnectionForm(null);
+    setSelectedGroupId(null);
+    setHoveredGroupId(null);
+    setGroupForm(null);
   }, []);
 
   const finalizeConnectionDraft = useCallback(
@@ -284,6 +340,9 @@ const App = () => {
       setHoveredNodeId(node.id);
       setContextMenu(null);
       setConnectionForm(null);
+      setSelectedGroupId(null);
+      setGroupForm(null);
+      setHoveredGroupId(null);
     },
     [finalizeConnectionDraft]
   );
@@ -305,6 +364,9 @@ const App = () => {
       setHoveredNodeId(node.id);
       setContextMenu(null);
       setConnectionForm(null);
+      setSelectedGroupId(null);
+      setGroupForm(null);
+      setHoveredGroupId(null);
     },
     [finalizeConnectionDraft]
   );
@@ -314,14 +376,18 @@ const App = () => {
     setConnectionDraft(null);
     setActiveNodeId(node.id);
     setHoveredNodeId(node.id);
+    setHoveredEdgeKey(null);
     setConnectionForm(null);
+    setSelectedGroupId(null);
+    setGroupForm(null);
+    setHoveredGroupId(null);
     setContextMenu({
       kind: 'node',
       screenX: event.clientX,
       screenY: event.clientY,
       nodeId: node.id,
     });
-  }, []);
+  }, [setHoveredEdgeKey, setSelectedGroupId, setGroupForm, setHoveredGroupId]);
 
   const openNodeEditorById = useCallback(
     (nodeId: string) => {
@@ -343,6 +409,9 @@ const App = () => {
       setHoveredNodeId(nodeId);
       setContextMenu(null);
       setPanelGeometry((prev) => clampPanelGeometry(prev));
+      setSelectedGroupId(null);
+      setGroupForm(null);
+      setHoveredGroupId(null);
     },
     [nodes, clampPanelGeometry]
   );
@@ -408,6 +477,125 @@ const App = () => {
     [setLinks]
   );
 
+  const updateGroupById = useCallback((groupId: string, updater: (group: CanvasGroup) => CanvasGroup) => {
+    setGroups((prev) => prev.map((group) => (group.id === groupId ? updater(group) : group)));
+  }, [setGroups]);
+
+  const removeGroupById = useCallback((groupId: string) => {
+    setGroups((prev) => prev.filter((group) => group.id !== groupId));
+    setSelectedGroupId((current) => (current === groupId ? null : current));
+    setHoveredGroupId((current) => (current === groupId ? null : current));
+    setGroupForm((current) => (current && current.groupId === groupId ? null : current));
+    setContextMenu((current) => {
+      if (current && current.kind === 'group' && current.groupId === groupId) {
+        return null;
+      }
+      return current;
+    });
+  }, [setGroups, setContextMenu]);
+
+  const handleGroupHover = useCallback((groupId: string | null) => {
+    setHoveredGroupId(groupId);
+  }, []);
+
+  const handleGroupSelect = useCallback(
+    (groupId: string | null) => {
+      setSelectedGroupId(groupId);
+      if (groupId) {
+        setActiveNodeId(null);
+        setNodeForm(null);
+        setConnectionForm(null);
+        setContextMenu(null);
+      } else {
+        setGroupForm(null);
+      }
+    },
+    [setActiveNodeId, setNodeForm, setConnectionForm, setContextMenu, setGroupForm]
+  );
+
+  const openGroupEditor = useCallback(
+    (groupId: string, mode: GroupFormState['mode'] = 'edit') => {
+      const target = groups.find((group) => group.id === groupId);
+      if (!target) {
+        return;
+      }
+      setGroupFormValues({ title: target.title, type: target.type });
+      setGroupForm({ mode, groupId });
+      setSelectedGroupId(groupId);
+      setActiveNodeId(null);
+      setNodeForm(null);
+      setConnectionForm(null);
+      setContextMenu(null);
+      setPanelGeometry((prev) => clampPanelGeometry(prev));
+    },
+    [
+      groups,
+      setGroupFormValues,
+      setGroupForm,
+      setSelectedGroupId,
+      setActiveNodeId,
+      setNodeForm,
+      setConnectionForm,
+      setContextMenu,
+      setPanelGeometry,
+      clampPanelGeometry,
+    ]
+  );
+
+  const handleGroupContextMenu = useCallback(
+    (event: MouseEvent, group: CanvasGroup) => {
+      setContextMenu({
+        kind: 'group',
+        screenX: event.clientX,
+        screenY: event.clientY,
+        groupId: group.id,
+      });
+      setSelectedGroupId(group.id);
+      setHoveredGroupId(group.id);
+      setActiveNodeId(null);
+      setNodeForm(null);
+      setConnectionForm(null);
+      setHoveredEdgeKey(null);
+    },
+    [
+      setContextMenu,
+      setSelectedGroupId,
+      setHoveredGroupId,
+      setActiveNodeId,
+      setNodeForm,
+      setConnectionForm,
+      setHoveredEdgeKey,
+    ]
+  );
+
+  const handleGroupDoubleClick = useCallback(
+    (group: CanvasGroup) => {
+      openGroupEditor(group.id);
+    },
+    [openGroupEditor]
+  );
+
+  const handleGroupMove = useCallback(
+    (groupId: string, position: { x: number; y: number }) => {
+      updateGroupById(groupId, (group) => ({
+        ...group,
+        x: position.x,
+        y: position.y,
+      }));
+    },
+    [updateGroupById]
+  );
+
+  const handleGroupResize = useCallback(
+    (groupId: string, geometry: { x: number; y: number; width: number; height: number }) => {
+      updateGroupById(groupId, (group) => ({
+        ...group,
+        ...geometry,
+      }));
+    },
+    [updateGroupById]
+  );
+
   const handleConnectionRemove = useCallback(
     (key: string) => {
       removeConnectionByKey(key);
@@ -425,6 +613,7 @@ const App = () => {
     svgRef,
     nodes,
     links,
+    groups,
     nodePositionsRef,
     zoomTransformRef,
     connectionDraft,
@@ -450,6 +639,14 @@ const App = () => {
     },
     onCanvasClick: handleCanvasBackgroundClick,
     onContextMenuDismiss: handleContextMenuDismiss,
+    onGroupHover: handleGroupHover,
+    onGroupSelect: handleGroupSelect,
+    onGroupContextMenu: handleGroupContextMenu,
+    onGroupDoubleClick: handleGroupDoubleClick,
+    onGroupMove: handleGroupMove,
+    onGroupResize: handleGroupResize,
+    selectedGroupId,
+    hoveredGroupId,
   });
 
   const getGraphCoordinates = useCallback(
@@ -526,13 +723,16 @@ const App = () => {
         type: overrides?.type ?? 'vm',
         group: overrides?.group ?? '',
       });
-    setNodeForm({
-      mode: 'create',
-      position,
-    });
-    handleContextMenuDismiss();
-    setConnectionForm(null);
-    setPanelExpanded(false);
+      setNodeForm({
+        mode: 'create',
+        position,
+      });
+      handleContextMenuDismiss();
+      setConnectionForm(null);
+      setPanelExpanded(false);
+      setSelectedGroupId(null);
+      setHoveredGroupId(null);
+      setGroupForm(null);
       setPanelGeometry((prev) =>
         clampPanelGeometry({
           ...prev,
@@ -558,12 +758,40 @@ const App = () => {
 
   const handleSidebarCreateGroup = useCallback(
     (groupType: GroupDraftType) => {
-      const position = getGraphCenterPosition();
+      const center = getGraphCenterPosition();
       const preset = groupDraftPresets[groupType];
-      openCreateNodeForm(position, preset);
+      const width = 360;
+      const height = 240;
+      const id = createGroupId();
+      const nextGroup: CanvasGroup = {
+        id,
+        type: groupType,
+        title: preset.title,
+        x: center.x - width / 2,
+        y: center.y - height / 2,
+        width,
+        height,
+      };
+      setGroups((prev) => [...prev, nextGroup]);
+      setSelectedGroupId(id);
+      setHoveredGroupId(null);
+      setGroupFormValues({ title: nextGroup.title, type: groupType });
+      setGroupForm({ mode: 'create', groupId: id });
+      setNodeForm(null);
+      setConnectionForm(null);
+      setContextMenu(null);
+      setPanelGeometry((prev) => clampPanelGeometry(prev));
     },
-    [getGraphCenterPosition, openCreateNodeForm]
+    [getGraphCenterPosition, setGroups, clampPanelGeometry, setPanelGeometry]
   );
+
+  const handleGroupTitleChange = useCallback((value: string) => {
+    setGroupFormValues((prev) => ({ ...prev, title: value }));
+  }, []);
+
+  const handleGroupTypeChange = useCallback((value: GroupType) => {
+    setGroupFormValues((prev) => ({ ...prev, type: value }));
+  }, []);
 
   const connectionEditorLink = useMemo(() => {
     if (!connectionForm) {
@@ -799,6 +1027,34 @@ const App = () => {
     setNodeForm(null);
   }, []);
 
+  const handleGroupFormSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!groupForm) {
+        return;
+      }
+      const title = groupFormValues.title.trim() || 'Untitled Group';
+      updateGroupById(groupForm.groupId, (group) => ({
+        ...group,
+        title,
+        type: groupFormValues.type,
+      }));
+      setGroupForm(null);
+    },
+    [groupForm, groupFormValues, updateGroupById]
+  );
+
+  const handleGroupFormClose = useCallback(() => {
+    setGroupForm(null);
+  }, []);
+
+  const handleGroupDelete = useCallback(() => {
+    if (!groupForm) {
+      return;
+    }
+    removeGroupById(groupForm.groupId);
+  }, [groupForm, removeGroupById]);
+
   const nodeEditorConnections = useMemo<NodeConnection[]>(() => {
     if (!nodeForm || nodeForm.mode !== 'edit') {
       return [];
@@ -847,28 +1103,32 @@ const App = () => {
     };
 
     if (nodesToUpdate.size > 0) {
-      const subset = nodeSelection.filter((datum) => nodesToUpdate.has(datum.id));
+      const subset = nodeSelection.filter((datum: SimulationNode) => nodesToUpdate.has(datum.id));
       subset
-        .classed('node--active', (datum) => datum.id === activeNodeId)
-        .classed('node--hovered', (datum) => datum.id === hoveredNodeId);
+        .classed('node--active', (datum: SimulationNode) => datum.id === activeNodeId)
+        .classed('node--hovered', (datum: SimulationNode) => datum.id === hoveredNodeId);
+
+      subset
+        .select<SVGCircleElement>('circle.node-hit-area')
+        .attr('r', (datum: SimulationNode) => nodeRadiusFor(datum.id) + 12);
 
       subset
         .select<SVGImageElement>('image.node-icon')
-        .attr('x', (datum) => -nodeRadiusFor(datum.id))
-        .attr('y', (datum) => -nodeRadiusFor(datum.id))
-        .attr('width', (datum) => nodeRadiusFor(datum.id) * 2)
-        .attr('height', (datum) => nodeRadiusFor(datum.id) * 2)
-        .attr('filter', (datum) =>
+        .attr('x', (datum: SimulationNode) => -nodeRadiusFor(datum.id))
+        .attr('y', (datum: SimulationNode) => -nodeRadiusFor(datum.id))
+        .attr('width', (datum: SimulationNode) => nodeRadiusFor(datum.id) * 2)
+        .attr('height', (datum: SimulationNode) => nodeRadiusFor(datum.id) * 2)
+        .attr('filter', (datum: SimulationNode) =>
           datum.id === activeNodeId || datum.id === hoveredNodeId ? 'url(#node-active-glow)' : null
         );
 
       subset
         .select<SVGTextElement>('text.node-label')
-        .attr('y', (datum) => nodeRadiusFor(datum.id) + LABEL_OFFSET)
-        .attr('fill', (datum) => (datum.id === activeNodeId ? textPrimary : textSecondary));
+        .attr('y', (datum: SimulationNode) => nodeRadiusFor(datum.id) + LABEL_OFFSET)
+        .attr('fill', (datum: SimulationNode) => (datum.id === activeNodeId ? textPrimary : textSecondary));
     }
 
-    const edgeSubset = linkSelection.filter((datum) => {
+    const edgeSubset = linkSelection.filter((datum: SimulationLink) => {
       const sourceId = resolveId(datum.source);
       const targetId = resolveId(datum.target);
 
@@ -880,11 +1140,14 @@ const App = () => {
       return edgeKey === hoveredEdgeKey || edgeKey === previous.hoveredEdgeKey;
     });
 
-    edgeSubset.each(function updateEdge(datum) {
+    edgeSubset.each(function updateEdge(this: SVGLineElement, datum: SimulationLink) {
       const sourceX = resolveAxis(datum.source, 'x');
       const sourceY = resolveAxis(datum.source, 'y');
       const targetX = resolveAxis(datum.target, 'x');
       const targetY = resolveAxis(datum.target, 'y');
+      const highlighted =
+        linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey;
+      const strokeWidth = LINK_BASE_WIDTH;
 
       const sourceRadius = nodeRadiusFor(resolveId(datum.source));
       const targetRadius = nodeRadiusFor(resolveId(datum.target));
@@ -894,12 +1157,9 @@ const App = () => {
         sourceY,
         targetX,
         targetY,
-        sourceRadius + LINK_SOURCE_PADDING,
-        targetRadius + LINK_TARGET_PADDING
+        sourceRadius + LINK_SOURCE_PADDING + strokeWidth / 2,
+        targetRadius + LINK_TARGET_PADDING + strokeWidth / 2
       );
-
-      const highlighted =
-        linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey;
 
       d3.select<SVGLineElement, SimulationLink>(this)
         .attr('x1', sx)
@@ -907,12 +1167,13 @@ const App = () => {
         .attr('x2', tx)
         .attr('y2', ty)
         .attr('stroke', highlighted ? accent : edgeBase)
-        .attr('stroke-width', highlighted ? 2.4 : 1.6)
+        .attr('stroke-width', strokeWidth)
         .attr('stroke-opacity', highlighted ? 0.95 : 0.35)
-        .attr('marker-end', highlighted ? 'url(#arrowhead-accent)' : 'url(#arrowhead-base)');
+        .attr('marker-end', highlighted ? 'url(#arrowhead-accent)' : 'url(#arrowhead-base)')
+        .classed('link-line--highlighted', highlighted);
     });
 
-    const labelSubset = linkLabelSelection.filter((datum) => {
+    const labelSubset = linkLabelSelection.filter((datum: SimulationLink) => {
       const sourceId = resolveId(datum.source);
       const targetId = resolveId(datum.target);
 
@@ -925,28 +1186,38 @@ const App = () => {
     });
 
     labelSubset
-      .attr('x', (datum) => {
+      .attr('x', (datum: SimulationLink) => {
         const sourceX = resolveAxis(datum.source, 'x');
         const targetX = resolveAxis(datum.target, 'x');
         return (sourceX + targetX) / 2;
       })
-      .attr('y', (datum) => {
+      .attr('y', (datum: SimulationLink) => {
         const sourceY = resolveAxis(datum.source, 'y');
         const targetY = resolveAxis(datum.target, 'y');
         return (sourceY + targetY) / 2;
       })
-      .attr('fill', (datum) =>
+      .attr('fill', (datum: SimulationLink) =>
         linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey ? accent : textSecondary
       )
-      .attr('font-weight', (datum) =>
+      .attr('font-weight', (datum: SimulationLink) =>
         linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey ? 600 : 500
       )
-      .attr('opacity', (datum) =>
+      .attr('opacity', (datum: SimulationLink) =>
         linkTouchesNode(datum, activeNodeId) || makeEdgeKey(datum) === hoveredEdgeKey ? 1 : 0.35
       );
 
     previousHighlightRef.current = { activeNodeId, hoveredNodeId, hoveredEdgeKey };
-  }, [activeNodeId, hoveredNodeId, hoveredEdgeKey, nodes, links, accent, edgeBase, textPrimary, textSecondary]);
+  }, [
+    activeNodeId,
+    hoveredNodeId,
+    hoveredEdgeKey,
+    nodes,
+    links,
+    accent,
+    edgeBase,
+    textPrimary,
+    textSecondary,
+  ]);
 
   const handleZoomIn = useCallback(() => {
     applyZoomScalar(1.25);
@@ -998,6 +1269,24 @@ const App = () => {
       ];
     }
 
+    if (contextMenu.kind === 'group') {
+      return [
+        {
+          id: 'edit-group',
+          label: 'Edit group',
+          icon: <EditIcon />,
+          onSelect: () => openGroupEditor(contextMenu.groupId),
+        },
+        {
+          id: 'delete-group',
+          label: 'Delete group',
+          icon: <TrashIcon />,
+          tone: 'danger' as const,
+          onSelect: () => removeGroupById(contextMenu.groupId),
+        },
+      ];
+    }
+
     return [
       {
         id: 'edit-node',
@@ -1020,6 +1309,8 @@ const App = () => {
     openNodeEditorById,
     removeConnectionByKey,
     removeNodeById,
+    openGroupEditor,
+    removeGroupById,
   ]);
 
   const handlePanelMove = useCallback(
@@ -1132,6 +1423,24 @@ const App = () => {
           onOpenTargetNode={
             connectionEditorTarget ? () => openNodeEditorById(connectionEditorTarget.id) : undefined
           }
+          position={{ x: panelGeometry.x, y: panelGeometry.y }}
+          size={{ width: panelGeometry.width, height: panelGeometry.height }}
+          onMove={handlePanelMove}
+          onResize={handlePanelResize}
+          onToggleExpand={handlePanelToggleExpand}
+          isExpanded={panelExpanded}
+        />
+      )}
+
+      {!nodeForm && !connectionForm && groupForm && (
+        <GroupEditorPanel
+          mode={groupForm.mode}
+          values={groupFormValues}
+          onTitleChange={handleGroupTitleChange}
+          onTypeChange={handleGroupTypeChange}
+          onClose={handleGroupFormClose}
+          onSubmit={handleGroupFormSubmit}
+          onDelete={groupForm.mode === 'edit' ? handleGroupDelete : undefined}
           position={{ x: panelGeometry.x, y: panelGeometry.y }}
           size={{ width: panelGeometry.width, height: panelGeometry.height }}
           onMove={handlePanelMove}
