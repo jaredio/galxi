@@ -15,16 +15,26 @@ import { accent, edgeBase, textSecondary } from '../constants/theme';
 import { makeEdgeKey, resolveAxis, shortenSegment } from '../lib/graph-utils';
 import type {
   CanvasGroup,
+  GroupLink,
+  GroupPositionMap,
   NetworkLink,
   NetworkNode,
   NodePositionMap,
   SimulationLink,
   SimulationNode,
 } from '../types/graph';
-type ConnectionDraft = {
-  sourceNodeId: string;
-  cursor: { x: number; y: number };
-} | null;
+type ConnectionDraft =
+  | {
+      kind: 'node';
+      sourceNodeId: string;
+      cursor: { x: number; y: number };
+    }
+  | {
+      kind: 'group';
+      sourceGroupId: string;
+      cursor: { x: number; y: number };
+    }
+  | null;
 type GroupResizeHandle =
   | 'top-left'
   | 'top'
@@ -144,6 +154,7 @@ type ForceGraphCallbacks = {
   onNodeContextMenu: (event: MouseEvent, node: SimulationNode) => void;
   onGroupHover: (groupId: string | null) => void;
   onGroupSelect: (groupId: string | null) => void;
+  onGroupAuxClick: (event: MouseEvent, group: CanvasGroup) => void;
   onGroupContextMenu: (event: MouseEvent, group: CanvasGroup) => void;
   onGroupDoubleClick: (group: CanvasGroup) => void;
   onGroupMove: (groupId: string, position: { x: number; y: number }) => void;
@@ -156,8 +167,10 @@ type UseForceGraphArgs = ForceGraphCallbacks & {
   svgRef: MutableRefObject<SVGSVGElement | null>;
   nodes: NetworkNode[];
   links: NetworkLink[];
+  groupLinks: GroupLink[];
   groups: CanvasGroup[];
   nodePositionsRef: MutableRefObject<NodePositionMap>;
+  groupPositionsRef: MutableRefObject<GroupPositionMap>;
   zoomTransformRef: MutableRefObject<ZoomTransform>;
   connectionDraft: ConnectionDraft;
   selectedGroupId: string | null;
@@ -168,8 +181,10 @@ export const useForceGraph = ({
   svgRef,
   nodes,
   links,
+  groupLinks,
   groups,
   nodePositionsRef,
+  groupPositionsRef,
   zoomTransformRef,
   connectionDraft,
   onNodeHover,
@@ -183,6 +198,7 @@ export const useForceGraph = ({
   onNodeContextMenu,
   onGroupHover,
   onGroupSelect,
+  onGroupAuxClick,
   onGroupContextMenu,
   onGroupDoubleClick,
   onGroupMove,
@@ -193,12 +209,14 @@ export const useForceGraph = ({
   const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, any, any, any> | null>(null);
   const containerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const groupLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const groupLinkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const nodeLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkHitLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLabelLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const draftLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const draftLineRef = useRef<d3.Selection<SVGLineElement, any, any, any> | null>(null);
+  const groupLinkSelectionRef = useRef<d3.Selection<SVGLineElement, GroupLink, SVGGElement, unknown> | null>(null);
   const groupSelectionRef = useRef<
     d3.Selection<SVGGElement, CanvasGroup, SVGGElement, unknown> | null
   >(null);
@@ -227,6 +245,92 @@ export const useForceGraph = ({
     x: number;
     y: number;
   } | null>(null);
+  const groupGeometryRef = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
+  const computeRectEdgeIntersection = (
+    centerX: number,
+    centerY: number,
+    halfWidth: number,
+    halfHeight: number,
+    dx: number,
+    dy: number
+  ) => {
+    const epsilon = 1e-6;
+    const safeHalfWidth = Math.max(halfWidth, epsilon);
+    const safeHalfHeight = Math.max(halfHeight, epsilon);
+    const scale = Math.max(Math.abs(dx) / safeHalfWidth, Math.abs(dy) / safeHalfHeight);
+    if (!Number.isFinite(scale) || scale <= epsilon) {
+      return { x: centerX, y: centerY };
+    }
+    return {
+      x: centerX + dx / scale,
+      y: centerY + dy / scale,
+    };
+  };
+  const resolveGroupLinkSegment = (
+    source: { x: number; y: number; width: number; height: number },
+    target: { x: number; y: number; width: number; height: number }
+  ) => {
+    const sourceCenterX = source.x + source.width / 2;
+    const sourceCenterY = source.y + source.height / 2;
+    const targetCenterX = target.x + target.width / 2;
+    const targetCenterY = target.y + target.height / 2;
+    const dx = targetCenterX - sourceCenterX;
+    const dy = targetCenterY - sourceCenterY;
+    const almostZero = Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6;
+    if (almostZero) {
+      return {
+        sx: sourceCenterX,
+        sy: sourceCenterY,
+        tx: targetCenterX,
+        ty: targetCenterY,
+      };
+    }
+    const sourceEndpoint = computeRectEdgeIntersection(
+      sourceCenterX,
+      sourceCenterY,
+      source.width / 2,
+      source.height / 2,
+      dx,
+      dy
+    );
+    const targetEndpoint = computeRectEdgeIntersection(
+      targetCenterX,
+      targetCenterY,
+      target.width / 2,
+      target.height / 2,
+      -dx,
+      -dy
+    );
+    return {
+      sx: sourceEndpoint.x,
+      sy: sourceEndpoint.y,
+      tx: targetEndpoint.x,
+      ty: targetEndpoint.y,
+    };
+  };
+  const updateGroupLinkPositions = () => {
+    const selection = groupLinkSelectionRef.current;
+    if (!selection) {
+      return;
+    }
+    const geometry = groupGeometryRef.current;
+    selection.each(function positionLink(datum) {
+      const source = geometry[datum.sourceGroupId];
+      const target = geometry[datum.targetGroupId];
+      const line = d3.select<SVGLineElement, GroupLink>(this);
+      if (!source || !target) {
+        line.attr('visibility', 'hidden');
+        return;
+      }
+      const { sx, sy, tx, ty } = resolveGroupLinkSegment(source, target);
+      line
+        .attr('visibility', 'visible')
+        .attr('x1', sx)
+        .attr('y1', sy)
+        .attr('x2', tx)
+        .attr('y2', ty);
+    });
+  };
   const applyGroupLayout = (
     group: d3.Selection<SVGGElement, CanvasGroup, any, any>,
     datum: CanvasGroup
@@ -271,6 +375,17 @@ export const useForceGraph = ({
       .attr('y', (handle: { key: GroupResizeHandle; cursor: string }) =>
         computeHandlePosition(handle.key, datum.width, datum.height).y
       );
+    groupGeometryRef.current[datum.id] = {
+      x: datum.x,
+      y: datum.y,
+      width: datum.width,
+      height: datum.height,
+    };
+    groupPositionsRef.current[datum.id] = {
+      x: datum.x + datum.width / 2,
+      y: datum.y + datum.height / 2,
+    };
+    updateGroupLinkPositions();
   };
   useEffect(() => {
     const svgElement = svgRef.current;
@@ -290,12 +405,17 @@ export const useForceGraph = ({
     const container = svg.append('g').attr('class', 'graph-root');
     containerRef.current = container;
     const groupLayer = container.append('g').attr('class', 'group-layer');
+    const groupLinkLayer = container
+      .append('g')
+      .attr('class', 'group-link-layer')
+      .style('pointer-events', 'none');
     const linkHitLayer = container.append('g').attr('class', 'link-hit-layer');
     const linkLayer = container.append('g').attr('class', 'link-layer');
     const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
     const nodeLayer = container.append('g').attr('class', 'node-layer');
     const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
     groupLayerRef.current = groupLayer;
+    groupLinkLayerRef.current = groupLinkLayer;
     linkHitLayerRef.current = linkHitLayer;
     linkLayerRef.current = linkLayer;
     linkLabelLayerRef.current = linkLabelLayer;
@@ -541,6 +661,13 @@ export const useForceGraph = ({
         onContextMenuDismiss();
         onGroupSelect(datum.id);
       })
+      .on('auxclick', (event: MouseEvent, datum: CanvasGroup) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          onGroupAuxClick(event, datum);
+        }
+      })
       .on('dblclick', (event: MouseEvent, datum: CanvasGroup) => {
         event.stopPropagation();
         onGroupDoubleClick(datum);
@@ -566,10 +693,43 @@ export const useForceGraph = ({
         ...args: unknown[]
       ) => void
     );
+    groupGeometryRef.current = {};
     typedGroupSelection.each(function applyGroupStyles(this: SVGGElement, datum: CanvasGroup) {
       const group = d3.select<SVGGElement, CanvasGroup>(this);
       applyGroupLayout(group, datum);
     });
+    const groupLinkLayer = groupLinkLayerRef.current;
+    if (groupLinkLayer) {
+      const availableGroupIds = new Set(groups.map((group) => group.id));
+      const sanitizedGroupLinks = groupLinks.filter(
+        (link) => availableGroupIds.has(link.sourceGroupId) && availableGroupIds.has(link.targetGroupId)
+      );
+      const groupLinkSelection = groupLinkLayer
+        .selectAll<SVGLineElement, GroupLink>('line.group-link')
+        .data(sanitizedGroupLinks, (datum) => `${datum.sourceGroupId}->${datum.targetGroupId}`)
+        .join(
+          (enter) =>
+            enter
+              .append('line')
+              .attr('class', 'group-link')
+              .attr('stroke-linecap', 'round')
+              .attr('visibility', 'hidden'),
+          (update) => update,
+          (exit) => exit.remove()
+        )
+        .attr('stroke', edgeBase)
+        .attr('stroke-width', 3.5)
+        .attr('opacity', 0.32);
+      groupLinkSelectionRef.current = groupLinkSelection as d3.Selection<
+        SVGLineElement,
+        GroupLink,
+        SVGGElement,
+        unknown
+      >;
+      updateGroupLinkPositions();
+    } else {
+      groupLinkSelectionRef.current = null;
+    }
     groupSelectionRef.current = typedGroupSelection;
     const simulation = d3
       .forceSimulation<SimulationNode>(simNodes)
@@ -870,8 +1030,10 @@ export const useForceGraph = ({
   }, [
     nodes,
     links,
+    groupLinks,
     groups,
     nodePositionsRef,
+    groupPositionsRef,
     onNodeHover,
     onNodeClick,
     onNodeAuxClick,
@@ -882,6 +1044,7 @@ export const useForceGraph = ({
     onNodeContextMenu,
     onGroupHover,
     onGroupSelect,
+    onGroupAuxClick,
     onGroupContextMenu,
     onGroupDoubleClick,
     onGroupMove,
@@ -905,7 +1068,10 @@ export const useForceGraph = ({
       draftLine.attr('visibility', 'hidden');
       return;
     }
-    const sourcePosition = nodePositionsRef.current[connectionDraft.sourceNodeId];
+    const sourcePosition =
+      connectionDraft.kind === 'node'
+        ? nodePositionsRef.current[connectionDraft.sourceNodeId]
+        : groupPositionsRef.current[connectionDraft.sourceGroupId];
     if (!sourcePosition) {
       draftLine.attr('visibility', 'hidden');
       return;
@@ -916,7 +1082,7 @@ export const useForceGraph = ({
       .attr('y1', sourcePosition.y ?? 0)
       .attr('x2', connectionDraft.cursor.x)
       .attr('y2', connectionDraft.cursor.y);
-  }, [connectionDraft, nodePositionsRef, nodes]);
+  }, [connectionDraft, groupPositionsRef, nodePositionsRef, nodes, groups]);
   const applyZoomScalar = (scalar: number) => {
     const svgElement = svgRef.current;
     const zoomBehaviour = zoomBehaviourRef.current;
@@ -945,4 +1111,3 @@ export const useForceGraph = ({
     resetZoom,
   };
 };
-

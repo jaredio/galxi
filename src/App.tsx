@@ -28,7 +28,15 @@ import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
 import { linkTouchesNode, makeEdgeKey, makeLinkKey, resolveAxis, resolveId, shortenSegment } from './lib/graph-utils';
-import type { CanvasGroup, GroupType, NodePositionMap, NodeType, SimulationLink, SimulationNode } from './types/graph';
+import type {
+  CanvasGroup,
+  GroupPositionMap,
+  GroupType,
+  NodePositionMap,
+  NodeType,
+  SimulationLink,
+  SimulationNode,
+} from './types/graph';
 import { useGraphStore } from './state/graphStore';
 
 type CanvasContextMenuState = {
@@ -76,10 +84,17 @@ type NodeFormState =
       nodeId: string;
     };
 
-type ConnectionDraft = {
-  sourceNodeId: string;
-  cursor: { x: number; y: number };
-};
+type ConnectionDraft =
+  | {
+      kind: 'node';
+      sourceNodeId: string;
+      cursor: { x: number; y: number };
+    }
+  | {
+      kind: 'group';
+      sourceGroupId: string;
+      cursor: { x: number; y: number };
+    };
 
 type GroupFormState =
   | {
@@ -124,13 +139,16 @@ const App = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
   const nodePositionsRef = useRef<NodePositionMap>({});
+  const groupPositionsRef = useRef<GroupPositionMap>({});
   const panelViewportRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   const nodes = useGraphStore((state) => state.nodes);
   const links = useGraphStore((state) => state.links);
+  const groupLinks = useGraphStore((state) => state.groupLinks);
   const groups = useGraphStore((state) => state.groups);
   const setNodes = useGraphStore((state) => state.setNodes);
   const setLinks = useGraphStore((state) => state.setLinks);
+  const setGroupLinks = useGraphStore((state) => state.setGroupLinks);
   const setGroups = useGraphStore((state) => state.setGroups);
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
@@ -178,6 +196,15 @@ const App = () => {
       }
     });
   }, [nodes]);
+
+  useEffect(() => {
+    const existingIds = new Set(groups.map((group) => group.id));
+    Object.keys(groupPositionsRef.current).forEach((id) => {
+      if (!existingIds.has(id)) {
+        delete groupPositionsRef.current[id];
+      }
+    });
+  }, [groups]);
 
   useEffect(() => {
     const handleGlobalClick = (event: MouseEvent) => {
@@ -295,43 +322,98 @@ const App = () => {
   }, []);
 
   const finalizeConnectionDraft = useCallback(
-    (targetNodeId: string) => {
+    (target: { kind: 'node'; nodeId: string } | { kind: 'group'; groupId: string }) => {
       if (!connectionDraft) {
         return false;
       }
-      if (connectionDraft.sourceNodeId === targetNodeId) {
+
+      if (connectionDraft.kind === 'node' && target.kind === 'node') {
+        const targetNodeId = target.nodeId;
+        if (connectionDraft.sourceNodeId === targetNodeId) {
+          setConnectionDraft(null);
+          return true;
+        }
+
+        const sourceId = connectionDraft.sourceNodeId;
+        const linkExists = links.some((link) => link.source === sourceId && link.target === targetNodeId);
+
+        if (!linkExists) {
+          setLinks((prev) => [
+            ...prev,
+            {
+              source: sourceId,
+              target: targetNodeId,
+              relation: 'linked',
+            },
+          ]);
+        }
+
         setConnectionDraft(null);
+        setActiveNodeId(targetNodeId);
+        setHoveredNodeId(targetNodeId);
+        setHoveredEdgeKey(null);
+        setContextMenu(null);
+        setConnectionForm(null);
+        setSelectedGroupId(null);
+        setHoveredGroupId(null);
         return true;
       }
 
-      const sourceId = connectionDraft.sourceNodeId;
-      const linkExists = links.some((link) => link.source === sourceId && link.target === targetNodeId);
+      if (connectionDraft.kind === 'group' && target.kind === 'group') {
+        const targetGroupId = target.groupId;
+        if (connectionDraft.sourceGroupId === targetGroupId) {
+          setConnectionDraft(null);
+          return true;
+        }
 
-      if (!linkExists) {
-        setLinks((prev) => [
-          ...prev,
-          {
-            source: sourceId,
-            target: targetNodeId,
-            relation: 'linked',
-          },
-        ]);
+        const sourceGroupId = connectionDraft.sourceGroupId;
+        const linkExists = groupLinks.some(
+          (link) => link.sourceGroupId === sourceGroupId && link.targetGroupId === targetGroupId
+        );
+
+        if (!linkExists) {
+          setGroupLinks((prev) => [
+            ...prev,
+            {
+              sourceGroupId,
+              targetGroupId,
+              relation: 'linked',
+            },
+          ]);
+        }
+
+        setConnectionDraft(null);
+        setSelectedGroupId(targetGroupId);
+        setHoveredGroupId(targetGroupId);
+        setActiveNodeId(null);
+        setHoveredNodeId(null);
+        setHoveredEdgeKey(null);
+        setContextMenu(null);
+        setConnectionForm(null);
+        return true;
       }
 
-      setConnectionDraft(null);
-      setActiveNodeId(targetNodeId);
-      setHoveredNodeId(targetNodeId);
-      setHoveredEdgeKey(null);
-      setContextMenu(null);
-      setConnectionForm(null);
-      return true;
+      return false;
     },
-    [connectionDraft, links, setLinks]
+    [
+      connectionDraft,
+      links,
+      setLinks,
+      groupLinks,
+      setGroupLinks,
+      setActiveNodeId,
+      setHoveredNodeId,
+      setHoveredEdgeKey,
+      setContextMenu,
+      setConnectionForm,
+      setSelectedGroupId,
+      setHoveredGroupId,
+    ]
   );
 
   const handleNodeClick = useCallback(
     (node: SimulationNode) => {
-      if (finalizeConnectionDraft(node.id)) {
+      if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
         return;
       }
 
@@ -349,7 +431,7 @@ const App = () => {
 
   const handleNodeAuxClick = useCallback(
     (_event: MouseEvent, node: SimulationNode) => {
-      if (finalizeConnectionDraft(node.id)) {
+      if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
         return;
       }
 
@@ -357,6 +439,7 @@ const App = () => {
         nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
 
       setConnectionDraft({
+        kind: 'node',
         sourceNodeId: node.id,
         cursor: { x: sourcePosition.x, y: sourcePosition.y },
       });
@@ -438,7 +521,12 @@ const App = () => {
   const removeNodeById = useCallback((nodeId: string) => {
     setNodes((prev) => prev.filter((node) => node.id !== nodeId));
     setLinks((prev) => prev.filter((link) => link.source !== nodeId && link.target !== nodeId));
-    setConnectionDraft((current) => (current?.sourceNodeId === nodeId ? null : current));
+    setConnectionDraft((current) => {
+      if (current?.kind === 'node' && current.sourceNodeId === nodeId) {
+        return null;
+      }
+      return current;
+    });
     setNodeForm((current) => {
       if (current && current.mode === 'edit' && current.nodeId === nodeId) {
         return null;
@@ -486,20 +574,75 @@ const App = () => {
     setSelectedGroupId((current) => (current === groupId ? null : current));
     setHoveredGroupId((current) => (current === groupId ? null : current));
     setGroupForm((current) => (current && current.groupId === groupId ? null : current));
+    setGroupLinks((prev) =>
+      prev.filter((link) => link.sourceGroupId !== groupId && link.targetGroupId !== groupId)
+    );
+    setConnectionDraft((current) => {
+      if (current?.kind === 'group' && current.sourceGroupId === groupId) {
+        return null;
+      }
+      return current;
+    });
+    delete groupPositionsRef.current[groupId];
     setContextMenu((current) => {
       if (current && current.kind === 'group' && current.groupId === groupId) {
         return null;
       }
       return current;
     });
-  }, [setGroups, setContextMenu]);
+  }, [setGroups, setGroupLinks, groupPositionsRef, setConnectionDraft, setContextMenu]);
 
   const handleGroupHover = useCallback((groupId: string | null) => {
     setHoveredGroupId(groupId);
   }, []);
 
+  const handleGroupAuxClick = useCallback(
+    (_event: MouseEvent, group: CanvasGroup) => {
+      if (finalizeConnectionDraft({ kind: 'group', groupId: group.id })) {
+        return;
+      }
+
+      const sourcePosition =
+        groupPositionsRef.current[group.id] ?? {
+          x: group.x + group.width / 2,
+          y: group.y + group.height / 2,
+        };
+
+      setConnectionDraft({
+        kind: 'group',
+        sourceGroupId: group.id,
+        cursor: { x: sourcePosition.x, y: sourcePosition.y },
+      });
+      setSelectedGroupId(group.id);
+      setHoveredGroupId(group.id);
+      setActiveNodeId(null);
+      setHoveredNodeId(null);
+      setHoveredEdgeKey(null);
+      setContextMenu(null);
+      setConnectionForm(null);
+      setGroupForm(null);
+    },
+    [
+      finalizeConnectionDraft,
+      groupPositionsRef,
+      setConnectionDraft,
+      setSelectedGroupId,
+      setHoveredGroupId,
+      setActiveNodeId,
+      setHoveredNodeId,
+      setHoveredEdgeKey,
+      setContextMenu,
+      setConnectionForm,
+      setGroupForm,
+    ]
+  );
+
   const handleGroupSelect = useCallback(
     (groupId: string | null) => {
+      if (groupId && finalizeConnectionDraft({ kind: 'group', groupId })) {
+        return;
+      }
+
       setSelectedGroupId(groupId);
       if (groupId) {
         setActiveNodeId(null);
@@ -510,7 +653,7 @@ const App = () => {
         setGroupForm(null);
       }
     },
-    [setActiveNodeId, setNodeForm, setConnectionForm, setContextMenu, setGroupForm]
+    [finalizeConnectionDraft, setActiveNodeId, setNodeForm, setConnectionForm, setContextMenu, setGroupForm]
   );
 
   const openGroupEditor = useCallback(
@@ -613,8 +756,10 @@ const App = () => {
     svgRef,
     nodes,
     links,
+    groupLinks,
     groups,
     nodePositionsRef,
+    groupPositionsRef,
     zoomTransformRef,
     connectionDraft,
     onNodeHover: handleNodeHover,
@@ -641,6 +786,7 @@ const App = () => {
     onContextMenuDismiss: handleContextMenuDismiss,
     onGroupHover: handleGroupHover,
     onGroupSelect: handleGroupSelect,
+    onGroupAuxClick: handleGroupAuxClick,
     onGroupContextMenu: handleGroupContextMenu,
     onGroupDoubleClick: handleGroupDoubleClick,
     onGroupMove: handleGroupMove,

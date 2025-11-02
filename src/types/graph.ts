@@ -35,8 +35,16 @@ export interface CanvasGroup {
   height: number;
 }
 
+export interface GroupLink {
+  sourceGroupId: string;
+  targetGroupId: string;
+  relation: string;
+}
+
 export type SimulationNode = NetworkNode & SimulationNodeDatum;
 export type SimulationLink = NetworkLink & SimulationLinkDatum<SimulationNode>;
 
 export type NodePosition = { x: number; y: number };
 export type NodePositionMap = Record<string, NodePosition>;
+export type GroupPosition = { x: number; y: number };
+export type GroupPositionMap = Record<string, GroupPosition>;
