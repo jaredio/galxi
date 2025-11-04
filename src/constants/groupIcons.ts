@@ -1,9 +1,8 @@
 import type { GroupType } from '../types/graph';
-import { getNodeIcon } from './nodeIcons';
 
-const iconVirtualNetwork = getNodeIcon('virtualNetwork');
-const iconSubnet = getNodeIcon('subnet');
-const iconLogical = getNodeIcon('logicalGroup');
+const iconVirtualNetwork = new URL('../../icons/VirtualNetwork.svg', import.meta.url).href;
+const iconSubnet = new URL('../../icons/Subnet.svg', import.meta.url).href;
+const iconLogical = new URL('../../icons/VirtualMachine.svg', import.meta.url).href;
 
 const groupIcons: Record<GroupType, string> = {
   virtualNetwork: iconVirtualNetwork,
