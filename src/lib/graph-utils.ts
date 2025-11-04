@@ -1,4 +1,4 @@
-import type { NetworkLink, SimulationLink, SimulationNode } from '../types/graph';
+import type { GroupLink, NetworkLink, SimulationLink, SimulationNode } from '../types/graph';
 
 export const shortenSegment = (
   x1: number,
@@ -54,6 +54,8 @@ export const makeLinkKey = (link: SimulationLink | NetworkLink): string =>
   `${resolveEndpointId(link.source)}->${resolveEndpointId(link.target)}`;
 
 export const makeEdgeKey = (link: SimulationLink): string => makeLinkKey(link);
+
+export const makeGroupLinkKey = (link: GroupLink): string => `${link.sourceGroupId}->${link.targetGroupId}`;
 
 export const linkTouchesNode = (link: SimulationLink, nodeId: string | null): boolean => {
   if (!nodeId) {

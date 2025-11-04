@@ -3,9 +3,10 @@ import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 
 import { CloseIcon, LinkIcon, TrashIcon } from './icons';
 
+import { getGroupIcon } from '../constants/groupIcons';
 import { getNodeIcon } from '../constants/nodeIcons';
 import { nodeTypeLabelMap } from '../constants/nodeTypeLabels';
-import type { NodeType } from '../types/graph';
+import type { GroupType, NodeType } from '../types/graph';
 
 type ResizeHandle =
   | 'top'
@@ -36,11 +37,25 @@ const resizeHandles: Array<{ key: ResizeHandle; className: string; cursor: strin
   },
 ];
 
-type NodeSummary = {
-  id: string;
-  label: string;
-  type: NodeType;
+const groupTypeLabelMap: Record<GroupType, string> = {
+  virtualNetwork: 'Virtual Network',
+  subnet: 'Subnet',
+  logicalGroup: 'Logical Grouping',
 };
+
+type ConnectionEndpoint =
+  | {
+      kind: 'node';
+      id: string;
+      label: string;
+      type: NodeType;
+    }
+  | {
+      kind: 'group';
+      id: string;
+      label: string;
+      type: GroupType;
+    };
 
 type ConnectionEditorPanelProps = {
   relation: string;
@@ -48,10 +63,10 @@ type ConnectionEditorPanelProps = {
   onSubmit: () => void;
   onClose: () => void;
   onDelete: () => void;
-  sourceNode: NodeSummary | null;
-  targetNode: NodeSummary | null;
-  onOpenSourceNode?: () => void;
-  onOpenTargetNode?: () => void;
+  sourceEndpoint: ConnectionEndpoint | null;
+  targetEndpoint: ConnectionEndpoint | null;
+  onOpenSourceEndpoint?: () => void;
+  onOpenTargetEndpoint?: () => void;
   position: { x: number; y: number };
   size: { width: number; height: number };
   onMove: (position: { x: number; y: number }) => void;
@@ -66,10 +81,10 @@ export const ConnectionEditorPanel = ({
   onSubmit,
   onClose,
   onDelete,
-  sourceNode,
-  targetNode,
-  onOpenSourceNode,
-  onOpenTargetNode,
+  sourceEndpoint,
+  targetEndpoint,
+  onOpenSourceEndpoint,
+  onOpenTargetEndpoint,
   position,
   size,
   onMove,
@@ -178,10 +193,48 @@ export const ConnectionEditorPanel = ({
     });
   };
 
-  const sourceIcon = useMemo(() => (sourceNode ? getNodeIcon(sourceNode.type) : null), [sourceNode]);
-  const targetIcon = useMemo(() => (targetNode ? getNodeIcon(targetNode.type) : null), [targetNode]);
-  const sourceTypeLabel = sourceNode ? nodeTypeLabelMap[sourceNode.type] ?? sourceNode.type : 'Unknown';
-  const targetTypeLabel = targetNode ? nodeTypeLabelMap[targetNode.type] ?? targetNode.type : 'Unknown';
+  const sourceIcon = useMemo(() => {
+    if (!sourceEndpoint) {
+      return null;
+    }
+    return sourceEndpoint.kind === 'node'
+      ? getNodeIcon(sourceEndpoint.type)
+      : getGroupIcon(sourceEndpoint.type);
+  }, [sourceEndpoint]);
+  const targetIcon = useMemo(() => {
+    if (!targetEndpoint) {
+      return null;
+    }
+    return targetEndpoint.kind === 'node'
+      ? getNodeIcon(targetEndpoint.type)
+      : getGroupIcon(targetEndpoint.type);
+  }, [targetEndpoint]);
+  const sourceTypeLabel = useMemo(() => {
+    if (!sourceEndpoint) {
+      return 'Unknown';
+    }
+    if (sourceEndpoint.kind === 'node') {
+      return nodeTypeLabelMap[sourceEndpoint.type] ?? sourceEndpoint.type;
+    }
+    return groupTypeLabelMap[sourceEndpoint.type] ?? sourceEndpoint.type;
+  }, [sourceEndpoint]);
+  const targetTypeLabel = useMemo(() => {
+    if (!targetEndpoint) {
+      return 'Unknown';
+    }
+    if (targetEndpoint.kind === 'node') {
+      return nodeTypeLabelMap[targetEndpoint.type] ?? targetEndpoint.type;
+    }
+    return groupTypeLabelMap[targetEndpoint.type] ?? targetEndpoint.type;
+  }, [targetEndpoint]);
+  const resolveDisplayLabel = useCallback((endpoint: ConnectionEndpoint | null) => {
+    if (!endpoint) {
+      return 'Unknown';
+    }
+    return endpoint.label || endpoint.id || 'Unknown';
+  }, []);
+  const sourceDisplayLabel = resolveDisplayLabel(sourceEndpoint);
+  const targetDisplayLabel = resolveDisplayLabel(targetEndpoint);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -216,7 +269,7 @@ export const ConnectionEditorPanel = ({
           <div className="node-editor-title-text">
             <h2>Connection</h2>
             <span className="node-editor-eyebrow">
-              {sourceNode?.label ?? sourceNode?.id ?? 'Unknown'} → {targetNode?.label ?? targetNode?.id ?? 'Unknown'}
+              {sourceDisplayLabel} {'->'} {targetDisplayLabel}
             </span>
           </div>
         </div>
@@ -231,27 +284,27 @@ export const ConnectionEditorPanel = ({
             <button
               type="button"
               className="connection-node-chip"
-              onClick={onOpenSourceNode}
-              disabled={!onOpenSourceNode}
+              onClick={onOpenSourceEndpoint}
+              disabled={!onOpenSourceEndpoint}
             >
               {sourceIcon ? <img src={sourceIcon} alt="" /> : <span className="connection-node-initial">?</span>}
               <span className="connection-node-text">
-                <strong>{sourceNode?.label ?? 'Unknown node'}</strong>
+                <strong>{sourceDisplayLabel}</strong>
                 <small>{sourceTypeLabel}</small>
               </span>
             </button>
             <span className="connection-route-arrow" aria-hidden="true">
-              →
+              {'->'}
             </span>
             <button
               type="button"
               className="connection-node-chip"
-              onClick={onOpenTargetNode}
-              disabled={!onOpenTargetNode}
+              onClick={onOpenTargetEndpoint}
+              disabled={!onOpenTargetEndpoint}
             >
               {targetIcon ? <img src={targetIcon} alt="" /> : <span className="connection-node-initial">?</span>}
               <span className="connection-node-text">
-                <strong>{targetNode?.label ?? 'Unknown node'}</strong>
+                <strong>{targetDisplayLabel}</strong>
                 <small>{targetTypeLabel}</small>
               </span>
             </button>
@@ -277,11 +330,11 @@ export const ConnectionEditorPanel = ({
           <div className="connection-editor-metadata">
             <div>
               <span className="connection-editor-meta-label">Source ID</span>
-              <span className="connection-editor-meta-value">{sourceNode?.id ?? 'Unknown'}</span>
+              <span className="connection-editor-meta-value">{sourceEndpoint?.id ?? 'Unknown'}</span>
             </div>
             <div>
               <span className="connection-editor-meta-label">Target ID</span>
-              <span className="connection-editor-meta-value">{targetNode?.id ?? 'Unknown'}</span>
+              <span className="connection-editor-meta-value">{targetEndpoint?.id ?? 'Unknown'}</span>
             </div>
           </div>
         </div>

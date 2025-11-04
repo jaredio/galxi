@@ -27,9 +27,18 @@ import { nodeTypeOptions } from './constants/nodeOptions';
 import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
-import { linkTouchesNode, makeEdgeKey, makeLinkKey, resolveAxis, resolveId, shortenSegment } from './lib/graph-utils';
+import {
+  linkTouchesNode,
+  makeEdgeKey,
+  makeGroupLinkKey,
+  makeLinkKey,
+  resolveAxis,
+  resolveId,
+  shortenSegment,
+} from './lib/graph-utils';
 import type {
   CanvasGroup,
+  GroupLink,
   GroupPositionMap,
   GroupType,
   NodePositionMap,
@@ -61,6 +70,13 @@ type ConnectionContextMenuState = {
   edgeKey: string;
 };
 
+type GroupConnectionContextMenuState = {
+  kind: 'group-connection';
+  screenX: number;
+  screenY: number;
+  linkKey: string;
+};
+
 type GroupContextMenuState = {
   kind: 'group';
   screenX: number;
@@ -72,6 +88,7 @@ type ContextMenuState =
   | CanvasContextMenuState
   | NodeContextMenuState
   | ConnectionContextMenuState
+  | GroupConnectionContextMenuState
   | GroupContextMenuState;
 
 type NodeFormState =
@@ -120,11 +137,19 @@ const groupDraftPresets: Record<GroupDraftType, { title: string }> = {
 };
 
 type UtilityToastState = { id: number; message: string };
-type ConnectionFormState = {
-  mode: 'edit';
-  linkKey: string;
-  relation: string;
-};
+type ConnectionFormState =
+  | {
+      mode: 'edit';
+      kind: 'node';
+      linkKey: string;
+      relation: string;
+    }
+  | {
+      mode: 'edit';
+      kind: 'group';
+      linkKey: string;
+      relation: string;
+    };
 const createNodeId = () =>
   typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
@@ -154,6 +179,7 @@ const App = () => {
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
+  const [hoveredGroupLinkKey, setHoveredGroupLinkKey] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -183,6 +209,11 @@ const App = () => {
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [utilityToast, setUtilityToast] = useState<UtilityToastState | null>(null);
   const [connectionForm, setConnectionForm] = useState<ConnectionFormState | null>(null);
+  const lastSyncedConnectionRef = useRef<{
+    kind: ConnectionFormState['kind'];
+    key: string;
+    relation: string;
+  } | null>(null);
 
   useEffect(() => {
     applyTheme(baseTheme);
@@ -224,11 +255,18 @@ const App = () => {
     if (!connectionForm) {
       return;
     }
-    const exists = links.some((link) => makeLinkKey(link) === connectionForm.linkKey);
+    if (connectionForm.kind === 'node') {
+      const exists = links.some((link) => makeLinkKey(link) === connectionForm.linkKey);
+      if (!exists) {
+        setConnectionForm(null);
+      }
+      return;
+    }
+    const exists = groupLinks.some((link) => makeGroupLinkKey(link) === connectionForm.linkKey);
     if (!exists) {
       setConnectionForm(null);
     }
-  }, [connectionForm, links]);
+  }, [connectionForm, links, groupLinks]);
 
   useEffect(() => {
     if (!utilityToast) {
@@ -314,6 +352,7 @@ const App = () => {
     setActiveNodeId(null);
     setHoveredNodeId(null);
     setHoveredEdgeKey(null);
+    setHoveredGroupLinkKey(null);
     setContextMenu(null);
     setConnectionForm(null);
     setSelectedGroupId(null);
@@ -335,15 +374,17 @@ const App = () => {
         }
 
         const sourceId = connectionDraft.sourceNodeId;
+        const linkKey = `${sourceId}->${targetNodeId}`;
         const linkExists = links.some((link) => link.source === sourceId && link.target === targetNodeId);
+        const created = !linkExists;
 
-        if (!linkExists) {
+        if (created) {
           setLinks((prev) => [
             ...prev,
             {
               source: sourceId,
               target: targetNodeId,
-              relation: 'linked',
+              relation: '',
             },
           ]);
         }
@@ -351,11 +392,28 @@ const App = () => {
         setConnectionDraft(null);
         setActiveNodeId(targetNodeId);
         setHoveredNodeId(targetNodeId);
-        setHoveredEdgeKey(null);
+        setHoveredEdgeKey(created ? linkKey : null);
+        setHoveredGroupLinkKey(null);
         setContextMenu(null);
-        setConnectionForm(null);
         setSelectedGroupId(null);
         setHoveredGroupId(null);
+        if (created) {
+          setPanelExpanded(false);
+          setPanelGeometry((prev) => clampPanelGeometry(prev));
+          lastSyncedConnectionRef.current = {
+            kind: 'node',
+            key: linkKey,
+            relation: '',
+          };
+          setConnectionForm({
+            mode: 'edit',
+            kind: 'node',
+            linkKey,
+            relation: '',
+          });
+        } else {
+          setConnectionForm(null);
+        }
         return true;
       }
 
@@ -367,17 +425,20 @@ const App = () => {
         }
 
         const sourceGroupId = connectionDraft.sourceGroupId;
+        const linkKey = `${sourceGroupId}->${targetGroupId}`;
         const linkExists = groupLinks.some(
           (link) => link.sourceGroupId === sourceGroupId && link.targetGroupId === targetGroupId
         );
 
-        if (!linkExists) {
+        const created = !linkExists;
+
+        if (created) {
           setGroupLinks((prev) => [
             ...prev,
             {
               sourceGroupId,
               targetGroupId,
-              relation: 'linked',
+              relation: '',
             },
           ]);
         }
@@ -388,8 +449,25 @@ const App = () => {
         setActiveNodeId(null);
         setHoveredNodeId(null);
         setHoveredEdgeKey(null);
+        setHoveredGroupLinkKey(created ? linkKey : null);
         setContextMenu(null);
-        setConnectionForm(null);
+        if (created) {
+          setPanelExpanded(false);
+          setPanelGeometry((prev) => clampPanelGeometry(prev));
+          lastSyncedConnectionRef.current = {
+            kind: 'group',
+            key: linkKey,
+            relation: '',
+          };
+          setConnectionForm({
+            mode: 'edit',
+            kind: 'group',
+            linkKey,
+            relation: '',
+          });
+        } else {
+          setConnectionForm(null);
+        }
         return true;
       }
 
@@ -404,10 +482,14 @@ const App = () => {
       setActiveNodeId,
       setHoveredNodeId,
       setHoveredEdgeKey,
+      setHoveredGroupLinkKey,
       setContextMenu,
       setConnectionForm,
       setSelectedGroupId,
       setHoveredGroupId,
+      clampPanelGeometry,
+      setPanelGeometry,
+      setPanelExpanded,
     ]
   );
 
@@ -421,6 +503,7 @@ const App = () => {
       setActiveNodeId(node.id);
       setHoveredNodeId(node.id);
       setContextMenu(null);
+      setHoveredGroupLinkKey(null);
       setConnectionForm(null);
       setSelectedGroupId(null);
       setGroupForm(null);
@@ -446,6 +529,7 @@ const App = () => {
       setActiveNodeId(node.id);
       setHoveredNodeId(node.id);
       setContextMenu(null);
+      setHoveredGroupLinkKey(null);
       setConnectionForm(null);
       setSelectedGroupId(null);
       setGroupForm(null);
@@ -460,6 +544,7 @@ const App = () => {
     setActiveNodeId(node.id);
     setHoveredNodeId(node.id);
     setHoveredEdgeKey(null);
+    setHoveredGroupLinkKey(null);
     setConnectionForm(null);
     setSelectedGroupId(null);
     setGroupForm(null);
@@ -537,6 +622,7 @@ const App = () => {
     setActiveNodeId((current) => (current === nodeId ? null : current));
     setHoveredNodeId((current) => (current === nodeId ? null : current));
     setHoveredEdgeKey(null);
+    setHoveredGroupLinkKey(null);
     setContextMenu(null);
     setConnectionForm(null);
   }, []);
@@ -554,7 +640,7 @@ const App = () => {
     (edgeKey: string) => {
       setLinks((prev) => prev.filter((link) => makeLinkKey(link) !== edgeKey));
       setHoveredEdgeKey((current) => (current === edgeKey ? null : current));
-      setConnectionForm((current) => (current?.linkKey === edgeKey ? null : current));
+      setConnectionForm((current) => (current?.kind === 'node' && current.linkKey === edgeKey ? null : current));
       setContextMenu((current) => {
         if (current && current.kind === 'connection' && current.edgeKey === edgeKey) {
           return null;
@@ -563,6 +649,23 @@ const App = () => {
       });
     },
     [setLinks]
+  );
+
+  const removeGroupConnectionByKey = useCallback(
+    (linkKey: string) => {
+      setGroupLinks((prev) => prev.filter((link) => makeGroupLinkKey(link) !== linkKey));
+      setHoveredGroupLinkKey((current) => (current === linkKey ? null : current));
+      setConnectionForm((current) =>
+        current?.kind === 'group' && current.linkKey === linkKey ? null : current
+      );
+      setContextMenu((current) => {
+        if (current && current.kind === 'group-connection' && current.linkKey === linkKey) {
+          return null;
+        }
+        return current;
+      });
+    },
+    [setGroupLinks]
   );
 
   const updateGroupById = useCallback((groupId: string, updater: (group: CanvasGroup) => CanvasGroup) => {
@@ -583,6 +686,7 @@ const App = () => {
       }
       return current;
     });
+    setHoveredGroupLinkKey(null);
     delete groupPositionsRef.current[groupId];
     setContextMenu((current) => {
       if (current && current.kind === 'group' && current.groupId === groupId) {
@@ -590,11 +694,45 @@ const App = () => {
       }
       return current;
     });
-  }, [setGroups, setGroupLinks, groupPositionsRef, setConnectionDraft, setContextMenu]);
+  }, [setGroups, setGroupLinks, groupPositionsRef, setConnectionDraft, setHoveredGroupLinkKey, setContextMenu]);
 
   const handleGroupHover = useCallback((groupId: string | null) => {
     setHoveredGroupId(groupId);
   }, []);
+
+  const handleGroupLinkHover = useCallback((linkKey: string | null) => {
+    setHoveredGroupLinkKey(linkKey);
+  }, []);
+
+  const handleGroupLinkContextMenu = useCallback(
+    (event: MouseEvent, link: GroupLink) => {
+      const linkKey = makeGroupLinkKey(link);
+      setConnectionDraft(null);
+      setActiveNodeId(null);
+      setHoveredNodeId(null);
+      setHoveredEdgeKey(null);
+      setSelectedGroupId(null);
+      setHoveredGroupId(null);
+      setConnectionForm(null);
+      setHoveredGroupLinkKey(linkKey);
+      setContextMenu({
+        kind: 'group-connection',
+        screenX: event.clientX,
+        screenY: event.clientY,
+        linkKey,
+      });
+    },
+    [
+      setConnectionDraft,
+      setActiveNodeId,
+      setHoveredNodeId,
+      setHoveredEdgeKey,
+      setSelectedGroupId,
+      setHoveredGroupId,
+      setConnectionForm,
+      setContextMenu,
+    ]
+  );
 
   const handleGroupAuxClick = useCallback(
     (_event: MouseEvent, group: CanvasGroup) => {
@@ -618,6 +756,7 @@ const App = () => {
       setActiveNodeId(null);
       setHoveredNodeId(null);
       setHoveredEdgeKey(null);
+      setHoveredGroupLinkKey(null);
       setContextMenu(null);
       setConnectionForm(null);
       setGroupForm(null);
@@ -631,6 +770,7 @@ const App = () => {
       setActiveNodeId,
       setHoveredNodeId,
       setHoveredEdgeKey,
+      setHoveredGroupLinkKey,
       setContextMenu,
       setConnectionForm,
       setGroupForm,
@@ -649,11 +789,22 @@ const App = () => {
         setNodeForm(null);
         setConnectionForm(null);
         setContextMenu(null);
+        setHoveredEdgeKey(null);
+        setHoveredGroupLinkKey(null);
       } else {
         setGroupForm(null);
       }
     },
-    [finalizeConnectionDraft, setActiveNodeId, setNodeForm, setConnectionForm, setContextMenu, setGroupForm]
+    [
+      finalizeConnectionDraft,
+      setActiveNodeId,
+      setNodeForm,
+      setConnectionForm,
+      setContextMenu,
+      setHoveredEdgeKey,
+      setHoveredGroupLinkKey,
+      setGroupForm,
+    ]
   );
 
   const openGroupEditor = useCallback(
@@ -699,6 +850,7 @@ const App = () => {
       setNodeForm(null);
       setConnectionForm(null);
       setHoveredEdgeKey(null);
+      setHoveredGroupLinkKey(null);
     },
     [
       setContextMenu,
@@ -708,6 +860,7 @@ const App = () => {
       setNodeForm,
       setConnectionForm,
       setHoveredEdgeKey,
+      setHoveredGroupLinkKey,
     ]
   );
 
@@ -762,6 +915,7 @@ const App = () => {
     groupPositionsRef,
     zoomTransformRef,
     connectionDraft,
+    hoveredGroupLinkKey,
     onNodeHover: handleNodeHover,
     onNodeClick: handleNodeClick,
     onNodeDoubleClick: openEditNodeForm,
@@ -773,6 +927,7 @@ const App = () => {
       const edgeKey = makeEdgeKey(link);
       setConnectionDraft(null);
       setActiveNodeId(null);
+       setHoveredGroupLinkKey(null);
       setConnectionForm(null);
       setHoveredEdgeKey(edgeKey);
       setContextMenu({
@@ -782,6 +937,8 @@ const App = () => {
         edgeKey,
       });
     },
+    onGroupLinkHover: handleGroupLinkHover,
+    onGroupLinkContextMenu: handleGroupLinkContextMenu,
     onCanvasClick: handleCanvasBackgroundClick,
     onContextMenuDismiss: handleContextMenuDismiss,
     onGroupHover: handleGroupHover,
@@ -832,6 +989,7 @@ const App = () => {
       setActiveNodeId(null);
       setHoveredNodeId(null);
       setHoveredEdgeKey(null);
+      setHoveredGroupLinkKey(null);
       setContextMenu({
         kind: 'canvas',
         screenX: event.clientX,
@@ -939,63 +1097,151 @@ const App = () => {
     setGroupFormValues((prev) => ({ ...prev, type: value }));
   }, []);
 
-  const connectionEditorLink = useMemo(() => {
+  const connectionEditorSelection = useMemo(() => {
     if (!connectionForm) {
       return null;
     }
-    return links.find((link) => makeLinkKey(link) === connectionForm.linkKey) ?? null;
-  }, [connectionForm, links]);
-
-  const connectionEditorSource = useMemo(() => {
-    if (!connectionEditorLink) {
+    if (connectionForm.kind === 'node') {
+      const link = links.find((candidate) => makeLinkKey(candidate) === connectionForm.linkKey);
+      if (!link) {
+        return null;
+      }
+      const source = nodes.find((node) => node.id === link.source);
+      const target = nodes.find((node) => node.id === link.target);
+      return {
+        kind: 'node' as const,
+        key: makeLinkKey(link),
+        relation: link.relation,
+        source: source
+          ? { kind: 'node' as const, id: source.id, label: source.label, type: source.type }
+          : null,
+        target: target
+          ? { kind: 'node' as const, id: target.id, label: target.label, type: target.type }
+          : null,
+      };
+    }
+    const link = groupLinks.find((candidate) => makeGroupLinkKey(candidate) === connectionForm.linkKey);
+    if (!link) {
       return null;
     }
-    const source = nodes.find((node) => node.id === connectionEditorLink.source);
-    return source ? { id: source.id, label: source.label, type: source.type } : null;
-  }, [connectionEditorLink, nodes]);
+    const sourceGroup = groups.find((group) => group.id === link.sourceGroupId);
+    const targetGroup = groups.find((group) => group.id === link.targetGroupId);
+    return {
+      kind: 'group' as const,
+      key: makeGroupLinkKey(link),
+      relation: link.relation,
+      source: sourceGroup
+        ? { kind: 'group' as const, id: sourceGroup.id, label: sourceGroup.title, type: sourceGroup.type }
+        : null,
+      target: targetGroup
+        ? { kind: 'group' as const, id: targetGroup.id, label: targetGroup.title, type: targetGroup.type }
+        : null,
+    };
+  }, [connectionForm, links, groupLinks, nodes, groups]);
 
-  const connectionEditorTarget = useMemo(() => {
-    if (!connectionEditorLink) {
-      return null;
+  const connectionEditorSourceOpen = useMemo<(() => void) | undefined>(() => {
+    const source = connectionEditorSelection?.source;
+    if (!source) {
+      return undefined;
     }
-    const target = nodes.find((node) => node.id === connectionEditorLink.target);
-    return target ? { id: target.id, label: target.label, type: target.type } : null;
-  }, [connectionEditorLink, nodes]);
+    if (source.kind === 'node') {
+      const { id } = source;
+      return () => openNodeEditorById(id);
+    }
+    const { id } = source;
+    return () => openGroupEditor(id);
+  }, [connectionEditorSelection, openGroupEditor, openNodeEditorById]);
+
+  const connectionEditorTargetOpen = useMemo<(() => void) | undefined>(() => {
+    const target = connectionEditorSelection?.target;
+    if (!target) {
+      return undefined;
+    }
+    if (target.kind === 'node') {
+      const { id } = target;
+      return () => openNodeEditorById(id);
+    }
+    const { id } = target;
+    return () => openGroupEditor(id);
+  }, [connectionEditorSelection, openGroupEditor, openNodeEditorById]);
 
   useEffect(() => {
-    if (!connectionEditorLink) {
+    if (!connectionEditorSelection) {
+      lastSyncedConnectionRef.current = null;
       return;
     }
+    const nextSignature = {
+      kind: connectionEditorSelection.kind,
+      key: connectionEditorSelection.key,
+      relation: connectionEditorSelection.relation,
+    };
+    const previousSignature = lastSyncedConnectionRef.current;
+    if (
+      previousSignature &&
+      previousSignature.kind === nextSignature.kind &&
+      previousSignature.key === nextSignature.key &&
+      previousSignature.relation === nextSignature.relation
+    ) {
+      return;
+    }
+    lastSyncedConnectionRef.current = nextSignature;
     setConnectionForm((current) => {
-      if (!current) {
+      if (
+        !current ||
+        current.kind !== nextSignature.kind ||
+        current.linkKey !== nextSignature.key ||
+        current.relation === nextSignature.relation
+      ) {
         return current;
       }
-      const edgeKey = makeLinkKey(connectionEditorLink);
-      if (current.linkKey !== edgeKey || current.relation === connectionEditorLink.relation) {
-        return current;
-      }
-      return { ...current, relation: connectionEditorLink.relation };
+      return { ...current, relation: nextSignature.relation };
     });
-  }, [connectionEditorLink]);
+  }, [connectionEditorSelection]);
 
   const openConnectionEditorByKey = useCallback(
-    (edgeKey: string) => {
-      const target = links.find((link) => makeLinkKey(link) === edgeKey);
-      if (!target) {
-        return;
+    (linkKey: string, kind: ConnectionFormState['kind']) => {
+      if (kind === 'node') {
+        const target = links.find((link) => makeLinkKey(link) === linkKey);
+        if (!target) {
+          return;
+        }
+        setNodeForm(null);
+        setConnectionForm({
+          mode: 'edit',
+          kind: 'node',
+          linkKey,
+          relation: target.relation,
+        });
+        setHoveredGroupLinkKey(null);
+        setHoveredEdgeKey(linkKey);
+      } else {
+        const target = groupLinks.find((link) => makeGroupLinkKey(link) === linkKey);
+        if (!target) {
+          return;
+        }
+        setGroupForm(null);
+        setConnectionForm({
+          mode: 'edit',
+          kind: 'group',
+          linkKey,
+          relation: target.relation,
+        });
+        setHoveredEdgeKey(null);
+        setHoveredGroupLinkKey(linkKey);
       }
-      setNodeForm(null);
-      setConnectionForm({
-        mode: 'edit',
-        linkKey: edgeKey,
-        relation: target.relation,
-      });
-      setHoveredEdgeKey(edgeKey);
       handleContextMenuDismiss();
       setPanelExpanded(false);
       setPanelGeometry((prev) => clampPanelGeometry(prev));
     },
-    [clampPanelGeometry, handleContextMenuDismiss, links]
+    [
+      links,
+      groupLinks,
+      handleContextMenuDismiss,
+      clampPanelGeometry,
+      setPanelGeometry,
+      setNodeForm,
+      setGroupForm,
+    ]
   );
 
   const handleConnectionFormRelationChange = useCallback((value: string) => {
@@ -1003,8 +1249,17 @@ const App = () => {
   }, []);
 
   const handleConnectionFormClose = useCallback(() => {
+    const selection = connectionEditorSelection;
     setConnectionForm(null);
-  }, []);
+    if (!selection || selection.relation.trim().length > 0) {
+      return;
+    }
+    if (selection.kind === 'node') {
+      removeConnectionByKey(selection.key);
+    } else {
+      removeGroupConnectionByKey(selection.key);
+    }
+  }, [connectionEditorSelection, removeConnectionByKey, removeGroupConnectionByKey]);
 
   const handleConnectionFormSubmit = useCallback(() => {
     setConnectionForm((current) => {
@@ -1012,14 +1267,26 @@ const App = () => {
         return current;
       }
       const nextRelation = current.relation.trim();
-      setLinks((prev) =>
-        prev.map((link) =>
-          makeLinkKey(link) === current.linkKey ? { ...link, relation: nextRelation } : link
-        )
-      );
+      if (nextRelation.length === 0) {
+        showUtilityToast('Relation name is required.');
+        return current;
+      }
+      if (current.kind === 'node') {
+        setLinks((prev) =>
+          prev.map((link) =>
+            makeLinkKey(link) === current.linkKey ? { ...link, relation: nextRelation } : link
+          )
+        );
+      } else {
+        setGroupLinks((prev) =>
+          prev.map((link) =>
+            makeGroupLinkKey(link) === current.linkKey ? { ...link, relation: nextRelation } : link
+          )
+        );
+      }
       return null;
     });
-  }, [setLinks]);
+  }, [setLinks, setGroupLinks, showUtilityToast]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1033,24 +1300,29 @@ const App = () => {
           setNodeForm(null);
           return;
         }
-        if (contextMenu) {
-          handleContextMenuDismiss();
-          return;
-        }
-        setActiveNodeId(null);
-        setHoveredNodeId(null);
-        setHoveredEdgeKey(null);
+      if (contextMenu) {
+        handleContextMenuDismiss();
+        return;
       }
+      setActiveNodeId(null);
+      setHoveredNodeId(null);
+      setHoveredEdgeKey(null);
+      setHoveredGroupLinkKey(null);
+    }
 
-      if (connectionForm) {
-        if (event.key === 'Delete' && connectionEditorLink) {
-          event.preventDefault();
+    if (connectionForm) {
+      if (event.key === 'Delete' && connectionEditorSelection) {
+        event.preventDefault();
+        if (connectionForm.kind === 'node') {
           removeConnectionByKey(connectionForm.linkKey);
-          return;
+        } else {
+          removeGroupConnectionByKey(connectionForm.linkKey);
         }
-        if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          event.preventDefault();
-          handleConnectionFormSubmit();
+        return;
+      }
+      if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        handleConnectionFormSubmit();
           return;
         }
         return;
@@ -1100,7 +1372,7 @@ const App = () => {
   }, [
     activeNodeId,
     connectionDraft,
-    connectionEditorLink,
+    connectionEditorSelection,
     connectionForm,
     contextMenu,
     handleContextMenuDismiss,
@@ -1108,6 +1380,7 @@ const App = () => {
     nodeForm,
     nodes,
     removeConnectionByKey,
+    removeGroupConnectionByKey,
     removeNodeById,
   ]);
 
@@ -1401,7 +1674,7 @@ const App = () => {
           id: 'edit-connection',
           label: 'Edit connection',
           icon: <EditIcon />,
-          onSelect: () => openConnectionEditorByKey(contextMenu.edgeKey),
+          onSelect: () => openConnectionEditorByKey(contextMenu.edgeKey, 'node'),
         },
         {
           id: 'delete-connection',
@@ -1409,6 +1682,24 @@ const App = () => {
           icon: <TrashIcon />,
           tone: 'danger' as const,
           onSelect: () => removeConnectionByKey(contextMenu.edgeKey),
+        },
+      ];
+    }
+
+    if (contextMenu.kind === 'group-connection') {
+      return [
+        {
+          id: 'edit-group-connection',
+          label: 'Edit group link',
+          icon: <EditIcon />,
+          onSelect: () => openConnectionEditorByKey(contextMenu.linkKey, 'group'),
+        },
+        {
+          id: 'delete-group-connection',
+          label: 'Delete group link',
+          icon: <TrashIcon />,
+          tone: 'danger' as const,
+          onSelect: () => removeGroupConnectionByKey(contextMenu.linkKey),
         },
       ];
     }
@@ -1452,6 +1743,7 @@ const App = () => {
     openConnectionEditorByKey,
     openNodeEditorById,
     removeConnectionByKey,
+    removeGroupConnectionByKey,
     removeNodeById,
     openGroupEditor,
     removeGroupById,
@@ -1552,21 +1844,21 @@ const App = () => {
         />
       )}
 
-      {!nodeForm && connectionForm && connectionEditorLink && (
+      {!nodeForm && connectionForm && connectionEditorSelection && (
         <ConnectionEditorPanel
           relation={connectionForm.relation}
           onRelationChange={handleConnectionFormRelationChange}
           onSubmit={handleConnectionFormSubmit}
           onClose={handleConnectionFormClose}
-          onDelete={() => removeConnectionByKey(connectionForm.linkKey)}
-          sourceNode={connectionEditorSource}
-          targetNode={connectionEditorTarget}
-          onOpenSourceNode={
-            connectionEditorSource ? () => openNodeEditorById(connectionEditorSource.id) : undefined
+          onDelete={() =>
+            connectionForm.kind === 'node'
+              ? removeConnectionByKey(connectionForm.linkKey)
+              : removeGroupConnectionByKey(connectionForm.linkKey)
           }
-          onOpenTargetNode={
-            connectionEditorTarget ? () => openNodeEditorById(connectionEditorTarget.id) : undefined
-          }
+          sourceEndpoint={connectionEditorSelection.source}
+          targetEndpoint={connectionEditorSelection.target}
+          onOpenSourceEndpoint={connectionEditorSourceOpen}
+          onOpenTargetEndpoint={connectionEditorTargetOpen}
           position={{ x: panelGeometry.x, y: panelGeometry.y }}
           size={{ width: panelGeometry.width, height: panelGeometry.height }}
           onMove={handlePanelMove}
