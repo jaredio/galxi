@@ -963,22 +963,20 @@ const App = () => {
   }, [connectionEditorLink, nodes]);
 
   useEffect(() => {
-    if (!connectionForm || !connectionEditorLink) {
+    if (!connectionEditorLink) {
       return;
     }
-    const edgeKey = makeLinkKey(connectionEditorLink);
-    if (connectionForm.linkKey !== edgeKey || connectionForm.relation === connectionEditorLink.relation) {
-      return;
-    }
-    setConnectionForm((current) =>
-      current && current.linkKey === edgeKey
-        ? {
-            ...current,
-            relation: connectionEditorLink.relation,
-          }
-        : current
-    );
-  }, [connectionEditorLink, connectionForm]);
+    setConnectionForm((current) => {
+      if (!current) {
+        return current;
+      }
+      const edgeKey = makeLinkKey(connectionEditorLink);
+      if (current.linkKey !== edgeKey || current.relation === connectionEditorLink.relation) {
+        return current;
+      }
+      return { ...current, relation: connectionEditorLink.relation };
+    });
+  }, [connectionEditorLink]);
 
   const openConnectionEditorByKey = useCallback(
     (edgeKey: string) => {
