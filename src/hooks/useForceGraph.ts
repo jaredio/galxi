@@ -217,6 +217,7 @@ export const useForceGraph = ({
   const groupLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const groupLinkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const groupLinkHitLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
+  const groupLinkLabelLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const nodeLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkHitLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const linkLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
@@ -225,6 +226,7 @@ export const useForceGraph = ({
   const draftLineRef = useRef<d3.Selection<SVGLineElement, any, any, any> | null>(null);
   const groupLinkSelectionRef = useRef<d3.Selection<SVGLineElement, GroupLink, SVGGElement, unknown> | null>(null);
   const groupLinkHitSelectionRef = useRef<d3.Selection<SVGLineElement, GroupLink, SVGGElement, unknown> | null>(null);
+  const groupLinkLabelSelectionRef = useRef<d3.Selection<SVGTextElement, GroupLink, SVGGElement, unknown> | null>(null);
   const groupSelectionRef = useRef<
     d3.Selection<SVGGElement, CanvasGroup, SVGGElement, unknown> | null
   >(null);
@@ -318,7 +320,7 @@ export const useForceGraph = ({
   };
   const updateGroupLinkPositions = () => {
     const geometry = groupGeometryRef.current;
-    const positionSelection = (
+    const positionLineSelection = (
       selection: d3.Selection<SVGLineElement, GroupLink, SVGGElement, unknown> | null
     ) => {
       if (!selection) {
@@ -341,8 +343,30 @@ export const useForceGraph = ({
           .attr('y2', ty);
       });
     };
-    positionSelection(groupLinkSelectionRef.current);
-    positionSelection(groupLinkHitSelectionRef.current);
+    const positionLabelSelection = (
+      selection: d3.Selection<SVGTextElement, GroupLink, SVGGElement, unknown> | null
+    ) => {
+      if (!selection) {
+        return;
+      }
+      selection.each(function positionLabel(datum) {
+        const source = geometry[datum.sourceGroupId];
+        const target = geometry[datum.targetGroupId];
+        const label = d3.select<SVGTextElement, GroupLink>(this);
+        if (!source || !target) {
+          label.attr('visibility', 'hidden');
+          return;
+        }
+        const { sx, sy, tx, ty } = resolveGroupLinkSegment(source, target);
+        label
+          .attr('visibility', datum.relation ? 'visible' : 'hidden')
+          .attr('x', (sx + tx) / 2)
+          .attr('y', (sy + ty) / 2 - 6);
+      });
+    };
+    positionLineSelection(groupLinkSelectionRef.current);
+    positionLineSelection(groupLinkHitSelectionRef.current);
+    positionLabelSelection(groupLinkLabelSelectionRef.current);
   };
   const applyGroupLayout = (
     group: d3.Selection<SVGGElement, CanvasGroup, any, any>,
@@ -423,18 +447,23 @@ export const useForceGraph = ({
     .attr('class', 'group-link-layer')
     .style('pointer-events', 'none');
   const groupLinkHitLayer = container.append('g').attr('class', 'group-link-hit-layer');
+  const groupLinkLabelLayer = container
+    .append('g')
+    .attr('class', 'group-link-label-layer')
+    .style('pointer-events', 'none');
   const linkHitLayer = container.append('g').attr('class', 'link-hit-layer');
-    const linkLayer = container.append('g').attr('class', 'link-layer');
-    const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
-    const nodeLayer = container.append('g').attr('class', 'node-layer');
-    const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
+  const linkLayer = container.append('g').attr('class', 'link-layer');
+  const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
+  const nodeLayer = container.append('g').attr('class', 'node-layer');
+  const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
   groupLayerRef.current = groupLayer;
   groupLinkLayerRef.current = groupLinkLayer;
   groupLinkHitLayerRef.current = groupLinkHitLayer;
-    linkHitLayerRef.current = linkHitLayer;
-    linkLayerRef.current = linkLayer;
-    linkLabelLayerRef.current = linkLabelLayer;
-    nodeLayerRef.current = nodeLayer;
+  groupLinkLabelLayerRef.current = groupLinkLabelLayer;
+  linkHitLayerRef.current = linkHitLayer;
+  linkLayerRef.current = linkLayer;
+  linkLabelLayerRef.current = linkLabelLayer;
+  nodeLayerRef.current = nodeLayer;
     draftLayerRef.current = draftLayer;
     const draftLine = draftLayer
       .append('line')
@@ -502,20 +531,22 @@ export const useForceGraph = ({
     return () => {
       window.removeEventListener('resize', handleResize);
       svg.on('.zoom', null);
-    svg.on('click', null);
-    svg.selectAll('*').remove();
-    groupLayerRef.current = null;
-    groupLinkLayerRef.current = null;
-    groupLinkHitLayerRef.current = null;
-    nodeSelectionRef.current = null;
-    linkSelectionRef.current = null;
-    linkHitSelectionRef.current = null;
-    linkLabelSelectionRef.current = null;
-    groupLinkSelectionRef.current = null;
-    groupLinkHitSelectionRef.current = null;
-    containerRef.current = null;
-    nodeLayerRef.current = null;
-    linkHitLayerRef.current = null;
+      svg.on('click', null);
+      svg.selectAll('*').remove();
+      groupLayerRef.current = null;
+      groupLinkLayerRef.current = null;
+      groupLinkHitLayerRef.current = null;
+      groupLinkLabelLayerRef.current = null;
+      nodeSelectionRef.current = null;
+      linkSelectionRef.current = null;
+      linkHitSelectionRef.current = null;
+      linkLabelSelectionRef.current = null;
+      groupLinkSelectionRef.current = null;
+      groupLinkHitSelectionRef.current = null;
+      groupLinkLabelSelectionRef.current = null;
+      containerRef.current = null;
+      nodeLayerRef.current = null;
+      linkHitLayerRef.current = null;
       linkLayerRef.current = null;
       linkLabelLayerRef.current = null;
       draftLayerRef.current = null;
@@ -720,7 +751,8 @@ export const useForceGraph = ({
     });
     const groupLinkLayer = groupLinkLayerRef.current;
     const groupLinkHitLayer = groupLinkHitLayerRef.current;
-    if (groupLinkLayer && groupLinkHitLayer) {
+    const groupLinkLabelLayer = groupLinkLabelLayerRef.current;
+    if (groupLinkLayer && groupLinkHitLayer && groupLinkLabelLayer) {
       const availableGroupIds = new Set(groups.map((group) => group.id));
       const sanitizedGroupLinks = groupLinks.filter(
         (link) => availableGroupIds.has(link.sourceGroupId) && availableGroupIds.has(link.targetGroupId)
@@ -774,6 +806,16 @@ export const useForceGraph = ({
           event.stopPropagation();
           onContextMenuDismiss();
         });
+      const groupLinkLabelSelection = groupLinkLabelLayer
+        .selectAll<SVGTextElement, GroupLink>('text.group-link-label')
+        .data(sanitizedGroupLinks, (datum) => makeGroupLinkKey(datum))
+        .join('text')
+        .attr('class', 'group-link-label')
+        .attr('font-size', 11)
+        .attr('text-anchor', 'middle')
+        .attr('opacity', 0.35)
+        .attr('fill', textSecondary)
+        .text((datum: GroupLink) => datum.relation || '');
       groupLinkSelectionRef.current = groupLinkSelection as d3.Selection<
         SVGLineElement,
         GroupLink,
@@ -786,10 +828,17 @@ export const useForceGraph = ({
         SVGGElement,
         unknown
       >;
+      groupLinkLabelSelectionRef.current = groupLinkLabelSelection as d3.Selection<
+        SVGTextElement,
+        GroupLink,
+        SVGGElement,
+        unknown
+      >;
       updateGroupLinkPositions();
     } else {
       groupLinkSelectionRef.current = null;
       groupLinkHitSelectionRef.current = null;
+      groupLinkLabelSelectionRef.current = null;
     }
     groupSelectionRef.current = typedGroupSelection;
     const simulation = d3
@@ -1150,6 +1199,34 @@ export const useForceGraph = ({
         const highlighted = key === hoveredGroupLinkKey || touchesSelected || touchesHovered;
         return highlighted ? 0.6 : 0.32;
       });
+    const labelSelection = groupLinkLabelSelectionRef.current;
+    if (!labelSelection) {
+      return;
+    }
+    labelSelection
+      .attr('fill', (datum: GroupLink) => {
+        const key = makeGroupLinkKey(datum);
+        const touchesSelected =
+          !!selectedGroupId &&
+          (datum.sourceGroupId === selectedGroupId || datum.targetGroupId === selectedGroupId);
+        const touchesHovered =
+          !!hoveredGroupId &&
+          (datum.sourceGroupId === hoveredGroupId || datum.targetGroupId === hoveredGroupId);
+        const highlighted = key === hoveredGroupLinkKey || touchesSelected || touchesHovered;
+        return highlighted ? accent : textSecondary;
+      })
+      .attr('opacity', (datum: GroupLink) => {
+        const key = makeGroupLinkKey(datum);
+        const touchesSelected =
+          !!selectedGroupId &&
+          (datum.sourceGroupId === selectedGroupId || datum.targetGroupId === selectedGroupId);
+        const touchesHovered =
+          !!hoveredGroupId &&
+          (datum.sourceGroupId === hoveredGroupId || datum.targetGroupId === hoveredGroupId);
+        const highlighted = key === hoveredGroupLinkKey || touchesSelected || touchesHovered;
+        return highlighted ? 0.8 : 0.4;
+      })
+      .text((datum: GroupLink) => datum.relation || '');
   }, [hoveredGroupLinkKey, selectedGroupId, hoveredGroupId]);
   useEffect(() => {
     const draftLine = draftLineRef.current;

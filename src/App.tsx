@@ -214,6 +214,7 @@ const App = () => {
     key: string;
     relation: string;
   } | null>(null);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   useEffect(() => {
     applyTheme(baseTheme);
@@ -236,6 +237,11 @@ const App = () => {
       }
     });
   }, [groups]);
+  useEffect(() => {
+    if (nodes.length > 0 || groups.length > 0) {
+      setWelcomeDismissed(true);
+    }
+  }, [nodes.length, groups.length]);
 
   useEffect(() => {
     const handleGlobalClick = (event: MouseEvent) => {
@@ -1649,9 +1655,8 @@ const App = () => {
   }, [resetZoom]);
 
   const handleEmptyStateCreate = useCallback(() => {
-    const position = getGraphCenterPosition();
-    openCreateNodeForm(position);
-  }, [getGraphCenterPosition, openCreateNodeForm]);
+    setWelcomeDismissed(true);
+  }, []);
 
   const contextMenuItems = useMemo(() => {
     if (!contextMenu) {
@@ -1784,6 +1789,8 @@ const App = () => {
     });
   }, [clampPanelGeometry]);
 
+  const showWelcome = !welcomeDismissed && nodes.length === 0 && groups.length === 0;
+
   return (
     <div className="app">
       <Topbar activeTab={activeTab} onSelectTab={setActiveTab} />
@@ -1802,7 +1809,7 @@ const App = () => {
           onMouseMove={handleCanvasMouseMove}
         />
 
-        {nodes.length === 0 && <EmptyState onCreateNode={handleEmptyStateCreate} />}
+        {showWelcome && <EmptyState onCreateNode={handleEmptyStateCreate} />}
 
         <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onReset={handleResetZoom} />
 
