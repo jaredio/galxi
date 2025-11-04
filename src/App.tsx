@@ -258,23 +258,6 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (!connectionForm) {
-      return;
-    }
-    if (connectionForm.kind === 'node') {
-      const exists = links.some((link) => makeLinkKey(link) === connectionForm.linkKey);
-      if (!exists) {
-        setConnectionForm(null);
-      }
-      return;
-    }
-    const exists = groupLinks.some((link) => makeGroupLinkKey(link) === connectionForm.linkKey);
-    if (!exists) {
-      setConnectionForm(null);
-    }
-  }, [connectionForm, links, groupLinks]);
-
-  useEffect(() => {
     if (!utilityToast) {
       return;
     }
@@ -398,11 +381,12 @@ const App = () => {
         setConnectionDraft(null);
         setActiveNodeId(targetNodeId);
         setHoveredNodeId(targetNodeId);
-        setHoveredEdgeKey(created ? linkKey : null);
+        setHoveredEdgeKey(linkKey);
         setHoveredGroupLinkKey(null);
         setContextMenu(null);
         setSelectedGroupId(null);
         setHoveredGroupId(null);
+
         if (created) {
           setPanelExpanded(false);
           setPanelGeometry((prev) => clampPanelGeometry(prev));
@@ -417,8 +401,6 @@ const App = () => {
             linkKey,
             relation: '',
           });
-        } else {
-          setConnectionForm(null);
         }
         return true;
       }
@@ -455,8 +437,9 @@ const App = () => {
         setActiveNodeId(null);
         setHoveredNodeId(null);
         setHoveredEdgeKey(null);
-        setHoveredGroupLinkKey(created ? linkKey : null);
+        setHoveredGroupLinkKey(linkKey);
         setContextMenu(null);
+
         if (created) {
           setPanelExpanded(false);
           setPanelGeometry((prev) => clampPanelGeometry(prev));
@@ -471,8 +454,6 @@ const App = () => {
             linkKey,
             relation: '',
           });
-        } else {
-          setConnectionForm(null);
         }
         return true;
       }
@@ -793,12 +774,11 @@ const App = () => {
       if (groupId) {
         setActiveNodeId(null);
         setNodeForm(null);
-        setConnectionForm(null);
         setContextMenu(null);
         setHoveredEdgeKey(null);
-        setHoveredGroupLinkKey(null);
       } else {
         setGroupForm(null);
+        setConnectionForm(null);
       }
     },
     [
@@ -1127,15 +1107,16 @@ const App = () => {
       };
     }
     const link = groupLinks.find((candidate) => makeGroupLinkKey(candidate) === connectionForm.linkKey);
-    if (!link) {
-      return null;
-    }
-    const sourceGroup = groups.find((group) => group.id === link.sourceGroupId);
-    const targetGroup = groups.find((group) => group.id === link.targetGroupId);
+    const [fallbackSourceId, fallbackTargetId] = connectionForm.linkKey.split('->');
+    const relation = link ? link.relation : connectionForm.relation;
+    const sourceGroupId = link ? link.sourceGroupId : fallbackSourceId;
+    const targetGroupId = link ? link.targetGroupId : fallbackTargetId;
+    const sourceGroup = groups.find((group) => group.id === sourceGroupId);
+    const targetGroup = groups.find((group) => group.id === targetGroupId);
     return {
       kind: 'group' as const,
-      key: makeGroupLinkKey(link),
-      relation: link.relation,
+      key: connectionForm.linkKey,
+      relation,
       source: sourceGroup
         ? { kind: 'group' as const, id: sourceGroup.id, label: sourceGroup.title, type: sourceGroup.type }
         : null,
