@@ -1,13 +1,14 @@
 # Galxi
 
-Galxi is an experimental topology canvas built with React, D3, and Vite. Sketch infrastructure diagrams, link services, and explore relationships through an interactive force-directed graph.
+Galxi is a visual topology designer for cloud and network architects. It lets you sketch out VNets, subnets, services, and logical groupings on an interactive canvas, simulate relationships with a force-directed graph, and capture metadata about each connection. The goal is to provide a fast, opinionated space for mapping infrastructure without losing the clarity of a high-fidelity diagram.
 
-## Stack
+## Tech Stack
 
-- React 19
-- TypeScript
-- D3.js
-- Vite 7
+- **React 19** – component architecture and state flow.
+- **TypeScript 5.9** – type safety across the canvas and editor tooling.
+- **D3.js 7** – force simulation, SVG rendering, and interaction bindings.
+- **Zustand 5** – lightweight store for nodes, groups, and links.
+- **Vite 7** – build tool + dev server.
 
 ## License
 
