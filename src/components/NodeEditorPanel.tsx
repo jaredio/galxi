@@ -29,7 +29,7 @@ type NodeEditorPanelProps = {
   nodeType: NodeType;
   onLabelChange: (value: string) => void;
   onTypeChange: (value: NodeType) => void;
-  onGroupChange: (value: string) => void;
+  placementLabel: string;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteNode: () => void;
@@ -80,7 +80,7 @@ export const NodeEditorPanel = ({
   nodeType,
   onLabelChange,
   onTypeChange,
-  onGroupChange,
+  placementLabel,
   onClose,
   onSubmit,
   onDeleteNode,
@@ -307,12 +307,10 @@ export const NodeEditorPanel = ({
                   </select>
                 </label>
                 <label>
-                  <span>Group</span>
-                  <input
-                    value={values.group}
-                    onChange={(event) => onGroupChange(event.target.value)}
-                    placeholder="Optional grouping label"
-                  />
+                  <span>Placement</span>
+                  <p className="node-editor-placement-value">
+                    {mode === 'create' ? 'Auto-assigned when placed on canvas' : placementLabel}
+                  </p>
                 </label>
               </section>
             </div>

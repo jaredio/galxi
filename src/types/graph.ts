@@ -1,4 +1,5 @@
 import type { SimulationLinkDatum, SimulationNodeDatum } from 'd3';
+import type { ResourceProfileData } from './profile';
 
 export type NodeType =
   | 'vm'
@@ -17,6 +18,7 @@ export interface NetworkNode {
   label: string;
   type: NodeType;
   group: string;
+  profile?: ResourceProfileData;
 }
 
 export interface NetworkLink {
@@ -33,6 +35,8 @@ export interface CanvasGroup {
   y: number;
   width: number;
   height: number;
+  parentGroupId?: string;
+  profile?: ResourceProfileData;
 }
 
 export interface GroupLink {

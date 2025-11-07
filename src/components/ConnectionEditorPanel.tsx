@@ -6,6 +6,7 @@ import { CloseIcon, LinkIcon, TrashIcon } from './icons';
 import { getGroupIcon } from '../constants/groupIcons';
 import { getNodeIcon } from '../constants/nodeIcons';
 import { nodeTypeLabelMap } from '../constants/nodeTypeLabels';
+import { groupTypeLabelMap } from '../constants/groupLabels';
 import type { GroupType, NodeType } from '../types/graph';
 
 type ResizeHandle =
@@ -36,12 +37,6 @@ const resizeHandles: Array<{ key: ResizeHandle; className: string; cursor: strin
     cursor: 'nwse-resize',
   },
 ];
-
-const groupTypeLabelMap: Record<GroupType, string> = {
-  virtualNetwork: 'Virtual Network',
-  subnet: 'Subnet',
-  logicalGroup: 'Logical Grouping',
-};
 
 type ConnectionEndpoint =
   | {

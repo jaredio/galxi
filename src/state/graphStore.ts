@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { CanvasGroup, GroupLink, NetworkLink, NetworkNode } from '../types/graph';
+import { createDefaultGroupProfile, createDefaultNodeProfile } from '../schemas/resources';
 
 type Updater<T> = T | ((current: T) => T);
 
@@ -47,9 +48,17 @@ export const useGraphStore = create<GraphStore>((set) => ({
     })),
   replaceGraph: ({ nodes, links, groups, groupLinks }) =>
     set({
-      nodes: nodes.map((node) => ({ ...node })),
+      nodes: nodes.map((node) => ({
+        ...node,
+        profile: node.profile ?? createDefaultNodeProfile(node.type),
+      })),
       links: links.map((link) => ({ ...link })),
-      groups: groups ? groups.map((group) => ({ ...group })) : [],
+      groups: groups
+        ? groups.map((group) => ({
+            ...group,
+            profile: group.profile ?? createDefaultGroupProfile(group.type),
+          }))
+        : [],
       groupLinks: groupLinks ? groupLinks.map((link) => ({ ...link })) : [],
     }),
 }));

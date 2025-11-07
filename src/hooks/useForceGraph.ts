@@ -147,6 +147,7 @@ type ForceGraphCallbacks = {
   onNodeClick: (node: SimulationNode) => void;
   onNodeDoubleClick: (node: SimulationNode) => void;
   onNodeAuxClick: (event: MouseEvent, node: SimulationNode) => void;
+  onNodeDragEnd: (nodeId: string, position: { x: number; y: number }) => void;
   onEdgeHover: (edgeKey: string | null) => void;
   onLinkContextMenu: (event: MouseEvent, link: SimulationLink) => void;
   onCanvasClick: () => void;
@@ -195,6 +196,7 @@ export const useForceGraph = ({
   onNodeClick,
   onNodeDoubleClick,
   onNodeAuxClick,
+  onNodeDragEnd,
   onEdgeHover,
   onLinkContextMenu,
   onCanvasClick,
@@ -1087,7 +1089,12 @@ export const useForceGraph = ({
       })
       .on('end', function () {
         nodeDragStateRef.current = null;
-        d3.select(this as SVGGElement).style('cursor', 'grab');
+        const node = d3.select<SVGGElement, SimulationNode>(this);
+        const datum = node.datum();
+        node.style('cursor', 'grab');
+        if (datum) {
+          onNodeDragEnd(datum.id, { x: datum.x ?? 0, y: datum.y ?? 0 });
+        }
         schedulePositionsUpdate();
       });
 

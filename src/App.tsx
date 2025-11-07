@@ -11,6 +11,7 @@ import { GalxiSidebar } from './components/GalxiSidebar';
 import { ConnectionEditorPanel } from './components/ConnectionEditorPanel';
 import { GroupEditorPanel } from './components/GroupEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
+import { ProfileWindow } from './components/ProfileWindow';
 import { EditIcon, PlusIcon, TrashIcon } from './components/icons';
 import { Topbar } from './components/Topbar';
 import { ZoomControls } from './components/ZoomControls';
@@ -24,6 +25,7 @@ import {
   LINK_BASE_WIDTH,
 } from './constants/graph';
 import { nodeTypeOptions } from './constants/nodeOptions';
+import { groupTypeLabelMap } from './constants/groupLabels';
 import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
@@ -36,6 +38,14 @@ import {
   resolveId,
   shortenSegment,
 } from './lib/graph-utils';
+import { buildGroupProfileContent, buildNodeProfileContent } from './lib/profileData';
+import {
+  createDefaultGroupProfile,
+  createDefaultNodeProfile,
+  getGroupProfileSchema,
+  getNodeProfileSchema,
+  mergeProfileWithSchema,
+} from './schemas/resources';
 import type {
   CanvasGroup,
   GroupLink,
@@ -128,12 +138,89 @@ type GroupFormValues = {
   type: GroupType;
 };
 
+type ProfileWindowState = {
+  id: string;
+  kind: 'node' | 'group';
+  resourceId: string;
+  position: { x: number; y: number };
+  zIndex: number;
+};
+
 type GroupDraftType = GroupType;
 
 const groupDraftPresets: Record<GroupDraftType, { title: string }> = {
   virtualNetwork: { title: 'New Virtual Network' },
   subnet: { title: 'New Subnet' },
   logicalGroup: { title: 'New Logical Group' },
+};
+
+const NODE_GROUP_PRIORITY_SCORE: Record<GroupType, number> = {
+  subnet: 3,
+  virtualNetwork: 2,
+  logicalGroup: 1,
+};
+
+const GROUP_PARENT_RULES: Record<GroupType, GroupType[]> = {
+  virtualNetwork: ['logicalGroup'],
+  subnet: ['virtualNetwork', 'logicalGroup'],
+  logicalGroup: ['logicalGroup'],
+};
+
+const GROUP_PARENT_PRIORITY: Record<GroupType, number> = {
+  logicalGroup: 1,
+  virtualNetwork: 2,
+  subnet: 3,
+};
+
+const groupArea = (group: CanvasGroup) => group.width * group.height;
+
+const pointWithinGroup = (point: { x: number; y: number }, group: CanvasGroup) =>
+  point.x >= group.x &&
+  point.x <= group.x + group.width &&
+  point.y >= group.y &&
+  point.y <= group.y + group.height;
+
+const groupContainsGroup = (child: CanvasGroup, parent: CanvasGroup) =>
+  child.x >= parent.x &&
+  child.y >= parent.y &&
+  child.x + child.width <= parent.x + parent.width &&
+  child.y + child.height <= parent.y + parent.height;
+
+const determineGroupParentId = (group: CanvasGroup, groups: CanvasGroup[]) => {
+  const allowedParents = GROUP_PARENT_RULES[group.type] ?? [];
+  if (allowedParents.length === 0) {
+    return undefined;
+  }
+  const candidates = groups.filter(
+    (candidate) =>
+      candidate.id !== group.id &&
+      allowedParents.includes(candidate.type) &&
+      groupContainsGroup(group, candidate)
+  );
+  if (candidates.length === 0) {
+    return undefined;
+  }
+  candidates.sort((a, b) => {
+    const priorityDiff = (GROUP_PARENT_PRIORITY[b.type] ?? 0) - (GROUP_PARENT_PRIORITY[a.type] ?? 0);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+    return groupArea(a) - groupArea(b);
+  });
+  return candidates[0].id;
+};
+
+const applyParentAssignments = (groups: CanvasGroup[]) => {
+  let changed = false;
+  const next = groups.map((group, _, arr) => {
+    const parentGroupId = determineGroupParentId(group, arr);
+    if (group.parentGroupId === parentGroupId) {
+      return group;
+    }
+    changed = true;
+    return { ...group, parentGroupId };
+  });
+  return changed ? next : groups;
 };
 
 type UtilityToastState = { id: number; message: string };
@@ -189,6 +276,17 @@ const App = () => {
     type: 'vm',
     group: '',
   });
+  useEffect(() => {
+    if (!nodeForm || nodeForm.mode !== 'edit') {
+      return;
+    }
+    const currentNode = nodes.find((node) => node.id === nodeForm.nodeId);
+    if (!currentNode) {
+      return;
+    }
+    const normalizedGroup = currentNode.group ?? '';
+    setFormValues((prev) => (prev.group === normalizedGroup ? prev : { ...prev, group: normalizedGroup }));
+  }, [nodeForm, nodes]);
   const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null);
   const [groupForm, setGroupForm] = useState<GroupFormState | null>(null);
   const [groupFormValues, setGroupFormValues] = useState<GroupFormValues>({
@@ -215,10 +313,171 @@ const App = () => {
     relation: string;
   } | null>(null);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [profileWindows, setProfileWindows] = useState<ProfileWindowState[]>([]);
+  const profileSpawnIndexRef = useRef(0);
+  const profileZIndexRef = useRef(60);
+  const profileContext = useMemo(
+    () => ({
+      nodes,
+      groups,
+      links,
+    }),
+    [nodes, groups, links]
+  );
 
   useEffect(() => {
     applyTheme(baseTheme);
   }, []);
+
+  const clampProfilePosition = useCallback((position: { x: number; y: number }) => {
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440;
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
+    const width = 420;
+    const paddingX = 24;
+    const paddingY = 80;
+    const maxX = Math.max(paddingX, viewportWidth - width - paddingX);
+    const maxY = Math.max(paddingY, viewportHeight - 200);
+    return {
+      x: Math.min(Math.max(paddingX, position.x), maxX),
+      y: Math.min(Math.max(paddingY, position.y), maxY),
+    };
+  }, []);
+
+  const getProfileSpawnPosition = useCallback(() => {
+    const offset = profileSpawnIndexRef.current++;
+    const column = offset % 3;
+    const row = Math.floor(offset / 3);
+    return clampProfilePosition({
+      x: 320 + column * 40,
+      y: 110 + row * 32,
+    });
+  }, [clampProfilePosition]);
+
+  const getNextProfileZIndex = useCallback(() => {
+    profileZIndexRef.current += 1;
+    return profileZIndexRef.current;
+  }, []);
+
+  const openProfileWindow = useCallback(
+    (kind: ProfileWindowState['kind'], resourceId: string) => {
+      const windowId = `${kind}:${resourceId}`;
+      setProfileWindows((prev) => {
+        const existing = prev.find((win) => win.id === windowId);
+        const zIndex = getNextProfileZIndex();
+        if (existing) {
+          return prev.map((win) => (win.id === windowId ? { ...win, zIndex } : win));
+        }
+        return [
+          ...prev,
+          {
+            id: windowId,
+            kind,
+            resourceId,
+            position: getProfileSpawnPosition(),
+            zIndex,
+          },
+        ];
+      });
+    },
+    [getNextProfileZIndex, getProfileSpawnPosition]
+  );
+
+  const focusProfileWindow = useCallback(
+    (windowId: string) => {
+      setProfileWindows((prev) => {
+        if (!prev.some((win) => win.id === windowId)) {
+          return prev;
+        }
+        const zIndex = getNextProfileZIndex();
+        return prev.map((win) => (win.id === windowId ? { ...win, zIndex } : win));
+      });
+    },
+    [getNextProfileZIndex]
+  );
+
+  const moveProfileWindow = useCallback(
+    (windowId: string, position: { x: number; y: number }) => {
+      setProfileWindows((prev) =>
+        prev.map((win) =>
+          win.id === windowId ? { ...win, position: clampProfilePosition(position) } : win
+        )
+      );
+    },
+    [clampProfilePosition]
+  );
+
+  const closeProfileWindowById = useCallback((windowId: string) => {
+    setProfileWindows((prev) => prev.filter((win) => win.id !== windowId));
+  }, []);
+
+  const closeProfileWindowsByResource = useCallback(
+    (kind: ProfileWindowState['kind'], resourceId: string) => {
+      setProfileWindows((prev) =>
+        prev.filter((win) => !(win.kind === kind && win.resourceId === resourceId))
+      );
+    },
+    []
+  );
+
+  const closeTopProfileWindow = useCallback(() => {
+    setProfileWindows((prev) => {
+      if (prev.length === 0) {
+        return prev;
+      }
+      const topWindow = prev.reduce((highest, next) =>
+        next.zIndex > highest.zIndex ? next : highest
+      );
+      return prev.filter((win) => win.id !== topWindow.id);
+    });
+  }, []);
+
+  const handleProfileFieldChange = useCallback(
+    (kind: ProfileWindowState['kind'], resourceId: string, fieldKey: string, value: string) => {
+      if (kind === 'node') {
+        setNodes((prev) =>
+          prev.map((node) => {
+            if (node.id !== resourceId) {
+              return node;
+            }
+            const schema = getNodeProfileSchema(node.type);
+            const profile = mergeProfileWithSchema(
+              schema,
+              node.profile ?? createDefaultNodeProfile(node.type)
+            );
+            return {
+              ...node,
+              profile: {
+                ...profile,
+                [fieldKey]: value,
+              },
+            };
+          })
+        );
+        return;
+      }
+
+      setGroups((prev) =>
+        prev.map((group) => {
+          if (group.id !== resourceId) {
+            return group;
+          }
+          const schema = getGroupProfileSchema(group.type);
+          const profile = mergeProfileWithSchema(
+            schema,
+            group.profile ?? createDefaultGroupProfile(group.type)
+          );
+          return {
+            ...group,
+            profile: {
+              ...profile,
+              [fieldKey]: value,
+            },
+          };
+        })
+      );
+    },
+    [setNodes, setGroups]
+  );
 
   useEffect(() => {
     const existingIds = new Set(nodes.map((node) => node.id));
@@ -237,6 +496,7 @@ const App = () => {
       }
     });
   }, [groups]);
+
   useEffect(() => {
     if (nodes.length > 0 || groups.length > 0) {
       setWelcomeDismissed(true);
@@ -335,6 +595,87 @@ const App = () => {
   const handleSettingsUtilities = useCallback(() => {
     showUtilityToast('Settings panel coming soon.');
   }, [showUtilityToast]);
+
+  const findBestGroupForPoint = useCallback(
+    (point: { x: number; y: number }) => {
+      const candidates = groups
+        .filter((group) => pointWithinGroup(point, group))
+        .sort((a, b) => {
+          const priorityDiff =
+            (NODE_GROUP_PRIORITY_SCORE[b.type] ?? 0) - (NODE_GROUP_PRIORITY_SCORE[a.type] ?? 0);
+          if (priorityDiff !== 0) {
+            return priorityDiff;
+          }
+          return groupArea(a) - groupArea(b);
+        });
+      return candidates[0]?.id ?? '';
+    },
+    [groups]
+  );
+
+  const assignNodeToGroupByPosition = useCallback(
+    (nodeId: string, position?: { x: number; y: number }) => {
+      const targetPosition = position ?? nodePositionsRef.current[nodeId];
+      if (!targetPosition) {
+        return;
+      }
+      const nextGroupId = findBestGroupForPoint(targetPosition) ?? '';
+      setNodes((prev) => {
+        let changed = false;
+        const next = prev.map((node) => {
+          if (node.id !== nodeId) {
+            return node;
+          }
+          if ((node.group ?? '') === nextGroupId) {
+            return node;
+          }
+          changed = true;
+          return { ...node, group: nextGroupId };
+        });
+        return changed ? next : prev;
+      });
+    },
+    [findBestGroupForPoint, setNodes]
+  );
+
+  const describePlacement = useCallback(
+    (groupId: string | undefined) => {
+      if (!groupId) {
+        return 'Unassigned';
+      }
+      const chain: string[] = [];
+      const visited = new Set<string>();
+      let current = groups.find((group) => group.id === groupId);
+      while (current && !visited.has(current.id)) {
+        chain.push(`${groupTypeLabelMap[current.type] ?? 'Group'}: ${current.title}`);
+        visited.add(current.id);
+        current = current.parentGroupId
+          ? groups.find((candidate) => candidate.id === current!.parentGroupId)
+          : undefined;
+      }
+      return chain.join(' › ') || 'Unassigned';
+    },
+    [groups]
+  );
+
+  useEffect(() => {
+    setNodes((prev) => {
+      let changed = false;
+      const next = prev.map((node) => {
+        const position = nodePositionsRef.current[node.id];
+        if (!position) {
+          return node;
+        }
+        const nextGroupId = findBestGroupForPoint(position) ?? '';
+        if ((node.group ?? '') === nextGroupId) {
+          return node;
+        }
+        changed = true;
+        return { ...node, group: nextGroupId };
+      });
+      return changed ? next : prev;
+    });
+  }, [findBestGroupForPoint, groups, setNodes]);
 
   const handleCanvasBackgroundClick = useCallback(() => {
     setConnectionDraft(null);
@@ -495,8 +836,9 @@ const App = () => {
       setSelectedGroupId(null);
       setGroupForm(null);
       setHoveredGroupId(null);
+      openProfileWindow('node', node.id);
     },
-    [finalizeConnectionDraft]
+    [finalizeConnectionDraft, openProfileWindow]
   );
 
   const handleNodeAuxClick = useCallback(
@@ -523,6 +865,13 @@ const App = () => {
       setHoveredGroupId(null);
     },
     [finalizeConnectionDraft]
+  );
+
+  const handleNodeDragEnd = useCallback(
+    (nodeId: string, position: { x: number; y: number }) => {
+      assignNodeToGroupByPosition(nodeId, position);
+    },
+    [assignNodeToGroupByPosition]
   );
 
   const handleNodeContextMenu = useCallback((event: MouseEvent, node: SimulationNode) => {
@@ -586,10 +935,6 @@ const App = () => {
     setFormValues((prev) => ({ ...prev, type: value }));
   }, []);
 
-  const handleGroupChange = useCallback((value: string) => {
-    setFormValues((prev) => ({ ...prev, group: value }));
-  }, []);
-
   const removeNodeById = useCallback((nodeId: string) => {
     setNodes((prev) => prev.filter((node) => node.id !== nodeId));
     setLinks((prev) => prev.filter((link) => link.source !== nodeId && link.target !== nodeId));
@@ -612,7 +957,8 @@ const App = () => {
     setHoveredGroupLinkKey(null);
     setContextMenu(null);
     setConnectionForm(null);
-  }, []);
+    closeProfileWindowsByResource('node', nodeId);
+  }, [closeProfileWindowsByResource]);
 
   const handleConnectionRelationChange = useCallback(
     (key: string, relation: string) => {
@@ -656,11 +1002,11 @@ const App = () => {
   );
 
   const updateGroupById = useCallback((groupId: string, updater: (group: CanvasGroup) => CanvasGroup) => {
-    setGroups((prev) => prev.map((group) => (group.id === groupId ? updater(group) : group)));
+    setGroups((prev) => applyParentAssignments(prev.map((group) => (group.id === groupId ? updater(group) : group))));
   }, [setGroups]);
 
   const removeGroupById = useCallback((groupId: string) => {
-    setGroups((prev) => prev.filter((group) => group.id !== groupId));
+    setGroups((prev) => applyParentAssignments(prev.filter((group) => group.id !== groupId)));
     setSelectedGroupId((current) => (current === groupId ? null : current));
     setHoveredGroupId((current) => (current === groupId ? null : current));
     setGroupForm((current) => (current && current.groupId === groupId ? null : current));
@@ -681,7 +1027,16 @@ const App = () => {
       }
       return current;
     });
-  }, [setGroups, setGroupLinks, groupPositionsRef, setConnectionDraft, setHoveredGroupLinkKey, setContextMenu]);
+    closeProfileWindowsByResource('group', groupId);
+  }, [
+    setGroups,
+    setGroupLinks,
+    groupPositionsRef,
+    setConnectionDraft,
+    setHoveredGroupLinkKey,
+    setContextMenu,
+    closeProfileWindowsByResource,
+  ]);
 
   const handleGroupHover = useCallback((groupId: string | null) => {
     setHoveredGroupId(groupId);
@@ -776,6 +1131,7 @@ const App = () => {
         setNodeForm(null);
         setContextMenu(null);
         setHoveredEdgeKey(null);
+        openProfileWindow('group', groupId);
       } else {
         setGroupForm(null);
         setConnectionForm(null);
@@ -790,6 +1146,7 @@ const App = () => {
       setHoveredEdgeKey,
       setHoveredGroupLinkKey,
       setGroupForm,
+      openProfileWindow,
     ]
   );
 
@@ -906,6 +1263,7 @@ const App = () => {
     onNodeClick: handleNodeClick,
     onNodeDoubleClick: openEditNodeForm,
     onNodeAuxClick: handleNodeAuxClick,
+    onNodeDragEnd: handleNodeDragEnd,
     onNodeContextMenu: handleNodeContextMenu,
     onEdgeHover: handleEdgeHover,
     onLinkContextMenu: (event, link) => {
@@ -1061,8 +1419,9 @@ const App = () => {
         y: center.y - height / 2,
         width,
         height,
+        profile: createDefaultGroupProfile(groupType),
       };
-      setGroups((prev) => [...prev, nextGroup]);
+      setGroups((prev) => applyParentAssignments([...prev, nextGroup]));
       setSelectedGroupId(id);
       setHoveredGroupId(null);
       setGroupFormValues({ title: nextGroup.title, type: groupType });
@@ -1287,30 +1646,40 @@ const App = () => {
           setNodeForm(null);
           return;
         }
-      if (contextMenu) {
-        handleContextMenuDismiss();
-        return;
-      }
-      setActiveNodeId(null);
-      setHoveredNodeId(null);
-      setHoveredEdgeKey(null);
-      setHoveredGroupLinkKey(null);
-    }
-
-    if (connectionForm) {
-      if (event.key === 'Delete' && connectionEditorSelection) {
-        event.preventDefault();
-        if (connectionForm.kind === 'node') {
-          removeConnectionByKey(connectionForm.linkKey);
-        } else {
-          removeGroupConnectionByKey(connectionForm.linkKey);
-        }
-        return;
-      }
-      if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        event.preventDefault();
-        handleConnectionFormSubmit();
+        if (profileWindows.length > 0) {
+          event.preventDefault();
+          closeTopProfileWindow();
           return;
+        }
+        if (contextMenu) {
+          handleContextMenuDismiss();
+          return;
+        }
+        setActiveNodeId(null);
+        setHoveredNodeId(null);
+        setHoveredEdgeKey(null);
+        setHoveredGroupLinkKey(null);
+      }
+
+      if (connectionForm) {
+        if (event.key === 'Delete' && connectionEditorSelection) {
+          event.preventDefault();
+          if (connectionForm.kind === 'node') {
+            removeConnectionByKey(connectionForm.linkKey);
+          } else {
+            removeGroupConnectionByKey(connectionForm.linkKey);
+          }
+          return;
+        }
+        if (
+          event.key === 'Enter' &&
+          !event.shiftKey &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey
+        ) {
+          event.preventDefault();
+          handleConnectionFormSubmit();
         }
         return;
       }
@@ -1322,6 +1691,7 @@ const App = () => {
       if (event.key === 'Delete' && activeNodeId) {
         event.preventDefault();
         removeNodeById(activeNodeId);
+        return;
       }
 
       if ((event.key === 'd' || event.key === 'D') && event.ctrlKey && activeNodeId) {
@@ -1340,6 +1710,10 @@ const App = () => {
             ...original,
             id: newId,
             label: original.label ? `${original.label} Copy` : 'Node Copy',
+            profile: mergeProfileWithSchema(
+              getNodeProfileSchema(original.type),
+              original.profile
+            ),
           },
         ]);
         setLinks((prev) => [
@@ -1358,7 +1732,6 @@ const App = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     activeNodeId,
-    connectionDraft,
     connectionEditorSelection,
     connectionForm,
     contextMenu,
@@ -1369,6 +1742,8 @@ const App = () => {
     removeConnectionByKey,
     removeGroupConnectionByKey,
     removeNodeById,
+    profileWindows.length,
+    closeTopProfileWindow,
   ]);
 
   const nodeFormType = useMemo<NodeType>(() => {
@@ -1402,11 +1777,13 @@ const App = () => {
             label,
             type: formValues.type,
             group,
+            profile: createDefaultNodeProfile(formValues.type),
           },
         ]);
         setActiveNodeId(newId);
         setHoveredNodeId(newId);
         setHoveredEdgeKey(null);
+        assignNodeToGroupByPosition(newId, nodeForm.position);
       } else if (nodeForm.mode === 'edit' && nodeForm.nodeId) {
         setNodes((prev) =>
           prev.map((node) =>
@@ -1416,6 +1793,10 @@ const App = () => {
                   label,
                   type: formValues.type,
                   group,
+                  profile:
+                    node.type === formValues.type
+                      ? mergeProfileWithSchema(getNodeProfileSchema(formValues.type), node.profile)
+                      : createDefaultNodeProfile(formValues.type),
                 }
               : node
           )
@@ -1442,6 +1823,10 @@ const App = () => {
         ...group,
         title,
         type: groupFormValues.type,
+        profile:
+          group.type === groupFormValues.type
+            ? mergeProfileWithSchema(getGroupProfileSchema(groupFormValues.type), group.profile)
+            : createDefaultGroupProfile(groupFormValues.type),
       }));
       setGroupForm(null);
     },
@@ -1771,6 +2156,12 @@ const App = () => {
   }, [clampPanelGeometry]);
 
   const showWelcome = !welcomeDismissed && nodes.length === 0 && groups.length === 0;
+  const editingNode =
+    nodeForm && nodeForm.mode === 'edit' ? nodes.find((node) => node.id === nodeForm.nodeId) : null;
+  const nodeEditorPlacementLabel =
+    nodeForm?.mode === 'edit'
+      ? describePlacement(editingNode?.group ?? '')
+      : 'Auto-assigned when placed on canvas';
 
   return (
     <div className="app">
@@ -1802,6 +2193,53 @@ const App = () => {
             onRequestClose={handleContextMenuDismiss}
           />
         )}
+
+        {profileWindows.map((window) => {
+          if (window.kind === 'node') {
+            const targetNode = nodes.find((node) => node.id === window.resourceId);
+            if (!targetNode) {
+              return null;
+            }
+            const content = buildNodeProfileContent(targetNode, profileContext);
+            return (
+              <ProfileWindow
+                key={window.id}
+                {...content}
+                position={window.position}
+                zIndex={window.zIndex}
+                onMove={(position) => moveProfileWindow(window.id, position)}
+                onClose={() => closeProfileWindowById(window.id)}
+                onFocus={() => focusProfileWindow(window.id)}
+                editable
+                onFieldChange={(fieldKey, value) =>
+                  handleProfileFieldChange('node', window.resourceId, fieldKey, value)
+                }
+                onOpenEditor={() => openNodeEditorById(window.resourceId)}
+              />
+            );
+          }
+          const targetGroup = groups.find((group) => group.id === window.resourceId);
+          if (!targetGroup) {
+            return null;
+          }
+          const content = buildGroupProfileContent(targetGroup, profileContext);
+          return (
+            <ProfileWindow
+              key={window.id}
+              {...content}
+              position={window.position}
+              zIndex={window.zIndex}
+              onMove={(position) => moveProfileWindow(window.id, position)}
+              onClose={() => closeProfileWindowById(window.id)}
+              onFocus={() => focusProfileWindow(window.id)}
+              editable
+              onFieldChange={(fieldKey, value) =>
+                handleProfileFieldChange('group', window.resourceId, fieldKey, value)
+              }
+              onOpenEditor={() => openGroupEditor(window.resourceId)}
+            />
+          );
+        })}
       </main>
 
       {nodeForm && (
@@ -1811,7 +2249,7 @@ const App = () => {
           nodeType={nodeFormType}
           onLabelChange={handleLabelChange}
           onTypeChange={handleTypeChange}
-          onGroupChange={handleGroupChange}
+          placementLabel={nodeEditorPlacementLabel}
           onClose={handleNodeFormClose}
           onSubmit={handleNodeFormSubmit}
           onDeleteNode={() => {
