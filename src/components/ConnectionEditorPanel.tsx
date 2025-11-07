@@ -279,7 +279,7 @@ export const ConnectionEditorPanel = ({
       </header>
 
       <form className="node-editor-form" onSubmit={handleSubmit}>
-        <div className="connection-editor-body">
+        <div className="node-editor-body connection-editor-body">
           <div className="connection-editor-route">
             <button
               type="button"

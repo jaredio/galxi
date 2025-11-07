@@ -8,6 +8,13 @@
   --accent: #3ecf8e;
   --accentHover: #2eb67d;
   --nodeGlow: rgba(62, 207, 142, 0.4);
+  --galxi-glass: rgba(14, 16, 20, 0.98);
+  --galxi-glass-bright: rgba(16, 18, 24, 0.96);
+  --galxi-border: rgba(60, 65, 75, 0.55);
+  --galxi-border-strong: rgba(62, 207, 142, 0.55);
+  --galxi-glow: rgba(0, 0, 0, 0.45);
+  --galxi-chip-bg: rgba(20, 22, 27, 0.78);
+  --galxi-chip-border: rgba(60, 65, 75, 0.55);
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-hover: var(--hover);

@@ -211,7 +211,7 @@ export const GroupEditorPanel = ({
       </header>
 
       <form className="node-editor-form" onSubmit={handleSubmit}>
-        <div className="group-editor-body">
+        <div className="node-editor-body group-editor-body">
           <section className="node-editor-section">
             <label>
               <span>Group Name</span>
