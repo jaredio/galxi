@@ -409,10 +409,11 @@
   align-items: center;
   gap: 0.5rem;
   margin: 0;
-  padding: 0.2rem 0 0.45rem 0.65rem;
+  padding: 0.2rem 0.4rem 0.45rem;
   min-height: 1.25rem;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
 }
 
 .galxi-sidebar__section-heading .galxi-sidebar__section-title {
@@ -425,6 +426,10 @@
   display: block;
   flex-shrink: 0;
   transition: opacity 0.25s ease, transform 0.25s ease;
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .galxi-sidebar:hover .galxi-sidebar__section-logo,
@@ -437,6 +442,10 @@
   margin-top: 1.25rem;
 }
 
+.galxi-sidebar__section-heading--logo {
+  padding-left: 2.2rem;
+}
+
 .galxi-sidebar__section-title {
   color: #6c7482;
   font-size: 0.75rem;
@@ -446,6 +455,11 @@
   font-weight: 600;
   opacity: 0;
   transition: opacity 0.25s ease;
+}
+
+.galxi-sidebar:hover .galxi-sidebar__section-title,
+.galxi-sidebar:focus-within .galxi-sidebar__section-title {
+  opacity: 1;
 }
 
 .galxi-sidebar__command {
@@ -563,8 +577,9 @@
 
 .utility-toast {
   position: fixed;
-  left: 120px;
-  bottom: 36px;
+  top: 72px;
+  left: 50%;
+  transform: translate(-50%, 0);
   padding: 0.75rem 1rem;
   font-size: 0.85rem;
   border-radius: 12px;
@@ -574,16 +589,17 @@
   color: var(--textPrimary);
   z-index: 32;
   animation: utility-toast-fade-in 0.24s ease;
+  will-change: transform, opacity;
 }
 
 @keyframes utility-toast-fade-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translate(-50%, -8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, 0);
   }
 }
 

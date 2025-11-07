@@ -41,12 +41,12 @@ export const GalxiSidebar: FC<GalxiSidebarProps> = ({
 
       <button type="button" className="galxi-sidebar__command" onClick={onCreateNode}>
         <PlusCircleIcon className="galxi-sidebar__icon" />
-        <span className="galxi-sidebar__label">New Node</span>
+        <span className="galxi-sidebar__label">Node</span>
       </button>
 
       <button type="button" className="galxi-sidebar__command" onClick={onStartConnection}>
         <LinkIcon className="galxi-sidebar__icon" />
-        <span className="galxi-sidebar__label">New Connection</span>
+        <span className="galxi-sidebar__label">Connection</span>
       </button>
 
       <div className="galxi-sidebar__group">
