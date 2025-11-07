@@ -316,6 +316,8 @@ const App = () => {
   const [profileWindows, setProfileWindows] = useState<ProfileWindowState[]>([]);
   const profileSpawnIndexRef = useRef(0);
   const profileZIndexRef = useRef(60);
+  const [groupDraft, setGroupDraft] = useState<CanvasGroup | null>(null);
+  const [connectionBuilderMode, setConnectionBuilderMode] = useState(false);
   const profileContext = useMemo(
     () => ({
       nodes,
@@ -597,6 +599,12 @@ const App = () => {
     showUtilityToast('Settings panel coming soon.');
   }, [showUtilityToast]);
 
+  const handleSidebarStartConnection = useCallback(() => {
+    setConnectionDraft(null);
+    setConnectionBuilderMode(true);
+    showUtilityToast('Select the source node to start a connection.');
+  }, [showUtilityToast]);
+
   const findBestGroupForPoint = useCallback(
     (point: { x: number; y: number }) => {
       const candidates = groups
@@ -680,6 +688,7 @@ const App = () => {
 
   const handleCanvasBackgroundClick = useCallback(() => {
     setConnectionDraft(null);
+    setConnectionBuilderMode(false);
     setActiveNodeId(null);
     setHoveredNodeId(null);
     setHoveredEdgeKey(null);
@@ -824,6 +833,26 @@ const App = () => {
 
   const handleNodeClick = useCallback(
     (node: SimulationNode) => {
+      if (connectionBuilderMode && !connectionDraft) {
+        setConnectionBuilderMode(false);
+        const sourcePosition =
+          nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
+        setConnectionDraft({
+          kind: 'node',
+          sourceNodeId: node.id,
+          cursor: { x: sourcePosition.x, y: sourcePosition.y },
+        });
+        setActiveNodeId(node.id);
+        setHoveredNodeId(node.id);
+        setContextMenu(null);
+        setHoveredGroupLinkKey(null);
+        setConnectionForm(null);
+        setSelectedGroupId(null);
+        setGroupForm(null);
+        setHoveredGroupId(null);
+        showUtilityToast('Select the target to finish the connection.');
+        return;
+      }
       if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
         return;
       }
@@ -838,7 +867,7 @@ const App = () => {
       setGroupForm(null);
       setHoveredGroupId(null);
     },
-    [finalizeConnectionDraft]
+    [connectionBuilderMode, connectionDraft, finalizeConnectionDraft, showUtilityToast]
   );
 
   const handleNodeAuxClick = useCallback(
@@ -869,10 +898,12 @@ const App = () => {
 
   const handleNodeDoubleClick = useCallback(
     (node: SimulationNode) => {
-      handleNodeClick(node);
+      if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
+        return;
+      }
       openProfileWindow('node', node.id);
     },
-    [handleNodeClick, openProfileWindow]
+    [finalizeConnectionDraft, openProfileWindow]
   );
 
   const handleNodeDragEnd = useCallback(
@@ -1132,7 +1163,6 @@ const App = () => {
         setNodeForm(null);
         setContextMenu(null);
         setHoveredEdgeKey(null);
-        openProfileWindow('group', groupId);
       } else {
         setGroupForm(null);
         setConnectionForm(null);
@@ -1147,7 +1177,6 @@ const App = () => {
       setHoveredEdgeKey,
       setHoveredGroupLinkKey,
       setGroupForm,
-      openProfileWindow,
     ]
   );
 
@@ -1210,9 +1239,12 @@ const App = () => {
 
   const handleGroupDoubleClick = useCallback(
     (group: CanvasGroup) => {
+      if (finalizeConnectionDraft({ kind: 'group', groupId: group.id })) {
+        return;
+      }
       openProfileWindow('group', group.id);
     },
-    [openProfileWindow]
+    [finalizeConnectionDraft, openProfileWindow]
   );
 
   const handleGroupMove = useCallback(
@@ -1422,8 +1454,7 @@ const App = () => {
         height,
         profile: createDefaultGroupProfile(groupType),
       };
-      setGroups((prev) => applyParentAssignments([...prev, nextGroup]));
-      setSelectedGroupId(id);
+      setGroupDraft(nextGroup);
       setHoveredGroupId(null);
       setGroupFormValues({ title: nextGroup.title, type: groupType });
       setGroupForm({ mode: 'create', groupId: id });
@@ -1432,7 +1463,7 @@ const App = () => {
       setContextMenu(null);
       setPanelGeometry((prev) => clampPanelGeometry(prev));
     },
-    [getGraphCenterPosition, setGroups, clampPanelGeometry, setPanelGeometry]
+    [getGraphCenterPosition, clampPanelGeometry, setPanelGeometry]
   );
 
   const handleGroupTitleChange = useCallback((value: string) => {
@@ -1639,6 +1670,7 @@ const App = () => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setConnectionDraft(null);
+        setConnectionBuilderMode(false);
         if (connectionForm) {
           setConnectionForm(null);
           return;
@@ -1820,6 +1852,24 @@ const App = () => {
         return;
       }
       const title = groupFormValues.title.trim() || 'Untitled Group';
+      if (groupForm.mode === 'create') {
+        if (!groupDraft || groupDraft.id !== groupForm.groupId) {
+          return;
+        }
+        const newGroup: CanvasGroup = {
+          ...groupDraft,
+          title,
+          type: groupFormValues.type,
+          profile:
+            groupDraft.type === groupFormValues.type
+              ? groupDraft.profile ?? createDefaultGroupProfile(groupFormValues.type)
+              : createDefaultGroupProfile(groupFormValues.type),
+        };
+        setGroups((prev) => applyParentAssignments([...prev, newGroup]));
+        setGroupDraft(null);
+        setGroupForm(null);
+        return;
+      }
       updateGroupById(groupForm.groupId, (group) => ({
         ...group,
         title,
@@ -1831,12 +1881,15 @@ const App = () => {
       }));
       setGroupForm(null);
     },
-    [groupForm, groupFormValues, updateGroupById]
+    [groupForm, groupFormValues, updateGroupById, groupDraft, setGroups]
   );
 
   const handleGroupFormClose = useCallback(() => {
+    if (groupForm?.mode === 'create') {
+      setGroupDraft(null);
+    }
     setGroupForm(null);
-  }, []);
+  }, [groupForm]);
 
   const handleGroupDelete = useCallback(() => {
     if (!groupForm) {
@@ -2223,6 +2276,7 @@ const App = () => {
       <GalxiSidebar
         onCreateNode={handleSidebarCreateNode}
         onCreateGroup={handleSidebarCreateGroup}
+        onStartConnection={handleSidebarStartConnection}
         onOpenTheme={handleThemeUtilities}
         onOpenSettings={handleSettingsUtilities}
       />

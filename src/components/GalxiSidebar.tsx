@@ -1,12 +1,13 @@
 import type { FC } from 'react';
 
-import { NetworkIcon, PaletteIcon, PlusCircleIcon, SettingsIcon } from './icons';
+import { LinkIcon, NetworkIcon, PaletteIcon, PlusCircleIcon, SettingsIcon } from './icons';
 
 type GroupType = 'virtualNetwork' | 'subnet' | 'logicalGroup';
 
 type GalxiSidebarProps = {
   onCreateNode: () => void;
   onCreateGroup: (type: GroupType) => void;
+  onStartConnection: () => void;
   onOpenTheme: () => void;
   onOpenSettings: () => void;
 };
@@ -22,6 +23,7 @@ const brandLogo = new URL('../../icons/galxi_green (2).png', import.meta.url).hr
 export const GalxiSidebar: FC<GalxiSidebarProps> = ({
   onCreateNode,
   onCreateGroup,
+  onStartConnection,
   onOpenTheme,
   onOpenSettings,
 }) => (
@@ -40,6 +42,11 @@ export const GalxiSidebar: FC<GalxiSidebarProps> = ({
       <button type="button" className="galxi-sidebar__command" onClick={onCreateNode}>
         <PlusCircleIcon className="galxi-sidebar__icon" />
         <span className="galxi-sidebar__label">New Node</span>
+      </button>
+
+      <button type="button" className="galxi-sidebar__command" onClick={onStartConnection}>
+        <LinkIcon className="galxi-sidebar__icon" />
+        <span className="galxi-sidebar__label">New Connection</span>
       </button>
 
       <div className="galxi-sidebar__group">
