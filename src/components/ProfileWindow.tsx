@@ -60,29 +60,58 @@ const ProfileFieldRow = ({ id, label, value, editable = true, editing, onFieldCh
   </div>
 );
 
-const ProfileSectionBlock = ({ id, title, items, editing, onFieldChange }: SectionProps) => (
-  <section className="profile-section" aria-labelledby={`profile-section-${id}`}>
-    <h3 id={`profile-section-${id}`} className="profile-section-title">
-      {title}
-    </h3>
-    <dl className="profile-kv-grid">
-      {items.map((item) => (
-        <ProfileFieldRow
-          key={item.id}
-          {...item}
-          editing={editing}
-          onFieldChange={onFieldChange}
-        />
-      ))}
-    </dl>
-  </section>
-);
+const ProfileSectionBlock = ({ id, title, items, editing, onFieldChange, variant }: SectionProps) => {
+  if (variant === 'cards') {
+    return (
+      <section className="profile-section profile-section--cards" aria-labelledby={`profile-section-${id}`}>
+        <h3 id={`profile-section-${id}`} className="profile-section-title">
+          {title}
+        </h3>
+        <div className="profile-card-grid">
+          {items.map((item) => (
+            <div key={item.id} className="profile-card">
+              <div className="profile-card-icon">
+                {item.iconSrc ? <img src={item.iconSrc} alt="" /> : <EditIcon />}
+              </div>
+              <div className="profile-card-content">
+                <div className="profile-card-header">
+                  <span className="profile-card-title">{item.label}</span>
+                  {item.badge && <span className="profile-card-badge">{item.badge}</span>}
+                </div>
+                {item.subtitle && <span className="profile-card-subtitle">{item.subtitle}</span>}
+                {item.value && <span className="profile-card-value">{item.value}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="profile-section" aria-labelledby={`profile-section-${id}`}>
+      <h3 id={`profile-section-${id}`} className="profile-section-title">
+        {title}
+      </h3>
+      <dl className="profile-kv-grid">
+        {items.map((item) => (
+          <ProfileFieldRow
+            key={item.id}
+            {...item}
+            editing={editing}
+            onFieldChange={onFieldChange}
+          />
+        ))}
+      </dl>
+    </section>
+  );
+};
 
 export const ProfileWindow = ({
   title,
   typeLabel,
   overview,
   sections,
+  connections = [],
   status,
   iconSrc,
   meta,
@@ -97,6 +126,8 @@ export const ProfileWindow = ({
 }: ProfileWindowProps) => {
   const pointerCleanupRef = useRef<(() => void) | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'connections'>('overview');
+  const hasConnectionsTab = true;
 
   const stopTrackingPointer = useCallback(() => {
     if (pointerCleanupRef.current) {
@@ -159,6 +190,23 @@ export const ProfileWindow = ({
     setIsEditing((prev) => !prev);
   };
 
+  const renderSections = (data: ProfileSection[]) =>
+    data.map((section) => (
+      <ProfileSectionBlock
+        key={section.id}
+        {...section}
+        editing={isEditing}
+        onFieldChange={onFieldChange}
+      />
+    ));
+
+  const renderConnections = () =>
+    connections.length > 0 ? (
+      renderSections(connections)
+    ) : (
+      <div className="profile-empty">No connections yet.</div>
+    );
+
   return (
     <article
       className="profile-window"
@@ -195,22 +243,40 @@ export const ProfileWindow = ({
         </div>
       )}
 
+      {hasConnectionsTab && (
+        <div className="profile-tabs">
+          <button
+            type="button"
+            className={`profile-tab${activeTab === 'overview' ? ' is-active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className={`profile-tab${activeTab === 'connections' ? ' is-active' : ''}`}
+            onClick={() => setActiveTab('connections')}
+          >
+            Connections
+          </button>
+        </div>
+      )}
+
       <div className="profile-body">
-        <ProfileSectionBlock
-          id="overview"
-          title="Overview"
-          items={overview}
-          editing={isEditing}
-          onFieldChange={onFieldChange}
-        />
-        {sections.map((section) => (
-          <ProfileSectionBlock
-            key={section.id}
-            {...section}
-            editing={isEditing}
-            onFieldChange={onFieldChange}
-          />
-        ))}
+        {activeTab === 'connections' ? (
+          renderConnections()
+        ) : (
+          <>
+            <ProfileSectionBlock
+              id="overview"
+              title="Overview"
+              items={overview}
+              editing={isEditing}
+              onFieldChange={onFieldChange}
+            />
+            {renderSections(sections)}
+          </>
+        )}
       </div>
 
       {(editable || onOpenEditor) && (

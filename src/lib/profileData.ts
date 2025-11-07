@@ -11,13 +11,15 @@ import {
   getStatusFromProfile,
   mergeProfileWithSchema,
 } from '../schemas/resources';
-import type { CanvasGroup, NetworkLink, NetworkNode } from '../types/graph';
+import { makeEdgeKey, makeGroupLinkKey } from './graph-utils';
+import type { CanvasGroup, GroupLink, NetworkLink, NetworkNode } from '../types/graph';
 import type { ProfileField, ProfileSection, ProfileWindowContent, ResourceProfileData } from '../types/profile';
 
 type ProfileBuildContext = {
   nodes: NetworkNode[];
   groups: CanvasGroup[];
   links: NetworkLink[];
+  groupLinks: GroupLink[];
 };
 
 const statusTone = (status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' => {
@@ -48,6 +50,7 @@ const buildSections = (
   const sections = schemaSections.map<ProfileSection>((section) => ({
     id: section.id,
     title: section.title,
+    variant: 'default',
     items: section.fields.map((field) => ({
       id: `${section.id}.${field.id}`,
       label: field.label,
@@ -80,26 +83,22 @@ const getGroupChain = (groupId: string | undefined, groups: CanvasGroup[]) => {
   return chain;
 };
 
-const formatList = (values: string[], emptyMessage = 'None') => {
-  if (values.length === 0) {
-    return emptyMessage;
-  }
-  const preview = values.slice(0, 3).join(', ');
-  return values.length > 3 ? `${preview} +${values.length - 3} more` : preview;
-};
-
 const buildNodePlacementSection = (node: NetworkNode, context: ProfileBuildContext): ProfileSection | null => {
   const chain = getGroupChain(node.group, context.groups);
   if (chain.length === 0) {
     return null;
   }
+  const ordered = [...chain].reverse();
   return {
     id: 'placement',
     title: 'Placement',
-    items: chain.map((group) => ({
+    variant: 'cards',
+    items: ordered.map((group, index) => ({
       id: `placement-${group.id}`,
-      label: groupTypeLabelMap[group.type] ?? 'Group',
-      value: group.title,
+      label: group.title,
+      value: groupTypeLabelMap[group.type] ?? 'Group',
+      badge: index === ordered.length - 1 ? 'Direct' : 'Ancestor',
+      iconSrc: getGroupIcon(group.type),
     })),
   };
 };
@@ -115,9 +114,12 @@ const buildNodeConnectionsSection = (
       const peer = context.nodes.find((candidate) => candidate.id === peerId);
       const relation = link.relation || (peer ? nodeTypeLabelMap[peer.type] : 'Relation');
       return {
-        id: `connection-${link.source}->${link.target}`,
+        id: `connection-${makeEdgeKey(link)}`,
         label: peer?.label ?? peerId,
-        value: relation,
+        value: peer ? nodeTypeLabelMap[peer.type] : 'Resource',
+        subtitle: relation,
+        badge: link.source === node.id ? 'Outgoing' : 'Incoming',
+        iconSrc: peer ? getNodeIcon(peer.type) : undefined,
       };
     });
   if (connectionItems.length === 0) {
@@ -126,42 +128,8 @@ const buildNodeConnectionsSection = (
   return {
     id: 'connections',
     title: 'Connections',
+    variant: 'cards',
     items: connectionItems.slice(0, 6),
-  };
-};
-
-const buildGroupMembersSection = (
-  group: CanvasGroup,
-  context: ProfileBuildContext
-): ProfileSection | null => {
-  const childGroups = context.groups.filter((candidate) => candidate.parentGroupId === group.id);
-  const memberNodes = context.nodes.filter((node) => node.group === group.id);
-  if (childGroups.length === 0 && memberNodes.length === 0) {
-    return null;
-  }
-  const items: ProfileField[] = [];
-  if (childGroups.length > 0) {
-    items.push({
-      id: 'child-groups',
-      label: 'Subgroups',
-      value: formatList(
-        childGroups.map((child) => `${groupTypeLabelMap[child.type] ?? 'Group'}: ${child.title}`)
-      ),
-    });
-  }
-  if (memberNodes.length > 0) {
-    items.push({
-      id: 'member-nodes',
-      label: 'Resources',
-      value: formatList(
-        memberNodes.map((member) => `${member.label || member.id} (${nodeTypeLabelMap[member.type]})`)
-      ),
-    });
-  }
-  return {
-    id: 'members',
-    title: 'Contained Resources',
-    items,
   };
 };
 
@@ -173,14 +141,92 @@ const buildGroupPlacementSection = (
   if (chain.length === 0) {
     return null;
   }
+  const ordered = [...chain].reverse();
   return {
     id: 'parent-chain',
     title: 'Parent Groups',
-    items: chain.map((ancestor) => ({
+    variant: 'cards',
+    items: ordered.map((ancestor, index) => ({
       id: `parent-${ancestor.id}`,
-      label: groupTypeLabelMap[ancestor.type] ?? 'Group',
-      value: ancestor.title,
+      label: ancestor.title,
+      value: groupTypeLabelMap[ancestor.type] ?? 'Group',
+      badge: index === ordered.length - 1 ? 'Direct' : 'Ancestor',
+      iconSrc: getGroupIcon(ancestor.type),
     })),
+  };
+};
+
+const buildGroupChildGroupsSection = (
+  group: CanvasGroup,
+  context: ProfileBuildContext
+): ProfileSection | null => {
+  const childGroups = context.groups.filter((candidate) => candidate.parentGroupId === group.id);
+  if (childGroups.length === 0) {
+    return null;
+  }
+  return {
+    id: 'child-groups',
+    title: 'Nested Groups',
+    variant: 'cards',
+    items: childGroups.map((child) => ({
+      id: `child-${child.id}`,
+      label: child.title,
+      value: groupTypeLabelMap[child.type] ?? 'Group',
+      badge: 'Contains',
+      iconSrc: getGroupIcon(child.type),
+    })),
+  };
+};
+
+const buildGroupChildNodesSection = (
+  group: CanvasGroup,
+  context: ProfileBuildContext
+): ProfileSection | null => {
+  const memberNodes = context.nodes.filter((node) => node.group === group.id);
+  if (memberNodes.length === 0) {
+    return null;
+  }
+  return {
+    id: 'member-nodes',
+    title: 'Contained Resources',
+    variant: 'cards',
+    items: memberNodes.slice(0, 12).map((member) => ({
+      id: `member-${member.id}`,
+      label: member.label || member.id,
+      value: nodeTypeLabelMap[member.type],
+      subtitle: member.profile?.['overview.status'] ?? '',
+      iconSrc: getNodeIcon(member.type),
+      badge: 'Resource',
+    })),
+  };
+};
+
+const buildGroupConnectionsSection = (
+  group: CanvasGroup,
+  context: ProfileBuildContext
+): ProfileSection | null => {
+  const connectionItems: ProfileField[] = context.groupLinks
+    .filter((link) => link.sourceGroupId === group.id || link.targetGroupId === group.id)
+    .map((link) => {
+      const peerId = link.sourceGroupId === group.id ? link.targetGroupId : link.sourceGroupId;
+      const peer = context.groups.find((candidate) => candidate.id === peerId);
+      return {
+        id: `group-connection-${makeGroupLinkKey(link)}`,
+        label: peer?.title ?? peerId,
+        value: peer ? groupTypeLabelMap[peer.type] ?? 'Group' : 'Group',
+        subtitle: link.relation || 'Linked group',
+        badge: link.sourceGroupId === group.id ? 'Outgoing' : 'Incoming',
+        iconSrc: peer ? getGroupIcon(peer.type) : undefined,
+      };
+    });
+  if (connectionItems.length === 0) {
+    return null;
+  }
+  return {
+    id: 'group-connections',
+    title: 'Group Connections',
+    variant: 'cards',
+    items: connectionItems,
   };
 };
 
@@ -193,18 +239,18 @@ export const buildNodeProfileContent = (
   const { overview, sections } = buildSections(schema.sections, profile);
   const statusLabel = getStatusFromProfile(schema, profile);
   const meta = getMetaFromProfile(schema, profile);
-  const supplementalSections = [
+  const connectionSections = [
     buildNodePlacementSection(node, context),
     buildNodeConnectionsSection(node, context),
   ].filter(Boolean) as ProfileSection[];
-  const enrichedSections = sections.concat(supplementalSections);
 
   return {
     title: node.label || nodeTypeLabelMap[node.type],
     typeLabel: nodeTypeLabelMap[node.type],
     iconSrc: getNodeIcon(node.type),
     overview,
-    sections: enrichedSections,
+    sections,
+    connections: connectionSections,
     status: {
       label: statusLabel,
       tone: statusTone(statusLabel),
@@ -222,18 +268,20 @@ export const buildGroupProfileContent = (
   const { overview, sections } = buildSections(schema.sections, profile);
   const statusLabel = getStatusFromProfile(schema, profile);
   const meta = getMetaFromProfile(schema, profile);
-  const supplementalSections = [
+  const connectionSections = [
     buildGroupPlacementSection(group, context),
-    buildGroupMembersSection(group, context),
+    buildGroupChildGroupsSection(group, context),
+    buildGroupChildNodesSection(group, context),
+    buildGroupConnectionsSection(group, context),
   ].filter(Boolean) as ProfileSection[];
-  const enrichedSections = sections.concat(supplementalSections);
 
   return {
     title: group.title,
     typeLabel: groupTypeLabelMap[group.type] ?? 'Group',
     iconSrc: getGroupIcon(group.type),
     overview,
-    sections: enrichedSections,
+    sections,
+    connections: connectionSections,
     status: {
       label: statusLabel,
       tone: statusTone(statusLabel),

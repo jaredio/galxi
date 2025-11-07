@@ -12,7 +12,7 @@ import { ConnectionEditorPanel } from './components/ConnectionEditorPanel';
 import { GroupEditorPanel } from './components/GroupEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { ProfileWindow } from './components/ProfileWindow';
-import { EditIcon, PlusIcon, TrashIcon } from './components/icons';
+import { EditIcon, PlusIcon, TrashIcon, EyeIcon } from './components/icons';
 import { Topbar } from './components/Topbar';
 import { ZoomControls } from './components/ZoomControls';
 import {
@@ -321,8 +321,9 @@ const App = () => {
       nodes,
       groups,
       links,
+      groupLinks,
     }),
-    [nodes, groups, links]
+    [nodes, groups, links, groupLinks]
   );
 
   useEffect(() => {
@@ -836,9 +837,8 @@ const App = () => {
       setSelectedGroupId(null);
       setGroupForm(null);
       setHoveredGroupId(null);
-      openProfileWindow('node', node.id);
     },
-    [finalizeConnectionDraft, openProfileWindow]
+    [finalizeConnectionDraft]
   );
 
   const handleNodeAuxClick = useCallback(
@@ -865,6 +865,14 @@ const App = () => {
       setHoveredGroupId(null);
     },
     [finalizeConnectionDraft]
+  );
+
+  const handleNodeDoubleClick = useCallback(
+    (node: SimulationNode) => {
+      handleNodeClick(node);
+      openProfileWindow('node', node.id);
+    },
+    [handleNodeClick, openProfileWindow]
   );
 
   const handleNodeDragEnd = useCallback(
@@ -918,13 +926,6 @@ const App = () => {
       setHoveredGroupId(null);
     },
     [nodes, clampPanelGeometry]
-  );
-
-  const openEditNodeForm = useCallback(
-    (node: SimulationNode) => {
-      openNodeEditorById(node.id);
-    },
-    [openNodeEditorById]
   );
 
   const handleLabelChange = useCallback((value: string) => {
@@ -1209,9 +1210,9 @@ const App = () => {
 
   const handleGroupDoubleClick = useCallback(
     (group: CanvasGroup) => {
-      openGroupEditor(group.id);
+      openProfileWindow('group', group.id);
     },
-    [openGroupEditor]
+    [openProfileWindow]
   );
 
   const handleGroupMove = useCallback(
@@ -1261,7 +1262,7 @@ const App = () => {
     hoveredGroupLinkKey,
     onNodeHover: handleNodeHover,
     onNodeClick: handleNodeClick,
-    onNodeDoubleClick: openEditNodeForm,
+    onNodeDoubleClick: handleNodeDoubleClick,
     onNodeAuxClick: handleNodeAuxClick,
     onNodeDragEnd: handleNodeDragEnd,
     onNodeContextMenu: handleNodeContextMenu,
@@ -2040,7 +2041,25 @@ const App = () => {
     }
 
     if (contextMenu.kind === 'connection') {
-      return [
+      const targetLink = links.find((link) => makeEdgeKey(link) === contextMenu.edgeKey);
+      const items = [];
+      if (targetLink) {
+        items.push(
+          {
+            id: 'open-source-node',
+            label: 'Open source profile',
+            icon: <EyeIcon />,
+            onSelect: () => openProfileWindow('node', targetLink.source),
+          },
+          {
+            id: 'open-target-node',
+            label: 'Open target profile',
+            icon: <EyeIcon />,
+            onSelect: () => openProfileWindow('node', targetLink.target),
+          }
+        );
+      }
+      items.push(
         {
           id: 'edit-connection',
           label: 'Edit connection',
@@ -2053,12 +2072,31 @@ const App = () => {
           icon: <TrashIcon />,
           tone: 'danger' as const,
           onSelect: () => removeConnectionByKey(contextMenu.edgeKey),
-        },
-      ];
+        }
+      );
+      return items;
     }
 
     if (contextMenu.kind === 'group-connection') {
-      return [
+      const targetLink = groupLinks.find((link) => makeGroupLinkKey(link) === contextMenu.linkKey);
+      const items = [];
+      if (targetLink) {
+        items.push(
+          {
+            id: 'open-source-group',
+            label: 'Open source profile',
+            icon: <EyeIcon />,
+            onSelect: () => openProfileWindow('group', targetLink.sourceGroupId),
+          },
+          {
+            id: 'open-target-group',
+            label: 'Open target profile',
+            icon: <EyeIcon />,
+            onSelect: () => openProfileWindow('group', targetLink.targetGroupId),
+          }
+        );
+      }
+      items.push(
         {
           id: 'edit-group-connection',
           label: 'Edit group link',
@@ -2071,12 +2109,19 @@ const App = () => {
           icon: <TrashIcon />,
           tone: 'danger' as const,
           onSelect: () => removeGroupConnectionByKey(contextMenu.linkKey),
-        },
-      ];
+        }
+      );
+      return items;
     }
 
     if (contextMenu.kind === 'group') {
       return [
+        {
+          id: 'open-group-profile',
+          label: 'Open profile',
+          icon: <EyeIcon />,
+          onSelect: () => openProfileWindow('group', contextMenu.groupId),
+        },
         {
           id: 'edit-group',
           label: 'Edit group',
@@ -2094,6 +2139,12 @@ const App = () => {
     }
 
     return [
+      {
+        id: 'open-node-profile',
+        label: 'Open profile',
+        icon: <EyeIcon />,
+        onSelect: () => openProfileWindow('node', contextMenu.nodeId),
+      },
       {
         id: 'edit-node',
         label: 'Edit node',
@@ -2118,6 +2169,9 @@ const App = () => {
     removeNodeById,
     openGroupEditor,
     removeGroupById,
+    links,
+    groupLinks,
+    openProfileWindow,
   ]);
 
   const handlePanelMove = useCallback(

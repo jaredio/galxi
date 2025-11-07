@@ -5,12 +5,16 @@ export type ProfileField = {
   label: string;
   value: string;
   editable?: boolean;
+  iconSrc?: string;
+  subtitle?: string;
+  badge?: string;
 };
 
 export type ProfileSection = {
   id: string;
   title: string;
   items: ProfileField[];
+  variant?: 'default' | 'cards';
 };
 
 export type ProfileWindowContent = {
@@ -18,6 +22,7 @@ export type ProfileWindowContent = {
   typeLabel: string;
   overview: ProfileField[];
   sections: ProfileSection[];
+  connections?: ProfileSection[];
   status?: {
     label: string;
     tone: 'success' | 'warning' | 'danger' | 'info' | 'neutral';

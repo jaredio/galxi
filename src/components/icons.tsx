@@ -44,6 +44,19 @@ export const TrashIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const EyeIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...baseIconProps} {...props}>
+    <path
+      d="M1.75 7c1.4-2.4 3.35-3.75 5.25-3.75S10.85 4.6 12.25 7C10.85 9.4 8.9 10.75 7 10.75S2.85 9.4 1.75 7z"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinejoin="round"
+    />
+    <circle cx={7} cy={7} r={1.8} stroke="currentColor" strokeWidth="1.2" />
+    <circle cx={7} cy={7} r={0.6} fill="currentColor" />
+  </svg>
+);
+
 export const CloseIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...baseIconProps} {...props}>
     <path d="M3.1 3.1l7.8 7.8M10.9 3.1l-7.8 7.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
