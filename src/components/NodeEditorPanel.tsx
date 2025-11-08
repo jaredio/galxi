@@ -29,7 +29,6 @@ type NodeEditorPanelProps = {
   nodeType: NodeType;
   onLabelChange: (value: string) => void;
   onTypeChange: (value: NodeType) => void;
-  placementLabel: string;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteNode: () => void;
@@ -80,7 +79,6 @@ export const NodeEditorPanel = ({
   nodeType,
   onLabelChange,
   onTypeChange,
-  placementLabel,
   onClose,
   onSubmit,
   onDeleteNode,
@@ -305,12 +303,6 @@ export const NodeEditorPanel = ({
                       </option>
                     ))}
                   </select>
-                </label>
-                <label>
-                  <span>Placement</span>
-                  <p className="node-editor-placement-value">
-                    {mode === 'create' ? 'Auto-assigned when placed on canvas' : placementLabel}
-                  </p>
                 </label>
               </section>
             </div>

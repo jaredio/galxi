@@ -25,7 +25,6 @@ import {
   LINK_BASE_WIDTH,
 } from './constants/graph';
 import { nodeTypeOptions } from './constants/nodeOptions';
-import { groupTypeLabelMap } from './constants/groupLabels';
 import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
@@ -645,26 +644,6 @@ const App = () => {
       });
     },
     [findBestGroupForPoint, setNodes]
-  );
-
-  const describePlacement = useCallback(
-    (groupId: string | undefined) => {
-      if (!groupId) {
-        return 'Unassigned';
-      }
-      const chain: string[] = [];
-      const visited = new Set<string>();
-      let current = groups.find((group) => group.id === groupId);
-      while (current && !visited.has(current.id)) {
-        chain.push(`${groupTypeLabelMap[current.type] ?? 'Group'}: ${current.title}`);
-        visited.add(current.id);
-        current = current.parentGroupId
-          ? groups.find((candidate) => candidate.id === current!.parentGroupId)
-          : undefined;
-      }
-      return chain.join(' › ') || 'Unassigned';
-    },
-    [groups]
   );
 
   useEffect(() => {
@@ -2263,12 +2242,6 @@ const App = () => {
   }, [clampPanelGeometry]);
 
   const showWelcome = !welcomeDismissed && nodes.length === 0 && groups.length === 0;
-  const editingNode =
-    nodeForm && nodeForm.mode === 'edit' ? nodes.find((node) => node.id === nodeForm.nodeId) : null;
-  const nodeEditorPlacementLabel =
-    nodeForm?.mode === 'edit'
-      ? describePlacement(editingNode?.group ?? '')
-      : 'Auto-assigned when placed on canvas';
 
   return (
     <div className="app">
@@ -2357,7 +2330,6 @@ const App = () => {
           nodeType={nodeFormType}
           onLabelChange={handleLabelChange}
           onTypeChange={handleTypeChange}
-          placementLabel={nodeEditorPlacementLabel}
           onClose={handleNodeFormClose}
           onSubmit={handleNodeFormSubmit}
           onDeleteNode={() => {
