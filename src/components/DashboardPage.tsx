@@ -480,8 +480,8 @@ export const DashboardPage = ({
       <section className="dashboard-panel dashboard-summary-panel">
         <header className="dashboard-panel-header">
           <div>
-            <p className="dashboard-section-label">Summary Overview</p>
-            <h1 className="dashboard-panel-title">Infrastructure health at a glance</h1>
+            <p className="dashboard-section-label">Infrastructure Overview</p>
+            <h1 className="dashboard-panel-title">Deployment Health Snapshot</h1>
           </div>
           <p className="dashboard-panel-description">
             Live metrics synthesized from every object currently visible on the Canvas.
@@ -490,17 +490,17 @@ export const DashboardPage = ({
 
         <div className="dashboard-summary-cards">
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Total Nodes</p>
+            <p className="dashboard-card-label">Compute Resources</p>
             <p className="dashboard-metric-value">{totals.nodes}</p>
             <p className="dashboard-card-subtitle">Across all workloads</p>
           </article>
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Total Groups</p>
+            <p className="dashboard-card-label">Network Scopes</p>
             <p className="dashboard-metric-value">{totals.groups}</p>
             <p className="dashboard-card-subtitle">Virtual networks & logical scopes</p>
           </article>
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Connections</p>
+            <p className="dashboard-card-label">Linked Relationships</p>
             <p className="dashboard-metric-value">{totals.connections}</p>
             <p className="dashboard-card-subtitle">
               {totals.nodeLinks} node / {totals.groupLinks} group links
@@ -511,8 +511,8 @@ export const DashboardPage = ({
         <div className="dashboard-summary-supplement">
           <article className="dashboard-health-card">
             <div className="dashboard-health-header">
-              <p className="dashboard-card-label">Active vs inactive</p>
-              <p className="dashboard-health-total">{healthTotal} tracked</p>
+              <p className="dashboard-card-label">Resource Status</p>
+              <p className="dashboard-health-total">{healthTotal} resources tracked</p>
             </div>
             <div className="dashboard-health-bar" aria-hidden="true">
               <span
@@ -549,7 +549,7 @@ export const DashboardPage = ({
           </article>
 
           <article className="dashboard-groups-card">
-            <p className="dashboard-card-label">Group type breakdown</p>
+            <p className="dashboard-card-label">Network Composition</p>
             <ul className="dashboard-group-breakdown">
               {groupBreakdown.map((entry) => (
                 <li key={entry.type}>
@@ -590,7 +590,7 @@ export const DashboardPage = ({
         {summaryRows.length > 0 && (
           <div className="dashboard-metric-table">
             <div className="dashboard-metric-table-header">
-              <p className="dashboard-card-label">Node inventory</p>
+            <p className="dashboard-card-label">Resource Inventory</p>
               <p className="dashboard-card-subtitle">
                 Tap any row to inspect that workload inside the hierarchy.
               </p>
@@ -621,8 +621,8 @@ export const DashboardPage = ({
         <section className="dashboard-panel dashboard-panel--hierarchy">
           <header className="dashboard-panel-header">
             <div>
-              <p className="dashboard-section-label">Group & node hierarchy</p>
-              <h2 className="dashboard-panel-title">Nested topology</h2>
+              <p className="dashboard-section-label">Topology View</p>
+              <h2 className="dashboard-panel-title">Topology Explorer</h2>
             </div>
             <p className="dashboard-panel-description">
               Expand any group to reveal its child nodes, subgroups, and relationship counts.
@@ -633,7 +633,7 @@ export const DashboardPage = ({
             {hierarchy.roots.map((root) => renderGroupNode(root))}
             {hierarchy.ungroupedNodes.length > 0 && (
               <div className="dashboard-tree-section">
-                <p className="dashboard-section-label">Ungrouped nodes</p>
+                <p className="dashboard-section-label">Ungrouped Resources</p>
                 {hierarchy.ungroupedNodes.map((node) => renderNodeRow(node))}
               </div>
             )}
@@ -646,8 +646,8 @@ export const DashboardPage = ({
         <section className="dashboard-panel dashboard-panel--insights">
           <header className="dashboard-panel-header">
             <div>
-              <p className="dashboard-section-label">Relationship insights</p>
-              <h2 className="dashboard-panel-title">Contextual analysis</h2>
+              <p className="dashboard-section-label">Selected Resource Context</p>
+              <h2 className="dashboard-panel-title">Operational Dependencies</h2>
             </div>
             <p className="dashboard-panel-description">
               Selecting a resource reveals upstream & downstream dependencies plus shared group context.
@@ -679,7 +679,7 @@ export const DashboardPage = ({
 
                 <div className="dashboard-insight-grid">
                   <article className="dashboard-insight-card">
-                    <p className="dashboard-card-label">Connections</p>
+                    <p className="dashboard-card-label">Linked Relationships</p>
                     {selectedInsight.inbound.length + selectedInsight.outbound.length === 0 ? (
                       <p className="dashboard-empty">No recorded links yet.</p>
                     ) : (
@@ -712,7 +712,7 @@ export const DashboardPage = ({
 
                   {selectedInsight.kind === 'node' ? (
                     <article className="dashboard-insight-card">
-                      <p className="dashboard-card-label">Group context</p>
+                      <p className="dashboard-card-label">Scope Context</p>
                       {selectedInsight.group ? (
                         <div className="dashboard-group-context">
                           <p className="dashboard-group-context-title">{selectedInsight.group.title}</p>
@@ -745,7 +745,7 @@ export const DashboardPage = ({
                     </article>
                   ) : (
                     <article className="dashboard-insight-card">
-                      <p className="dashboard-card-label">Group composition</p>
+                      <p className="dashboard-card-label">Scope Composition</p>
                       <div className="dashboard-composition-grid">
                         <div>
                           <p className="dashboard-composition-value">{selectedInsight.childNodes.length}</p>
