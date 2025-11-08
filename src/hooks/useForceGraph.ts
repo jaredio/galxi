@@ -179,6 +179,7 @@ type UseForceGraphArgs = ForceGraphCallbacks & {
   hoveredGroupLinkKey: string | null;
   selectedGroupId: string | null;
   hoveredGroupId: string | null;
+  isActive: boolean;
 };
 const makeSimulationLink = (link: NetworkLink): SimulationLink => ({ ...link });
 export const useForceGraph = ({
@@ -213,6 +214,7 @@ export const useForceGraph = ({
   onGroupResize,
   selectedGroupId,
   hoveredGroupId,
+  isActive,
 }: UseForceGraphArgs) => {
   const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, any, any, any> | null>(null);
   const containerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
@@ -427,6 +429,9 @@ export const useForceGraph = ({
     updateGroupLinkPositions();
   };
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     const svgElement = svgRef.current;
     if (!svgElement) {
       return;
@@ -555,7 +560,7 @@ export const useForceGraph = ({
       draftLineRef.current = null;
       svgSelectionRef.current = null;
     };
-  }, [svgRef, zoomTransformRef, onCanvasClick, onContextMenuDismiss]);
+  }, [svgRef, zoomTransformRef, onCanvasClick, onContextMenuDismiss, isActive]);
   useEffect(() => {
     const nodeLayer = nodeLayerRef.current;
     const linkHitLayer = linkHitLayerRef.current;

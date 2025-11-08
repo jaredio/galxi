@@ -13,6 +13,7 @@ import { GroupEditorPanel } from './components/GroupEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { ProfileWindow } from './components/ProfileWindow';
 import { EditIcon, PlusIcon, TrashIcon, EyeIcon } from './components/icons';
+import { DashboardPage, type DashboardEntity } from './components/DashboardPage';
 import { Topbar } from './components/Topbar';
 import { ZoomControls } from './components/ZoomControls';
 import {
@@ -37,6 +38,7 @@ import {
   resolveId,
   shortenSegment,
 } from './lib/graph-utils';
+import { generateDashboardSummary } from './lib/dashboardData';
 import { buildGroupProfileContent, buildNodeProfileContent } from './lib/profileData';
 import {
   createDefaultGroupProfile,
@@ -262,6 +264,7 @@ const App = () => {
   const setGroupLinks = useGraphStore((state) => state.setGroupLinks);
   const setGroups = useGraphStore((state) => state.setGroups);
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
+  const isCanvasView = activeTab === 'canvas';
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
@@ -325,6 +328,27 @@ const App = () => {
       groupLinks,
     }),
     [nodes, groups, links, groupLinks]
+  );
+  const dashboardSummary = useMemo(
+    () => generateDashboardSummary({ nodes, links, groups, groupLinks }),
+    [nodes, links, groups, groupLinks]
+  );
+
+  const handleDashboardEntityFocus = useCallback(
+    (entity: DashboardEntity) => {
+      setActiveTab('canvas');
+      if (entity.kind === 'node') {
+        setActiveNodeId(entity.id);
+        const targetNode = nodes.find((node) => node.id === entity.id);
+        if (targetNode?.group) {
+          setSelectedGroupId(targetNode.group);
+        }
+        return;
+      }
+      setActiveNodeId(null);
+      setSelectedGroupId(entity.id);
+    },
+    [nodes, setActiveNodeId, setSelectedGroupId, setActiveTab]
   );
 
   useEffect(() => {
@@ -1306,6 +1330,7 @@ const App = () => {
     onGroupResize: handleGroupResize,
     selectedGroupId,
     hoveredGroupId,
+    isActive: isCanvasView,
   });
 
   const getGraphCoordinates = useCallback(
@@ -2246,156 +2271,169 @@ const App = () => {
   return (
     <div className="app">
       <Topbar activeTab={activeTab} onSelectTab={setActiveTab} />
-      <GalxiSidebar
-        onCreateNode={handleSidebarCreateNode}
-        onCreateGroup={handleSidebarCreateGroup}
-        onStartConnection={handleSidebarStartConnection}
-        onOpenTheme={handleThemeUtilities}
-        onOpenSettings={handleSettingsUtilities}
-      />
-
-      <main className="canvas-shell">
-        <svg
-          ref={svgRef}
-          className="mindmap-canvas"
-          onContextMenu={handleCanvasContextMenu}
-          onMouseMove={handleCanvasMouseMove}
-        />
-
-        {showWelcome && <EmptyState onCreateNode={handleEmptyStateCreate} />}
-
-        <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onReset={handleResetZoom} />
-
-        {contextMenu && contextMenuItems.length > 0 && (
-          <ContextMenu
-            x={contextMenu.screenX}
-            y={contextMenu.screenY}
-            items={contextMenuItems}
-            onRequestClose={handleContextMenuDismiss}
+      {isCanvasView ? (
+        <>
+          <GalxiSidebar
+            onCreateNode={handleSidebarCreateNode}
+            onCreateGroup={handleSidebarCreateGroup}
+            onStartConnection={handleSidebarStartConnection}
+            onOpenTheme={handleThemeUtilities}
+            onOpenSettings={handleSettingsUtilities}
           />
-        )}
 
-        {profileWindows.map((window) => {
-          if (window.kind === 'node') {
-            const targetNode = nodes.find((node) => node.id === window.resourceId);
-            if (!targetNode) {
-              return null;
-            }
-            const content = buildNodeProfileContent(targetNode, profileContext);
-            return (
-              <ProfileWindow
-                key={window.id}
-                {...content}
-                position={window.position}
-                zIndex={window.zIndex}
-                onMove={(position) => moveProfileWindow(window.id, position)}
-                onClose={() => closeProfileWindowById(window.id)}
-                onFocus={() => focusProfileWindow(window.id)}
-                editable
-                onFieldChange={(fieldKey, value) =>
-                  handleProfileFieldChange('node', window.resourceId, fieldKey, value)
-                }
-                onOpenEditor={() => openNodeEditorById(window.resourceId)}
-              />
-            );
-          }
-          const targetGroup = groups.find((group) => group.id === window.resourceId);
-          if (!targetGroup) {
-            return null;
-          }
-          const content = buildGroupProfileContent(targetGroup, profileContext);
-          return (
-            <ProfileWindow
-              key={window.id}
-              {...content}
-              position={window.position}
-              zIndex={window.zIndex}
-              onMove={(position) => moveProfileWindow(window.id, position)}
-              onClose={() => closeProfileWindowById(window.id)}
-              onFocus={() => focusProfileWindow(window.id)}
-              editable
-              onFieldChange={(fieldKey, value) =>
-                handleProfileFieldChange('group', window.resourceId, fieldKey, value)
-              }
-              onOpenEditor={() => openGroupEditor(window.resourceId)}
+          <main className="canvas-shell view-fade">
+            <svg
+              ref={svgRef}
+              className="mindmap-canvas"
+              onContextMenu={handleCanvasContextMenu}
+              onMouseMove={handleCanvasMouseMove}
             />
-          );
-        })}
-      </main>
 
-      {nodeForm && (
-        <NodeEditorPanel
-          mode={nodeForm.mode}
-          values={formValues}
-          nodeType={nodeFormType}
-          onLabelChange={handleLabelChange}
-          onTypeChange={handleTypeChange}
-          onClose={handleNodeFormClose}
-          onSubmit={handleNodeFormSubmit}
-          onDeleteNode={() => {
-            if (nodeForm.mode === 'edit') {
-              removeNodeById(nodeForm.nodeId);
-            }
-          }}
-          nodeTypeOptions={nodeTypeOptions}
-          connections={nodeEditorConnections}
-          onConnectionRelationChange={handleConnectionRelationChange}
-          onConnectionRemove={handleConnectionRemove}
-          position={{ x: panelGeometry.x, y: panelGeometry.y }}
-          size={{ width: panelGeometry.width, height: panelGeometry.height }}
-          onMove={handlePanelMove}
-          onResize={handlePanelResize}
-          onToggleExpand={handlePanelToggleExpand}
-          isExpanded={panelExpanded}
+            {showWelcome && <EmptyState onCreateNode={handleEmptyStateCreate} />}
+
+            <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onReset={handleResetZoom} />
+
+            {contextMenu && contextMenuItems.length > 0 && (
+              <ContextMenu
+                x={contextMenu.screenX}
+                y={contextMenu.screenY}
+                items={contextMenuItems}
+                onRequestClose={handleContextMenuDismiss}
+              />
+            )}
+
+            {profileWindows.map((window) => {
+              if (window.kind === 'node') {
+                const targetNode = nodes.find((node) => node.id === window.resourceId);
+                if (!targetNode) {
+                  return null;
+                }
+                const content = buildNodeProfileContent(targetNode, profileContext);
+                return (
+                  <ProfileWindow
+                    key={window.id}
+                    {...content}
+                    position={window.position}
+                    zIndex={window.zIndex}
+                    onMove={(position) => moveProfileWindow(window.id, position)}
+                    onClose={() => closeProfileWindowById(window.id)}
+                    onFocus={() => focusProfileWindow(window.id)}
+                    editable
+                    onFieldChange={(fieldKey, value) =>
+                      handleProfileFieldChange('node', window.resourceId, fieldKey, value)
+                    }
+                    onOpenEditor={() => openNodeEditorById(window.resourceId)}
+                  />
+                );
+              }
+              const targetGroup = groups.find((group) => group.id === window.resourceId);
+              if (!targetGroup) {
+                return null;
+              }
+              const content = buildGroupProfileContent(targetGroup, profileContext);
+              return (
+                <ProfileWindow
+                  key={window.id}
+                  {...content}
+                  position={window.position}
+                  zIndex={window.zIndex}
+                  onMove={(position) => moveProfileWindow(window.id, position)}
+                  onClose={() => closeProfileWindowById(window.id)}
+                  onFocus={() => focusProfileWindow(window.id)}
+                  editable
+                  onFieldChange={(fieldKey, value) =>
+                    handleProfileFieldChange('group', window.resourceId, fieldKey, value)
+                  }
+                  onOpenEditor={() => openGroupEditor(window.resourceId)}
+                />
+              );
+            })}
+          </main>
+
+          {nodeForm && (
+            <NodeEditorPanel
+              mode={nodeForm.mode}
+              values={formValues}
+              nodeType={nodeFormType}
+              onLabelChange={handleLabelChange}
+              onTypeChange={handleTypeChange}
+              onClose={handleNodeFormClose}
+              onSubmit={handleNodeFormSubmit}
+              onDeleteNode={() => {
+                if (nodeForm.mode === 'edit') {
+                  removeNodeById(nodeForm.nodeId);
+                }
+              }}
+              nodeTypeOptions={nodeTypeOptions}
+              connections={nodeEditorConnections}
+              onConnectionRelationChange={handleConnectionRelationChange}
+              onConnectionRemove={handleConnectionRemove}
+              position={{ x: panelGeometry.x, y: panelGeometry.y }}
+              size={{ width: panelGeometry.width, height: panelGeometry.height }}
+              onMove={handlePanelMove}
+              onResize={handlePanelResize}
+              onToggleExpand={handlePanelToggleExpand}
+              isExpanded={panelExpanded}
+            />
+          )}
+
+          {!nodeForm && connectionForm && connectionEditorSelection && (
+            <ConnectionEditorPanel
+              relation={connectionForm.relation}
+              onRelationChange={handleConnectionFormRelationChange}
+              onSubmit={handleConnectionFormSubmit}
+              onClose={handleConnectionFormClose}
+              onDelete={() =>
+                connectionForm.kind === 'node'
+                  ? removeConnectionByKey(connectionForm.linkKey)
+                  : removeGroupConnectionByKey(connectionForm.linkKey)
+              }
+              sourceEndpoint={connectionEditorSelection.source}
+              targetEndpoint={connectionEditorSelection.target}
+              onOpenSourceEndpoint={connectionEditorSourceOpen}
+              onOpenTargetEndpoint={connectionEditorTargetOpen}
+              position={{ x: panelGeometry.x, y: panelGeometry.y }}
+              size={{ width: panelGeometry.width, height: panelGeometry.height }}
+              onMove={handlePanelMove}
+              onResize={handlePanelResize}
+              onToggleExpand={handlePanelToggleExpand}
+              isExpanded={panelExpanded}
+            />
+          )}
+
+          {!nodeForm && !connectionForm && groupForm && (
+            <GroupEditorPanel
+              mode={groupForm.mode}
+              values={groupFormValues}
+              onTitleChange={handleGroupTitleChange}
+              onTypeChange={handleGroupTypeChange}
+              onClose={handleGroupFormClose}
+              onSubmit={handleGroupFormSubmit}
+              onDelete={groupForm.mode === 'edit' ? handleGroupDelete : undefined}
+              position={{ x: panelGeometry.x, y: panelGeometry.y }}
+              size={{ width: panelGeometry.width, height: panelGeometry.height }}
+              onMove={handlePanelMove}
+              onResize={handlePanelResize}
+              onToggleExpand={handlePanelToggleExpand}
+              isExpanded={panelExpanded}
+            />
+          )}
+
+          {utilityToast && (
+            <div className="utility-toast" role="status">
+              {utilityToast.message}
+            </div>
+          )}
+        </>
+      ) : (
+        <DashboardPage
+          data={dashboardSummary}
+          nodes={nodes}
+          groups={groups}
+          links={links}
+          groupLinks={groupLinks}
+          onFocusOnCanvas={handleDashboardEntityFocus}
         />
-      )}
-
-      {!nodeForm && connectionForm && connectionEditorSelection && (
-        <ConnectionEditorPanel
-          relation={connectionForm.relation}
-          onRelationChange={handleConnectionFormRelationChange}
-          onSubmit={handleConnectionFormSubmit}
-          onClose={handleConnectionFormClose}
-          onDelete={() =>
-            connectionForm.kind === 'node'
-              ? removeConnectionByKey(connectionForm.linkKey)
-              : removeGroupConnectionByKey(connectionForm.linkKey)
-          }
-          sourceEndpoint={connectionEditorSelection.source}
-          targetEndpoint={connectionEditorSelection.target}
-          onOpenSourceEndpoint={connectionEditorSourceOpen}
-          onOpenTargetEndpoint={connectionEditorTargetOpen}
-          position={{ x: panelGeometry.x, y: panelGeometry.y }}
-          size={{ width: panelGeometry.width, height: panelGeometry.height }}
-          onMove={handlePanelMove}
-          onResize={handlePanelResize}
-          onToggleExpand={handlePanelToggleExpand}
-          isExpanded={panelExpanded}
-        />
-      )}
-
-      {!nodeForm && !connectionForm && groupForm && (
-        <GroupEditorPanel
-          mode={groupForm.mode}
-          values={groupFormValues}
-          onTitleChange={handleGroupTitleChange}
-          onTypeChange={handleGroupTypeChange}
-          onClose={handleGroupFormClose}
-          onSubmit={handleGroupFormSubmit}
-          onDelete={groupForm.mode === 'edit' ? handleGroupDelete : undefined}
-          position={{ x: panelGeometry.x, y: panelGeometry.y }}
-          size={{ width: panelGeometry.width, height: panelGeometry.height }}
-          onMove={handlePanelMove}
-          onResize={handlePanelResize}
-          onToggleExpand={handlePanelToggleExpand}
-          isExpanded={panelExpanded}
-        />
-      )}
-
-      {utilityToast && (
-        <div className="utility-toast" role="status">
-          {utilityToast.message}
-        </div>
       )}
     </div>
   );
