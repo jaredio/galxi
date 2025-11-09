@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 
 import { CloseIcon, NetworkIcon, TrashIcon } from './icons';
 
 import { getGroupIcon } from '../constants/groupIcons';
+import { groupTypeCategoryLabels, groupTypeCategoryOrder, groupTypeOptions } from '../constants/groupTypes';
+import { groupTypeLabelMap } from '../constants/groupLabels';
 import type { GroupType } from '../types/graph';
 
 type ResizeHandle =
@@ -33,12 +35,6 @@ const resizeHandles: Array<{ key: ResizeHandle; className: string; cursor: strin
     className: 'node-editor-resize node-editor-resize--bottom-right',
     cursor: 'nwse-resize',
   },
-];
-
-const groupTypeOptions: Array<{ value: GroupType; label: string }> = [
-  { value: 'virtualNetwork', label: 'Virtual Network' },
-  { value: 'subnet', label: 'Subnet' },
-  { value: 'logicalGroup', label: 'Logical Grouping' },
 ];
 
 type GroupEditorPanelProps = {
@@ -73,6 +69,28 @@ export const GroupEditorPanel = ({
   isExpanded,
 }: GroupEditorPanelProps) => {
   const pointerCleanupRef = useRef<(() => void) | null>(null);
+  const categoryByType = useMemo(
+    () => new Map(groupTypeOptions.map((option) => [option.value, option.category] as const)),
+    []
+  );
+  const availableCategories = useMemo(
+    () => groupTypeCategoryOrder.filter((category) => groupTypeOptions.some((option) => option.category === category)),
+    []
+  );
+  const resolveCategory = useCallback(
+    (type: GroupType) => categoryByType.get(type) ?? availableCategories[0] ?? groupTypeCategoryOrder[0],
+    [categoryByType, availableCategories]
+  );
+  const [groupCategory, setGroupCategory] = useState(resolveCategory(values.type));
+
+  useEffect(() => {
+    setGroupCategory(resolveCategory(values.type));
+  }, [values.type, resolveCategory]);
+
+  const filteredGroupOptions = useMemo(
+    () => groupTypeOptions.filter((option) => option.category === groupCategory),
+    [groupCategory]
+  );
 
   const stopTrackingPointer = useCallback(() => {
     if (pointerCleanupRef.current) {
@@ -201,7 +219,7 @@ export const GroupEditorPanel = ({
           <div className="node-editor-title-text">
             <h2>{mode === 'create' ? 'Create Group' : 'Edit Group'}</h2>
             <span className="node-editor-eyebrow">
-              {groupTypeOptions.find((option) => option.value === values.type)?.label ?? 'Group'}
+              {groupTypeLabelMap[values.type] ?? 'Group'}
             </span>
           </div>
         </div>
@@ -222,16 +240,48 @@ export const GroupEditorPanel = ({
                 autoFocus={mode === 'create'}
               />
             </label>
-            <label>
-              <span>Group Type</span>
-              <select value={values.type} onChange={(event) => onTypeChange(event.target.value as GroupType)}>
-                {groupTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="type-picker">
+              <div className="type-picker-head">
+                <span className="type-picker-label">Group Type</span>
+                <span className="type-picker-value">{groupTypeLabelMap[values.type]}</span>
+              </div>
+              {availableCategories.length > 1 && (
+                <div className="type-category-row" role="tablist" aria-label="Group type categories">
+                  {availableCategories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      role="tab"
+                      aria-selected={groupCategory === category}
+                      className={`type-category${groupCategory === category ? ' selected' : ''}`}
+                      onClick={() => setGroupCategory(category)}
+                    >
+                      {groupTypeCategoryLabels[category]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="type-card-grid">
+                {filteredGroupOptions.map((option) => {
+                  const selected = option.value === values.type;
+                  return (
+                    <button
+                      type="button"
+                      key={option.value}
+                      className={`type-card${selected ? ' selected' : ''}`}
+                      onClick={() => onTypeChange(option.value)}
+                      aria-pressed={selected}
+                    >
+                      <img src={getGroupIcon(option.value)} alt="" aria-hidden="true" className="type-card-icon" />
+                      <div className="type-card-body">
+                        <span className="type-card-title">{option.label}</span>
+                        <span className="type-card-description">{option.description}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </section>
         </div>
 

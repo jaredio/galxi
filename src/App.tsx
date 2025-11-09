@@ -57,6 +57,7 @@ import type {
   SimulationLink,
   SimulationNode,
 } from './types/graph';
+import type { ResourceProfileData } from './types/profile';
 import { useGraphStore } from './state/graphStore';
 
 type CanvasContextMenuState = {
@@ -278,6 +279,9 @@ const App = () => {
     type: 'vm',
     group: '',
   });
+  const [nodeProfileDraft, setNodeProfileDraft] = useState<ResourceProfileData>(() =>
+    createDefaultNodeProfile('vm')
+  );
   useEffect(() => {
     if (!nodeForm || nodeForm.mode !== 'edit') {
       return;
@@ -301,10 +305,10 @@ const App = () => {
     hoveredEdgeKey: string | null;
   }>({ activeNodeId: null, hoveredNodeId: null, hoveredEdgeKey: null });
   const [panelGeometry, setPanelGeometry] = useState<{ x: number; y: number; width: number; height: number }>(() => ({
-    x: 72,
-    y: 96,
-    width: 360,
-    height: 460,
+    x: 48,
+    y: 72,
+    width: 820,
+    height: 860,
   }));
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [utilityToast, setUtilityToast] = useState<UtilityToastState | null>(null);
@@ -567,16 +571,16 @@ const App = () => {
   const clampPanelGeometry = useCallback(
     (geometry: { x: number; y: number; width: number; height: number }) => {
       const viewport = panelViewportRef.current;
-      const minWidth = 280;
-      const minHeight = 240;
-      const maxWidth = 600;
-      const maxHeight = Math.max(minHeight, viewport.height ? viewport.height - 120 : 720);
+      const minWidth = 320;
+      const minHeight = 260;
+      const maxWidth = viewport.width ? Math.max(minWidth, viewport.width - 80) : 1600;
+      const maxHeight = viewport.height ? Math.max(minHeight, viewport.height - 80) : 1200;
       const width = Math.min(Math.max(geometry.width, minWidth), maxWidth);
       const height = Math.min(Math.max(geometry.height, minHeight), maxHeight);
       const maxX = Math.max(0, (viewport.width || width) - width - 24);
       const maxY = Math.max(0, (viewport.height || height) - height - 24);
-      const x = Math.min(Math.max(geometry.x, 24), maxX);
-      const y = Math.min(Math.max(geometry.y, 72), maxY);
+      const x = Math.min(Math.max(geometry.x, 16), maxX);
+      const y = Math.min(Math.max(geometry.y, 48), maxY);
       return { x, y, width, height };
     },
     []
@@ -946,6 +950,9 @@ const App = () => {
         type: target.type,
         group: target.group,
       });
+      setNodeProfileDraft(
+        mergeProfileWithSchema(getNodeProfileSchema(target.type), target.profile ?? createDefaultNodeProfile(target.type))
+      );
       setNodeForm({
         mode: 'edit',
         nodeId,
@@ -966,8 +973,21 @@ const App = () => {
     setFormValues((prev) => ({ ...prev, label: value }));
   }, []);
 
-  const handleTypeChange = useCallback((value: NodeFormValues['type']) => {
-    setFormValues((prev) => ({ ...prev, type: value }));
+  const handleTypeChange = useCallback(
+    (value: NodeFormValues['type']) => {
+      setFormValues((prev) => ({ ...prev, type: value }));
+      setNodeProfileDraft(createDefaultNodeProfile(value));
+    },
+    []
+  );
+
+  const handleNodeProfileFieldChange = useCallback((fieldKey: string, value: string) => {
+    setNodeProfileDraft((prev) => {
+      if (prev[fieldKey] === value) {
+        return prev;
+      }
+      return { ...prev, [fieldKey]: value };
+    });
   }, []);
 
   const removeNodeById = useCallback((nodeId: string) => {
@@ -1403,11 +1423,13 @@ const App = () => {
 
   const openCreateNodeForm = useCallback(
     (position: { x: number; y: number }, overrides?: Partial<NodeFormValues>) => {
+      const nextType = overrides?.type ?? 'vm';
       setFormValues({
         label: overrides?.label ?? 'New Node',
-        type: overrides?.type ?? 'vm',
+        type: nextType,
         group: overrides?.group ?? '',
       });
+      setNodeProfileDraft(createDefaultNodeProfile(nextType));
       setNodeForm({
         mode: 'create',
         position,
@@ -1421,8 +1443,8 @@ const App = () => {
       setPanelGeometry((prev) =>
         clampPanelGeometry({
           ...prev,
-          width: 360,
-          height: 460,
+          width: 820,
+          height: 860,
         })
       );
     },
@@ -1794,6 +1816,21 @@ const App = () => {
     return existing?.type ?? formValues.type;
   }, [formValues.type, nodeForm, nodes]);
 
+  const nodeProfileSchema = useMemo(() => getNodeProfileSchema(nodeFormType), [nodeFormType]);
+  const nodeProfileSections = useMemo(
+    () =>
+      nodeProfileSchema.sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        fields: section.fields.map((field) => ({
+          id: field.id,
+          label: field.label,
+          key: `${section.id}.${field.id}`,
+        })),
+      })),
+    [nodeProfileSchema]
+  );
+
   const handleNodeFormSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -1807,6 +1844,8 @@ const App = () => {
       if (nodeForm.mode === 'create') {
         const newId = createNodeId();
         nodePositionsRef.current[newId] = { ...nodeForm.position };
+        const schema = getNodeProfileSchema(formValues.type);
+        const profile = mergeProfileWithSchema(schema, nodeProfileDraft);
         setNodes((prev) => [
           ...prev,
           {
@@ -1814,7 +1853,7 @@ const App = () => {
             label,
             type: formValues.type,
             group,
-            profile: createDefaultNodeProfile(formValues.type),
+            profile,
           },
         ]);
         setActiveNodeId(newId);
@@ -1841,12 +1880,14 @@ const App = () => {
       }
 
       setNodeForm(null);
+      setNodeProfileDraft(createDefaultNodeProfile('vm'));
     },
-    [formValues, nodeForm]
+    [formValues, nodeForm, nodeProfileDraft]
   );
 
   const handleNodeFormClose = useCallback(() => {
     setNodeForm(null);
+    setNodeProfileDraft(createDefaultNodeProfile('vm'));
   }, []);
 
   const handleGroupFormSubmit = useCallback(
@@ -2258,8 +2299,8 @@ const App = () => {
       setPanelGeometry((current) =>
         clampPanelGeometry({
           ...current,
-          width: next ? 480 : 360,
-          height: next ? 560 : 460,
+          width: next ? 960 : 820,
+          height: next ? 980 : 860,
         })
       );
       return next;
@@ -2365,6 +2406,9 @@ const App = () => {
                 }
               }}
               nodeTypeOptions={nodeTypeOptions}
+              profileDraft={nodeProfileDraft}
+              profileSections={nodeProfileSections}
+              onProfileFieldChange={handleNodeProfileFieldChange}
               connections={nodeEditorConnections}
               onConnectionRelationChange={handleConnectionRelationChange}
               onConnectionRemove={handleConnectionRemove}
@@ -2433,6 +2477,7 @@ const App = () => {
           links={links}
           groupLinks={groupLinks}
           onFocusOnCanvas={handleDashboardEntityFocus}
+          profileContext={profileContext}
         />
       )}
     </div>

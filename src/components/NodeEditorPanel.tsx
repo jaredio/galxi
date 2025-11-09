@@ -7,6 +7,9 @@ import { CloseIcon, EditIcon, TrashIcon } from './icons';
 import { nodeTypeLabelMap } from '../constants/nodeTypeLabels';
 import { getNodeIcon } from '../constants/nodeIcons';
 import type { NodeType } from '../types/graph';
+import type { NodeTypeCategory, NodeTypeOption } from '../constants/nodeOptions';
+import { nodeTypeCategoryLabels, nodeTypeCategoryOrder } from '../constants/nodeOptions';
+import type { ResourceProfileData } from '../types/profile';
 
 export type NodeFormMode = 'create' | 'edit';
 
@@ -23,6 +26,12 @@ export type NodeConnection = {
   relation: string;
 };
 
+type NodeProfileSection = {
+  id: string;
+  title: string;
+  fields: Array<{ id: string; label: string; key: string }>;
+};
+
 type NodeEditorPanelProps = {
   mode: NodeFormMode;
   values: NodeFormValues;
@@ -32,7 +41,10 @@ type NodeEditorPanelProps = {
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteNode: () => void;
-  nodeTypeOptions: Array<{ value: NodeType; label: string }>;
+  nodeTypeOptions: NodeTypeOption[];
+  profileDraft: ResourceProfileData;
+  profileSections: NodeProfileSection[];
+  onProfileFieldChange: (fieldKey: string, value: string) => void;
   connections: NodeConnection[];
   onConnectionRelationChange: (key: string, relation: string) => void;
   onConnectionRemove: (key: string) => void;
@@ -83,6 +95,9 @@ export const NodeEditorPanel = ({
   onSubmit,
   onDeleteNode,
   nodeTypeOptions,
+  profileDraft,
+  profileSections,
+  onProfileFieldChange,
   connections,
   onConnectionRelationChange,
   onConnectionRemove,
@@ -95,6 +110,29 @@ export const NodeEditorPanel = ({
 }: NodeEditorPanelProps) => {
   const pointerCleanupRef = useRef<(() => void) | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'connections'>('info');
+  const [createStep, setCreateStep] = useState<'basics' | 'details'>('basics');
+  const categoryByValue = useMemo(
+    () => new Map(nodeTypeOptions.map((option) => [option.value, option.category] as const)),
+    [nodeTypeOptions]
+  );
+  const availableCategories = useMemo(
+    () =>
+      nodeTypeCategoryOrder.filter((category) =>
+        nodeTypeOptions.some((option) => option.category === category)
+      ),
+    [nodeTypeOptions]
+  );
+  const resolveCategory = useCallback(
+    (type: NodeType): NodeTypeCategory =>
+      categoryByValue.get(type) ?? availableCategories[0] ?? nodeTypeCategoryOrder[0],
+    [categoryByValue, availableCategories]
+  );
+  const [typeCategory, setTypeCategory] = useState<NodeTypeCategory>(() => resolveCategory(values.type));
+
+  useEffect(() => {
+    const nextCategory = resolveCategory(values.type);
+    setTypeCategory(nextCategory);
+  }, [values.type, resolveCategory]);
 
   const stopTrackingPointer = useCallback(() => {
     if (pointerCleanupRef.current) {
@@ -135,6 +173,19 @@ export const NodeEditorPanel = ({
   useEffect(() => {
     setActiveTab('info');
   }, [mode, nodeType]);
+  useEffect(() => {
+    if (mode === 'create') {
+      setCreateStep('basics');
+    }
+  }, [mode, nodeType]);
+
+  const isCreateFlow = mode === 'create';
+  const showDetailsStep = isCreateFlow && createStep === 'details';
+  const canProceedToDetails = values.label.trim().length > 0;
+  const filteredNodeTypeOptions = useMemo(
+    () => nodeTypeOptions.filter((option) => option.category === typeCategory),
+    [nodeTypeOptions, typeCategory]
+  );
 
   const handleHeaderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || event.detail > 1) {
@@ -157,7 +208,35 @@ export const NodeEditorPanel = ({
       },
       undefined
     );
-  };
+};
+
+type NodeProfileFormProps = {
+  sections: NodeProfileSection[];
+  values: ResourceProfileData;
+  onChange: (fieldKey: string, value: string) => void;
+};
+
+const NodeProfileForm = ({ sections, values, onChange }: NodeProfileFormProps) => (
+  <div className="node-profile-form">
+    {sections.map((section) => (
+      <section key={section.id} className="node-profile-section">
+        <p className="node-profile-section-title">{section.title}</p>
+        <div className="node-profile-field-grid">
+          {section.fields.map((field) => (
+            <label key={field.key}>
+              <span>{field.label}</span>
+              <input
+                value={values[field.key] ?? ''}
+                onChange={(event) => onChange(field.key, event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+);
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLSpanElement>, handle: ResizeHandle) => {
     if (event.button !== 0) {
@@ -280,31 +359,73 @@ export const NodeEditorPanel = ({
         <div className="node-editor-body">
           {activeTab === 'info' && (
             <div className="node-editor-section-stack">
-              <div className="node-editor-section-header">
-                <span>Node Details</span>
-                <EditIcon className="node-editor-section-icon" />
-              </div>
-              <section className="node-editor-section">
-                <label>
-                  <span>Label</span>
-                  <input
-                    value={values.label}
-                    onChange={(event) => onLabelChange(event.target.value)}
-                    placeholder="Enter node name"
-                    autoFocus={mode === 'create'}
-                  />
-                </label>
-                <label>
-                  <span>Type</span>
-                  <select value={values.type} onChange={(event) => onTypeChange(event.target.value as NodeType)}>
-                    {nodeTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </section>
+              {showDetailsStep ? (
+                <>
+                  <p className="node-profile-hint">All fields are optional. You can edit them later.</p>
+                  <NodeProfileForm sections={profileSections} values={profileDraft} onChange={onProfileFieldChange} />
+                </>
+              ) : (
+                <section className="node-editor-section">
+                  <label>
+                    <span>Label</span>
+                    <input
+                      value={values.label}
+                      onChange={(event) => onLabelChange(event.target.value)}
+                      placeholder="Enter node name"
+                      autoFocus={mode === 'create'}
+                    />
+                  </label>
+                  <div className="type-picker">
+                    <div className="type-picker-head">
+                      <span className="type-picker-label">Type</span>
+                      <span className="type-picker-value">{nodeTypeLabelMap[values.type]}</span>
+                    </div>
+                    <div className="type-category-row" role="tablist" aria-label="Node type categories">
+                      {availableCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          role="tab"
+                          aria-selected={typeCategory === category}
+                          className={`type-category${typeCategory === category ? ' selected' : ''}`}
+                          onClick={() => setTypeCategory(category)}
+                        >
+                          {nodeTypeCategoryLabels[category]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="type-card-grid">
+                      {filteredNodeTypeOptions.length === 0 ? (
+                        <p className="type-card-empty">No node types in this category yet.</p>
+                      ) : (
+                        filteredNodeTypeOptions.map((option) => {
+                          const selected = option.value === values.type;
+                          return (
+                            <button
+                              type="button"
+                              key={option.value}
+                              className={`type-card${selected ? ' selected' : ''}`}
+                              onClick={() => onTypeChange(option.value)}
+                              aria-pressed={selected}
+                            >
+                              <img
+                                src={getNodeIcon(option.value)}
+                                alt=""
+                                aria-hidden="true"
+                                className="type-card-icon"
+                              />
+                              <div className="type-card-body">
+                                <span className="type-card-title">{option.label}</span>
+                                <span className="type-card-description">{option.description}</span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 
@@ -385,9 +506,31 @@ export const NodeEditorPanel = ({
             <button type="button" className="btn" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-accent">
-              {mode === 'create' ? 'Create Node' : 'Save Changes'}
-            </button>
+            {isCreateFlow ? (
+              showDetailsStep ? (
+                <>
+                  <button type="button" className="btn" onClick={() => setCreateStep('basics')}>
+                    Back
+                  </button>
+                  <button type="submit" className="btn btn-accent">
+                    Create Node
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  onClick={() => setCreateStep('details')}
+                  disabled={!canProceedToDetails}
+                >
+                  Continue
+                </button>
+              )
+            ) : (
+              <button type="submit" className="btn btn-accent">
+                Save Changes
+              </button>
+            )}
           </div>
           {mode === 'edit' && (
             <button type="button" className="danger-link" onClick={onDeleteNode}>

@@ -5,8 +5,10 @@ import { getGroupIcon } from '../constants/groupIcons';
 import { groupTypeLabelMap } from '../constants/groupLabels';
 import { getNodeIcon } from '../constants/nodeIcons';
 import { nodeTypeLabelMap } from '../constants/nodeTypeLabels';
+import { buildGroupProfileContent, buildNodeProfileContent } from '../lib/profileData';
 import type { DashboardData } from '../lib/dashboardData';
 import type { CanvasGroup, GroupLink, GroupType, NetworkLink, NetworkNode, NodeType } from '../types/graph';
+import type { ProfileField } from '../types/profile';
 
 import { EyeIcon } from './icons';
 
@@ -27,6 +29,12 @@ type DashboardPageProps = {
   links: NetworkLink[];
   groupLinks: GroupLink[];
   onFocusOnCanvas: (entity: DashboardEntity) => void;
+  profileContext: {
+    nodes: NetworkNode[];
+    groups: CanvasGroup[];
+    links: NetworkLink[];
+    groupLinks: GroupLink[];
+  };
 };
 
 type GroupTreeNode = {
@@ -39,6 +47,7 @@ type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
 type NodeInsight = {
   kind: 'node';
+  resource: NetworkNode;
   title: string;
   typeLabel: string;
   status: string;
@@ -47,10 +56,13 @@ type NodeInsight = {
   inbound: Array<{ id: string; label: string; relation: string }>;
   outbound: Array<{ id: string; label: string; relation: string }>;
   peers: NetworkNode[];
+  profileFields: Array<{ id: string; label: string; value: string }>;
+  profileMeta?: Array<{ label: string; value: string }>;
 };
 
 type GroupInsight = {
   kind: 'group';
+  resource: CanvasGroup;
   title: string;
   typeLabel: string;
   status: string;
@@ -60,13 +72,22 @@ type GroupInsight = {
   childGroups: CanvasGroup[];
   inbound: Array<{ id: string; label: string; relation: string }>;
   outbound: Array<{ id: string; label: string; relation: string }>;
+  profileFields: Array<{ id: string; label: string; value: string }>;
+  profileMeta?: Array<{ label: string; value: string }>;
 };
 
 type RelationshipInsight = NodeInsight | GroupInsight;
 
-const trackedNodeTypes: NodeType[] = ['vm', 'firewall', 'storage', 'database', 'gateway'];
+const trackedNodeTypes: NodeType[] = ['vm', 'firewall', 'storage', 'disk', 'database', 'gateway'];
 const orderedGroupTypes: GroupType[] = ['virtualNetwork', 'subnet', 'logicalGroup'];
 type NodeMetricRow = { type: NodeType; count: number; label?: string };
+
+const formatPercent = (value: number, total: number) => {
+  if (total === 0) {
+    return '0%';
+  }
+  return `${Math.round((value / total) * 100)}%`;
+};
 
 const toTitleCase = (value: string) =>
   value
@@ -98,12 +119,14 @@ const resolveStatusTone = (status: string): StatusTone => {
   return 'neutral';
 };
 
-const formatPercent = (value: number, total: number) => {
-  if (total === 0) {
-    return '0%';
-  }
-  return `${Math.round((value / total) * 100)}%`;
-};
+const mapOverviewFields = (fields: ProfileField[]) =>
+  fields
+    .map((field) => ({
+      id: field.id,
+      label: field.label,
+      value: field.value?.trim() || '—',
+    }))
+    .slice(0, 6);
 
 export const DashboardPage = ({
   data,
@@ -112,12 +135,18 @@ export const DashboardPage = ({
   links,
   groupLinks,
   onFocusOnCanvas,
+  profileContext,
 }: DashboardPageProps) => {
   const [selection, setSelection] = useState<DashboardEntity | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const nodeLookup = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const groupLookup = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
+  const virtualNetworkCount = useMemo(
+    () => groups.filter((group) => group.type === 'virtualNetwork').length,
+    [groups]
+  );
+  const subnetCount = useMemo(() => groups.filter((group) => group.type === 'subnet').length, [groups]);
 
   useEffect(() => {
     setExpandedGroups((prev) => {
@@ -287,6 +316,7 @@ export const DashboardPage = ({
       if (!node) {
         return null;
       }
+      const profileContent = buildNodeProfileContent(node, profileContext);
       const bucket = nodeLinkMap.get(node.id) ?? { inbound: [], outbound: [] };
       const inbound = bucket.inbound.map((link) => {
         const neighbor = nodeLookup.get(link.source);
@@ -301,6 +331,7 @@ export const DashboardPage = ({
       const status = getStatusLabel(node.profile?.['overview.status']);
       return {
         kind: 'node',
+        resource: node,
         title: node.label,
         typeLabel: formatNodeTypeLabel(node.type),
         status,
@@ -309,12 +340,15 @@ export const DashboardPage = ({
         inbound,
         outbound,
         peers,
+        profileFields: mapOverviewFields(profileContent.overview ?? []),
+        profileMeta: profileContent.meta,
       };
     }
     const group = groupLookup.get(selection.id);
     if (!group) {
       return null;
     }
+    const profileContent = buildGroupProfileContent(group, profileContext);
     const bucket = groupLinkMap.get(group.id) ?? { inbound: [], outbound: [] };
     const inbound = bucket.inbound.map((link) => {
       const source = groupLookup.get(link.sourceGroupId);
@@ -330,6 +364,7 @@ export const DashboardPage = ({
     const status = getStatusLabel(group.profile?.['overview.status']);
     return {
       kind: 'group',
+      resource: group,
       title: group.title,
       typeLabel: groupTypeLabelMap[group.type],
       status,
@@ -339,6 +374,8 @@ export const DashboardPage = ({
       childGroups,
       inbound,
       outbound,
+      profileFields: mapOverviewFields(profileContent.overview ?? []),
+      profileMeta: profileContent.meta,
     };
   }, [
     selection,
@@ -348,6 +385,7 @@ export const DashboardPage = ({
     groupLinkMap,
     nodesByGroupId,
     childGroupsByParentId,
+    profileContext,
   ]);
 
   const handleSummaryTypeSelect = (type: NodeType) => {
@@ -479,28 +517,24 @@ export const DashboardPage = ({
     <main className="dashboard-shell view-fade" aria-label="Galxi dashboard overview">
       <section className="dashboard-panel dashboard-summary-panel">
         <header className="dashboard-panel-header">
-          <div>
-            <p className="dashboard-section-label">Infrastructure Overview</p>
-            <h1 className="dashboard-panel-title">Deployment Health Snapshot</h1>
-          </div>
-          <p className="dashboard-panel-description">
-            Live metrics synthesized from every object currently visible on the Canvas.
-          </p>
+          <h1 className="dashboard-panel-title">Deployment Overview</h1>
         </header>
 
         <div className="dashboard-summary-cards">
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Compute Resources</p>
+            <p className="dashboard-card-label">Active Workloads</p>
             <p className="dashboard-metric-value">{totals.nodes}</p>
-            <p className="dashboard-card-subtitle">Across all workloads</p>
+            <p className="dashboard-card-subtitle">Virtual machines and services</p>
           </article>
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Network Scopes</p>
-            <p className="dashboard-metric-value">{totals.groups}</p>
-            <p className="dashboard-card-subtitle">Virtual networks & logical scopes</p>
+            <p className="dashboard-card-label">Virtual Networks & Subnets</p>
+            <p className="dashboard-metric-value">{virtualNetworkCount + subnetCount}</p>
+            <p className="dashboard-card-subtitle">
+              {virtualNetworkCount} vNets / {subnetCount} subnets
+            </p>
           </article>
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Linked Relationships</p>
+            <p className="dashboard-card-label">Dependency Links</p>
             <p className="dashboard-metric-value">{totals.connections}</p>
             <p className="dashboard-card-subtitle">
               {totals.nodeLinks} node / {totals.groupLinks} group links
@@ -511,7 +545,7 @@ export const DashboardPage = ({
         <div className="dashboard-summary-supplement">
           <article className="dashboard-health-card">
             <div className="dashboard-health-header">
-              <p className="dashboard-card-label">Resource Status</p>
+              <p className="dashboard-card-label">Health & Availability</p>
               <p className="dashboard-health-total">{healthTotal} resources tracked</p>
             </div>
             <div className="dashboard-health-bar" aria-hidden="true">
@@ -549,7 +583,7 @@ export const DashboardPage = ({
           </article>
 
           <article className="dashboard-groups-card">
-            <p className="dashboard-card-label">Network Composition</p>
+            <p className="dashboard-card-label">Network Distribution</p>
             <ul className="dashboard-group-breakdown">
               {groupBreakdown.map((entry) => (
                 <li key={entry.type}>
@@ -573,7 +607,7 @@ export const DashboardPage = ({
           </article>
 
           <article className="dashboard-groups-card">
-            <p className="dashboard-card-label">Link topology</p>
+            <p className="dashboard-card-label">Link Topology</p>
             <div className="dashboard-link-split">
               <div>
                 <p className="dashboard-link-label">Node links</p>
@@ -620,13 +654,7 @@ export const DashboardPage = ({
       <div className="dashboard-grid">
         <section className="dashboard-panel dashboard-panel--hierarchy">
           <header className="dashboard-panel-header">
-            <div>
-              <p className="dashboard-section-label">Topology View</p>
-              <h2 className="dashboard-panel-title">Topology Explorer</h2>
-            </div>
-            <p className="dashboard-panel-description">
-              Expand any group to reveal its child nodes, subgroups, and relationship counts.
-            </p>
+            <h2 className="dashboard-panel-title">Resource Hierarchy</h2>
           </header>
 
           <div className="dashboard-panel-body">
@@ -645,13 +673,7 @@ export const DashboardPage = ({
 
         <section className="dashboard-panel dashboard-panel--insights">
           <header className="dashboard-panel-header">
-            <div>
-              <p className="dashboard-section-label">Selected Resource Context</p>
-              <h2 className="dashboard-panel-title">Operational Dependencies</h2>
-            </div>
-            <p className="dashboard-panel-description">
-              Selecting a resource reveals upstream & downstream dependencies plus shared group context.
-            </p>
+            <h2 className="dashboard-panel-title">Resource Context</h2>
           </header>
 
           <div className="dashboard-panel-body dashboard-panel-body--insights">
@@ -676,104 +698,161 @@ export const DashboardPage = ({
                     </button>
                   </div>
                 </div>
+                <>
+                  <div className="dashboard-resource-meta">
+                    <div>
+                      <p className="dashboard-meta-label">Resource Type</p>
+                      <p className="dashboard-meta-value">{selectedInsight.typeLabel}</p>
+                    </div>
+                    <div>
+                      <p className="dashboard-meta-label">State</p>
+                      <p className="dashboard-meta-value">{selectedInsight.status}</p>
+                    </div>
+                    <div>
+                      <p className="dashboard-meta-label">Location</p>
+                      <p className="dashboard-meta-value">
+                        {selectedInsight.kind === 'node'
+                          ? selectedInsight.resource.profile?.['overview.location'] || 'Unknown'
+                          : selectedInsight.resource.profile?.['overview.region'] || 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+                  {selectedInsight.profileMeta && selectedInsight.profileMeta.length > 0 && (
+                    <div className="dashboard-tag-grid">
+                      {selectedInsight.profileMeta.map((item) => (
+                        <span key={`${item.label}-${item.value}`} className="dashboard-tag">
+                          {item.label}: {item.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
-                <div className="dashboard-insight-grid">
-                  <article className="dashboard-insight-card">
-                    <p className="dashboard-card-label">Linked Relationships</p>
-                    {selectedInsight.inbound.length + selectedInsight.outbound.length === 0 ? (
-                      <p className="dashboard-empty">No recorded links yet.</p>
-                    ) : (
-                      <ul className="dashboard-relationship-list">
-                        {selectedInsight.inbound.map((item) => (
-                          <li key={`in-${item.id}-${item.relation}`}>
-                            <span className="relationship-direction relationship-direction--inbound">
-                              Inbound
-                            </span>
-                            <div>
-                              <p className="relationship-target">{item.label}</p>
-                              <p className="relationship-meta">{item.relation}</p>
-                            </div>
-                          </li>
-                        ))}
-                        {selectedInsight.outbound.map((item) => (
-                          <li key={`out-${item.id}-${item.relation}`}>
-                            <span className="relationship-direction relationship-direction--outbound">
-                              Outbound
-                            </span>
-                            <div>
-                              <p className="relationship-target">{item.label}</p>
-                              <p className="relationship-meta">{item.relation}</p>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </article>
-
-                  {selectedInsight.kind === 'node' ? (
+                  <div className="dashboard-insight-grid">
                     <article className="dashboard-insight-card">
-                      <p className="dashboard-card-label">Scope Context</p>
-                      {selectedInsight.group ? (
-                        <div className="dashboard-group-context">
-                          <p className="dashboard-group-context-title">{selectedInsight.group.title}</p>
-                          <p className="dashboard-group-context-meta">
-                            {groupTypeLabelMap[selectedInsight.group.type]}
-                          </p>
-                          {selectedInsight.peers.length > 0 ? (
+                      <p className="dashboard-card-label">Resource Relationships</p>
+                          {selectedInsight.inbound.length + selectedInsight.outbound.length === 0 ? (
+                            <p className="dashboard-empty">No recorded links yet.</p>
+                          ) : (
+                            <ul className="dashboard-relationship-list">
+                              {selectedInsight.inbound.map((item) => (
+                                <li key={`in-${item.id}-${item.relation}`}>
+                                  <span className="relationship-direction relationship-direction--inbound">
+                                    Inbound
+                                  </span>
+                                  <div>
+                                    <p className="relationship-target">{item.label}</p>
+                                    <p className="relationship-meta">{item.relation}</p>
+                                  </div>
+                                </li>
+                              ))}
+                              {selectedInsight.outbound.map((item) => (
+                                <li key={`out-${item.id}-${item.relation}`}>
+                                  <span className="relationship-direction relationship-direction--outbound">
+                                    Outbound
+                                  </span>
+                                  <div>
+                                    <p className="relationship-target">{item.label}</p>
+                                    <p className="relationship-meta">{item.relation}</p>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </article>
+
+                        <article className="dashboard-insight-card">
+                          <p className="dashboard-card-label">Membership Context</p>
+                          {selectedInsight.kind === 'node' ? (
                             <>
-                              <p className="dashboard-card-subtitle">Peers in this scope</p>
-                              <div className="dashboard-peer-grid">
-                                {selectedInsight.peers.map((peer) => (
-                                  <button
-                                    key={peer.id}
-                                    type="button"
-                                    className="dashboard-peer-chip"
-                                    onClick={() => setSelection({ kind: 'node', id: peer.id })}
-                                  >
-                                    {peer.label}
-                                  </button>
-                                ))}
-                              </div>
+                              {selectedInsight.group ? (
+                                <>
+                                  <p className="dashboard-group-context-title">
+                                    {selectedInsight.group.title}
+                                  </p>
+                                  <p className="dashboard-group-context-meta">
+                                    {groupTypeLabelMap[selectedInsight.group.type]}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="dashboard-card-subtitle">Ungrouped resource</p>
+                              )}
+                              {selectedInsight.peers.length > 0 ? (
+                                <>
+                                  <p className="dashboard-card-subtitle">Peers in this scope</p>
+                                  <div className="dashboard-peer-grid">
+                                    {selectedInsight.peers.map((peer) => (
+                                      <button
+                                        key={peer.id}
+                                        type="button"
+                                        className="dashboard-peer-chip"
+                                        onClick={() => setSelection({ kind: 'node', id: peer.id })}
+                                      >
+                                        {peer.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="dashboard-card-subtitle">No sibling resources here yet.</p>
+                              )}
                             </>
                           ) : (
-                            <p className="dashboard-card-subtitle">No sibling resources here yet.</p>
+                            <>
+                              <div className="dashboard-composition-grid">
+                                <div>
+                                  <p className="dashboard-composition-value">
+                                    {selectedInsight.childNodes.length}
+                                  </p>
+                                  <p className="dashboard-card-subtitle">Nodes</p>
+                                </div>
+                                <div>
+                                  <p className="dashboard-composition-value">
+                                    {selectedInsight.childGroups.length}
+                                  </p>
+                                  <p className="dashboard-card-subtitle">Subgroups</p>
+                                </div>
+                                <div>
+                                  <p className="dashboard-composition-value">
+                                    {selectedInsight.inbound.length}
+                                  </p>
+                                  <p className="dashboard-card-subtitle">Inbound</p>
+                                </div>
+                                <div>
+                                  <p className="dashboard-composition-value">
+                                    {selectedInsight.outbound.length}
+                                  </p>
+                                  <p className="dashboard-card-subtitle">Outbound</p>
+                                </div>
+                              </div>
+                              {selectedInsight.parent ? (
+                                <p className="dashboard-card-subtitle">
+                                  Parent scope: {selectedInsight.parent.title} (
+                                  {groupTypeLabelMap[selectedInsight.parent.type]})
+                                </p>
+                              ) : (
+                                <p className="dashboard-card-subtitle">Top-level group</p>
+                              )}
+                            </>
                           )}
-                        </div>
-                      ) : (
-                        <p className="dashboard-empty">This node has not been assigned to a group.</p>
-                      )}
-                    </article>
-                  ) : (
+                        </article>
+
                     <article className="dashboard-insight-card">
-                      <p className="dashboard-card-label">Scope Composition</p>
-                      <div className="dashboard-composition-grid">
-                        <div>
-                          <p className="dashboard-composition-value">{selectedInsight.childNodes.length}</p>
-                          <p className="dashboard-card-subtitle">Nodes</p>
-                        </div>
-                        <div>
-                          <p className="dashboard-composition-value">{selectedInsight.childGroups.length}</p>
-                          <p className="dashboard-card-subtitle">Subgroups</p>
-                        </div>
-                        <div>
-                          <p className="dashboard-composition-value">{selectedInsight.inbound.length}</p>
-                          <p className="dashboard-card-subtitle">Inbound</p>
-                        </div>
-                        <div>
-                          <p className="dashboard-composition-value">{selectedInsight.outbound.length}</p>
-                          <p className="dashboard-card-subtitle">Outbound</p>
-                        </div>
-                      </div>
-                      {selectedInsight.parent ? (
-                        <p className="dashboard-card-subtitle">
-                          Parent scope: {selectedInsight.parent.title} ({groupTypeLabelMap[selectedInsight.parent.type]})
-                        </p>
+                      <p className="dashboard-card-label">Key Properties</p>
+                      {selectedInsight.profileFields.length === 0 ? (
+                        <p className="dashboard-empty">No profile properties captured yet.</p>
                       ) : (
-                        <p className="dashboard-card-subtitle">Top-level group</p>
+                        <ul className="dashboard-key-properties">
+                          {selectedInsight.profileFields.map((field) => (
+                            <li key={field.id}>
+                              <p className="dashboard-key-label">{field.label}</p>
+                              <p className="dashboard-key-value">{field.value}</p>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </article>
-                  )}
-                </div>
+                  </div>
+                </>
               </>
             ) : (
               <p className="dashboard-empty">Select a node or group to inspect its relationships.</p>
