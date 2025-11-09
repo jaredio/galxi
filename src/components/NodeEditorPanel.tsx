@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 
 import { CloseIcon, EditIcon, TrashIcon } from './icons';
@@ -91,7 +91,7 @@ type NodeProfileFormProps = {
   onChange: (fieldKey: string, value: string) => void;
 };
 
-const NodeProfileForm = ({ sections, values, onChange }: NodeProfileFormProps) => (
+const NodeProfileForm = memo(({ sections, values, onChange }: NodeProfileFormProps) => (
   <div className="node-profile-form">
     {sections.map((section) => (
       <section key={section.id} className="node-profile-section">
@@ -111,7 +111,7 @@ const NodeProfileForm = ({ sections, values, onChange }: NodeProfileFormProps) =
       </section>
     ))}
   </div>
-);
+));
 
 export const NodeEditorPanel = ({
   mode,

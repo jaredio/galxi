@@ -260,6 +260,7 @@ export const useForceGraph = ({
     y: number;
   } | null>(null);
   const groupGeometryRef = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
+  const positionFrameRef = useRef<number | null>(null);
   const computeRectEdgeIntersection = (
     centerX: number,
     centerY: number,
@@ -893,15 +894,12 @@ export const useForceGraph = ({
         (update) => update.style('cursor', 'grab'),
         (exit) => exit.remove()
       );
-    let positionFrame: number | null = null;
-    let updateQueued = false;
     const schedulePositionsUpdate = () => {
-      if (updateQueued) {
+      if (positionFrameRef.current !== null) {
         return;
       }
-      updateQueued = true;
-      positionFrame = window.requestAnimationFrame(() => {
-        updateQueued = false;
+      positionFrameRef.current = window.requestAnimationFrame(() => {
+        positionFrameRef.current = null;
         applyPositions();
       });
     };
@@ -1145,8 +1143,9 @@ export const useForceGraph = ({
       unknown
     >;
     return () => {
-      if (positionFrame !== null) {
-        window.cancelAnimationFrame(positionFrame);
+      if (positionFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+        positionFrameRef.current = null;
       }
     };
   }, [
