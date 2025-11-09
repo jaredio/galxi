@@ -5,10 +5,12 @@ import { getGroupIcon } from '../constants/groupIcons';
 import { groupTypeLabelMap } from '../constants/groupLabels';
 import { getNodeIcon } from '../constants/nodeIcons';
 import { nodeTypeLabelMap } from '../constants/nodeTypeLabels';
+import type { NodeTypeCategory } from '../constants/nodeOptions';
+import { nodeTypeCategoryLabels, nodeTypeCategoryOrder, nodeTypeOptions } from '../constants/nodeOptions';
 import { buildGroupProfileContent, buildNodeProfileContent } from '../lib/profileData';
 import type { DashboardData } from '../lib/dashboardData';
 import type { CanvasGroup, GroupLink, GroupType, NetworkLink, NetworkNode, NodeType } from '../types/graph';
-import type { ProfileField } from '../types/profile';
+import type { ProfileField, ProfileSection, ProfileWindowContent } from '../types/profile';
 
 import { EyeIcon } from './icons';
 
@@ -48,39 +50,31 @@ type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 type NodeInsight = {
   kind: 'node';
   resource: NetworkNode;
-  title: string;
-  typeLabel: string;
-  status: string;
+  profile: ProfileWindowContent;
+  statusLabel: string;
   tone: StatusTone;
   group?: CanvasGroup;
   inbound: Array<{ id: string; label: string; relation: string }>;
   outbound: Array<{ id: string; label: string; relation: string }>;
   peers: NetworkNode[];
-  profileFields: Array<{ id: string; label: string; value: string }>;
-  profileMeta?: Array<{ label: string; value: string }>;
 };
 
 type GroupInsight = {
   kind: 'group';
   resource: CanvasGroup;
-  title: string;
-  typeLabel: string;
-  status: string;
+  profile: ProfileWindowContent;
+  statusLabel: string;
   tone: StatusTone;
   parent?: CanvasGroup;
   childNodes: NetworkNode[];
   childGroups: CanvasGroup[];
   inbound: Array<{ id: string; label: string; relation: string }>;
   outbound: Array<{ id: string; label: string; relation: string }>;
-  profileFields: Array<{ id: string; label: string; value: string }>;
-  profileMeta?: Array<{ label: string; value: string }>;
 };
 
 type RelationshipInsight = NodeInsight | GroupInsight;
 
-const trackedNodeTypes: NodeType[] = ['vm', 'firewall', 'storage', 'disk', 'database', 'gateway'];
 const orderedGroupTypes: GroupType[] = ['virtualNetwork', 'subnet', 'logicalGroup'];
-type NodeMetricRow = { type: NodeType; count: number; label?: string };
 
 const formatPercent = (value: number, total: number) => {
   if (total === 0) {
@@ -101,6 +95,32 @@ const formatNodeTypeLabel = (type: NodeType) => nodeTypeLabelMap[type] ?? toTitl
 
 const getStatusLabel = (value?: string) => (value?.trim().length ? value.trim() : 'Unknown');
 
+const normalizeStatusValue = (value?: string) => value?.trim().toLowerCase() ?? '';
+
+const ACTIVE_STATES = new Set([
+  'running',
+  'active',
+  'online',
+  'available',
+  'connected',
+  'healthy',
+  'ready',
+  'up',
+  'enabled',
+]);
+
+const INACTIVE_STATES = new Set([
+  'stopped',
+  'offline',
+  'disconnected',
+  'failed',
+  'error',
+  'inactive',
+  'down',
+  'disabled',
+  'deallocated',
+]);
+
 const resolveStatusTone = (status: string): StatusTone => {
   const normalized = status.trim().toLowerCase();
   if (
@@ -119,14 +139,73 @@ const resolveStatusTone = (status: string): StatusTone => {
   return 'neutral';
 };
 
-const mapOverviewFields = (fields: ProfileField[]) =>
-  fields
-    .map((field) => ({
-      id: field.id,
-      label: field.label,
-      value: field.value?.trim() || '—',
-    }))
-    .slice(0, 6);
+const mapProfileToneToStatusTone = (
+  tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral'
+): StatusTone => {
+  if (tone === 'success' || tone === 'warning' || tone === 'danger') {
+    return tone;
+  }
+  return 'neutral';
+};
+
+const formatFieldValue = (value?: string) => (value?.trim().length ? value : 'Not set');
+
+const DashboardFieldList = ({ fields }: { fields: ProfileField[] }) => (
+  <ul className="dashboard-field-list">
+    {fields.map((field) => (
+      <li key={field.id}>
+        <div className="dashboard-field-heading">
+          <p className="dashboard-field-label">{field.label}</p>
+          {field.badge && <span className="dashboard-field-badge">{field.badge}</span>}
+        </div>
+        <p className={`dashboard-field-value${field.value?.trim() ? '' : ' is-empty'}`}>
+          {formatFieldValue(field.value)}
+        </p>
+        {field.subtitle && <p className="dashboard-field-subtitle">{field.subtitle}</p>}
+      </li>
+    ))}
+  </ul>
+);
+
+const DashboardFieldCards = ({ fields }: { fields: ProfileField[] }) => (
+  <div className="dashboard-field-card-grid">
+    {fields.map((field) => (
+      <div key={field.id} className="dashboard-field-card">
+        <div className="dashboard-field-card-head">
+          {field.iconSrc && <img src={field.iconSrc} alt="" aria-hidden="true" />}
+          <div>
+            <p className="dashboard-field-label">{field.label}</p>
+            {field.subtitle && <p className="dashboard-field-subtitle">{field.subtitle}</p>}
+          </div>
+          {field.badge && <span className="dashboard-field-badge">{field.badge}</span>}
+        </div>
+        <p className={`dashboard-field-value${field.value?.trim() ? '' : ' is-empty'}`}>
+          {formatFieldValue(field.value)}
+        </p>
+      </div>
+    ))}
+  </div>
+);
+
+const DashboardProfileSectionCard = ({ section }: { section: ProfileSection }) => {
+  const hasItems = section.items.length > 0;
+  return (
+    <article className="dashboard-profile-card">
+      <header className="dashboard-profile-card-header">
+        <p className="dashboard-card-label">{section.title}</p>
+      </header>
+      {hasItems ? (
+        section.variant === 'cards' ? (
+          <DashboardFieldCards fields={section.items} />
+        ) : (
+          <DashboardFieldList fields={section.items} />
+        )
+      ) : (
+        <p className="dashboard-empty">No data captured yet.</p>
+      )}
+    </article>
+  );
+};
 
 export const DashboardPage = ({
   data,
@@ -139,20 +218,93 @@ export const DashboardPage = ({
 }: DashboardPageProps) => {
   const [selection, setSelection] = useState<DashboardEntity | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [categoryFilter, setCategoryFilter] = useState<NodeTypeCategory | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<NodeType | 'all'>('all');
+  const [nodeSearch, setNodeSearch] = useState('');
 
   const nodeLookup = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const groupLookup = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
-  const virtualNetworkCount = useMemo(
-    () => groups.filter((group) => group.type === 'virtualNetwork').length,
-    [groups]
+  const nodeCategoryMap = useMemo(
+    () => new Map(nodeTypeOptions.map((option) => [option.value, option.category] as const)),
+    []
   );
-  const subnetCount = useMemo(() => groups.filter((group) => group.type === 'subnet').length, [groups]);
+  const typeFilterOptions = useMemo(
+    () => (categoryFilter === 'all' ? nodeTypeOptions : nodeTypeOptions.filter((option) => option.category === categoryFilter)),
+    [categoryFilter]
+  );
+
+  useEffect(() => {
+    if (typeFilter === 'all' || categoryFilter === 'all') {
+      return;
+    }
+    if (nodeCategoryMap.get(typeFilter) !== categoryFilter) {
+      setTypeFilter('all');
+    }
+  }, [categoryFilter, typeFilter, nodeCategoryMap]);
+
+  const filteredNodes = useMemo(() => {
+    const search = nodeSearch.trim().toLowerCase();
+    return nodes.filter((node) => {
+      if (categoryFilter !== 'all' && nodeCategoryMap.get(node.type) !== categoryFilter) {
+        return false;
+      }
+      if (typeFilter !== 'all' && node.type !== typeFilter) {
+        return false;
+      }
+      if (!search) {
+        return true;
+      }
+      const label = (node.label ?? '').toLowerCase();
+      const typeLabel = nodeTypeLabelMap[node.type]?.toLowerCase() ?? '';
+      const groupTitle = node.group ? groupLookup.get(node.group)?.title.toLowerCase() ?? '' : '';
+      return (
+        label.includes(search) ||
+        typeLabel.includes(search) ||
+        (!!groupTitle && groupTitle.includes(search))
+      );
+    });
+  }, [nodes, categoryFilter, typeFilter, nodeSearch, nodeCategoryMap, groupLookup]);
+
+  const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((node) => node.id)), [filteredNodes]);
+  const filteredLinks = useMemo(
+    () => links.filter((link) => filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target)),
+    [links, filteredNodeIds]
+  );
+  const visibleGroupIds = useMemo(() => {
+    const ids = new Set<string>();
+    const visit = (groupId: string | undefined) => {
+      if (!groupId || ids.has(groupId)) {
+        return;
+      }
+      ids.add(groupId);
+      const parentId = groupLookup.get(groupId)?.parentGroupId;
+      if (parentId) {
+        visit(parentId);
+      }
+    };
+    filteredNodes.forEach((node) => visit(node.group));
+    return ids;
+  }, [filteredNodes, groupLookup]);
+  const filteredGroups = useMemo(
+    () => groups.filter((group) => visibleGroupIds.has(group.id)),
+    [groups, visibleGroupIds]
+  );
+  const filteredGroupIds = useMemo(() => new Set(filteredGroups.map((group) => group.id)), [filteredGroups]);
+  const filteredGroupLinks = useMemo(
+    () =>
+      groupLinks.filter(
+        (link) => filteredGroupIds.has(link.sourceGroupId) && filteredGroupIds.has(link.targetGroupId)
+      ),
+    [groupLinks, filteredGroupIds]
+  );
+  const filtersActive =
+    categoryFilter !== 'all' || typeFilter !== 'all' || nodeSearch.trim().length > 0;
 
   useEffect(() => {
     setExpandedGroups((prev) => {
       let changed = false;
       const next: Record<string, boolean> = {};
-      groups.forEach((group) => {
+      filteredGroups.forEach((group) => {
         const existing = prev[group.id];
         if (existing === undefined) {
           next[group.id] = !group.parentGroupId;
@@ -166,32 +318,32 @@ export const DashboardPage = ({
       }
       return changed ? next : prev;
     });
-  }, [groups]);
+  }, [filteredGroups]);
 
   useEffect(() => {
     if (selection) {
       const exists =
-        (selection.kind === 'node' && nodeLookup.has(selection.id)) ||
-        (selection.kind === 'group' && groupLookup.has(selection.id));
+        (selection.kind === 'node' && filteredNodeIds.has(selection.id)) ||
+        (selection.kind === 'group' && filteredGroupIds.has(selection.id));
       if (exists) {
         return;
       }
     }
-    if (nodes.length > 0) {
-      setSelection({ kind: 'node', id: nodes[0].id });
-    } else if (groups.length > 0) {
-      setSelection({ kind: 'group', id: groups[0].id });
+    if (filteredNodes.length > 0) {
+      setSelection({ kind: 'node', id: filteredNodes[0].id });
+    } else if (filteredGroups.length > 0) {
+      setSelection({ kind: 'group', id: filteredGroups[0].id });
     } else {
       setSelection(null);
     }
-  }, [selection, nodes, groups, nodeLookup, groupLookup]);
+  }, [selection, filteredNodes, filteredGroups, filteredNodeIds, filteredGroupIds]);
 
   const nodeLinkMap = useMemo(() => {
     const map = new Map<string, { inbound: NetworkLink[]; outbound: NetworkLink[] }>();
-    nodes.forEach((node) => {
+    filteredNodes.forEach((node) => {
       map.set(node.id, { inbound: [], outbound: [] });
     });
-    links.forEach((link) => {
+    filteredLinks.forEach((link) => {
       if (!map.has(link.source)) {
         map.set(link.source, { inbound: [], outbound: [] });
       }
@@ -202,14 +354,14 @@ export const DashboardPage = ({
       map.get(link.target)!.inbound.push(link);
     });
     return map;
-  }, [nodes, links]);
+  }, [filteredNodes, filteredLinks]);
 
   const groupLinkMap = useMemo(() => {
     const map = new Map<string, { inbound: GroupLink[]; outbound: GroupLink[] }>();
-    groups.forEach((group) => {
+    filteredGroups.forEach((group) => {
       map.set(group.id, { inbound: [], outbound: [] });
     });
-    groupLinks.forEach((link) => {
+    filteredGroupLinks.forEach((link) => {
       if (!map.has(link.sourceGroupId)) {
         map.set(link.sourceGroupId, { inbound: [], outbound: [] });
       }
@@ -220,11 +372,11 @@ export const DashboardPage = ({
       map.get(link.targetGroupId)!.inbound.push(link);
     });
     return map;
-  }, [groups, groupLinks]);
+  }, [filteredGroups, filteredGroupLinks]);
 
   const nodesByGroupId = useMemo(() => {
     const map = new Map<string, NetworkNode[]>();
-    nodes.forEach((node) => {
+    filteredNodes.forEach((node) => {
       if (!node.group) {
         return;
       }
@@ -234,11 +386,11 @@ export const DashboardPage = ({
     });
     map.forEach((bucket) => bucket.sort((a, b) => a.label.localeCompare(b.label)));
     return map;
-  }, [nodes]);
+  }, [filteredNodes]);
 
   const childGroupsByParentId = useMemo(() => {
     const map = new Map<string, CanvasGroup[]>();
-    groups.forEach((group) => {
+    filteredGroups.forEach((group) => {
       if (!group.parentGroupId) {
         return;
       }
@@ -248,14 +400,14 @@ export const DashboardPage = ({
     });
     map.forEach((bucket) => bucket.sort((a, b) => a.title.localeCompare(b.title)));
     return map;
-  }, [groups]);
+  }, [filteredGroups]);
 
   const hierarchy = useMemo(() => {
     const map = new Map<string, GroupTreeNode>();
-    groups.forEach((group) => {
+    filteredGroups.forEach((group) => {
       map.set(group.id, { group, children: [], nodes: [] });
     });
-    nodes.forEach((node) => {
+    filteredNodes.forEach((node) => {
       if (!node.group) {
         return;
       }
@@ -264,7 +416,7 @@ export const DashboardPage = ({
         bucket.nodes.push(node);
       }
     });
-    groups.forEach((group) => {
+    filteredGroups.forEach((group) => {
       if (!group.parentGroupId) {
         return;
       }
@@ -300,23 +452,30 @@ export const DashboardPage = ({
       return !map.has(parentId);
     });
     sortTree(roots);
-    const mappedGroupIds = new Set(groups.map((group) => group.id));
-    const ungroupedNodes = nodes
+    const mappedGroupIds = new Set(filteredGroups.map((group) => group.id));
+    const ungroupedNodes = filteredNodes
       .filter((node) => !node.group || !mappedGroupIds.has(node.group))
       .sort((a, b) => a.label.localeCompare(b.label));
     return { roots, ungroupedNodes };
-  }, [groups, nodes]);
+  }, [filteredGroups, filteredNodes]);
 
   const selectedInsight = useMemo<RelationshipInsight | null>(() => {
     if (!selection) {
       return null;
     }
     if (selection.kind === 'node') {
+      if (!filteredNodeIds.has(selection.id)) {
+        return null;
+      }
       const node = nodeLookup.get(selection.id);
       if (!node) {
         return null;
       }
       const profileContent = buildNodeProfileContent(node, profileContext);
+      const statusLabel = profileContent.status?.label ?? getStatusLabel(node.profile?.['overview.status']);
+      const tone = profileContent.status
+        ? mapProfileToneToStatusTone(profileContent.status.tone)
+        : resolveStatusTone(statusLabel);
       const bucket = nodeLinkMap.get(node.id) ?? { inbound: [], outbound: [] };
       const inbound = bucket.inbound.map((link) => {
         const neighbor = nodeLookup.get(link.source);
@@ -328,27 +487,30 @@ export const DashboardPage = ({
       });
       const group = node.group ? groupLookup.get(node.group) : undefined;
       const peers = group ? (nodesByGroupId.get(group.id) ?? []).filter((peer) => peer.id !== node.id) : [];
-      const status = getStatusLabel(node.profile?.['overview.status']);
       return {
         kind: 'node',
         resource: node,
-        title: node.label,
-        typeLabel: formatNodeTypeLabel(node.type),
-        status,
-        tone: resolveStatusTone(status),
+        profile: profileContent,
+        statusLabel,
+        tone,
         group,
         inbound,
         outbound,
         peers,
-        profileFields: mapOverviewFields(profileContent.overview ?? []),
-        profileMeta: profileContent.meta,
       };
+    }
+    if (!filteredGroupIds.has(selection.id)) {
+      return null;
     }
     const group = groupLookup.get(selection.id);
     if (!group) {
       return null;
     }
     const profileContent = buildGroupProfileContent(group, profileContext);
+    const statusLabel = profileContent.status?.label ?? getStatusLabel(group.profile?.['overview.status']);
+    const tone = profileContent.status
+      ? mapProfileToneToStatusTone(profileContent.status.tone)
+      : resolveStatusTone(statusLabel);
     const bucket = groupLinkMap.get(group.id) ?? { inbound: [], outbound: [] };
     const inbound = bucket.inbound.map((link) => {
       const source = groupLookup.get(link.sourceGroupId);
@@ -361,24 +523,22 @@ export const DashboardPage = ({
     const childNodes = nodesByGroupId.get(group.id) ?? [];
     const childGroups = childGroupsByParentId.get(group.id) ?? [];
     const parent = group.parentGroupId ? groupLookup.get(group.parentGroupId) : undefined;
-    const status = getStatusLabel(group.profile?.['overview.status']);
     return {
       kind: 'group',
       resource: group,
-      title: group.title,
-      typeLabel: groupTypeLabelMap[group.type],
-      status,
-      tone: resolveStatusTone(status),
+      profile: profileContent,
+      statusLabel,
+      tone,
       parent,
       childNodes,
       childGroups,
       inbound,
       outbound,
-      profileFields: mapOverviewFields(profileContent.overview ?? []),
-      profileMeta: profileContent.meta,
     };
   }, [
     selection,
+    filteredNodeIds,
+    filteredGroupIds,
     nodeLookup,
     nodeLinkMap,
     groupLookup,
@@ -388,8 +548,131 @@ export const DashboardPage = ({
     profileContext,
   ]);
 
+  const profileSections = useMemo(
+    () => {
+      if (!selectedInsight) {
+        return { primary: [] as ProfileSection[], secondary: [] as ProfileSection[] };
+      }
+      const primary: ProfileSection[] = [];
+      if (selectedInsight.profile.overview && selectedInsight.profile.overview.length > 0) {
+        primary.push({
+          id: 'overview',
+          title: 'Overview',
+          items: selectedInsight.profile.overview,
+        });
+      }
+      primary.push(...selectedInsight.profile.sections);
+      const secondary = selectedInsight.profile.connections ?? [];
+      return { primary, secondary };
+    },
+    [selectedInsight]
+  );
+
+  const insightMetaEntries = useMemo(
+    () => (selectedInsight?.profile.meta ?? []).filter((item) => item.value?.trim()),
+    [selectedInsight]
+  );
+
+  let locationMetaLabel = 'Location';
+  let locationMetaValue = 'Not set';
+  if (selectedInsight) {
+    const candidate = insightMetaEntries.find((item) => /region|location/i.test(item.label));
+    const fallback =
+      selectedInsight.kind === 'node'
+        ? selectedInsight.resource.profile?.['overview.location'] ?? ''
+        : selectedInsight.resource.profile?.['overview.region'] ?? '';
+    locationMetaLabel = candidate?.label ?? (selectedInsight.kind === 'group' ? 'Region' : 'Location');
+    locationMetaValue = candidate?.value?.trim() || fallback?.trim() || 'Not set';
+  }
+
+  const resourceMetaItems = selectedInsight
+    ? [
+        { label: 'Resource Type', value: selectedInsight.profile.typeLabel },
+        { label: 'State', value: selectedInsight.statusLabel },
+        { label: locationMetaLabel, value: locationMetaValue },
+      ]
+    : [];
+
+  const overallTotals = data.totals;
+  const filteredNodeTypeBreakdown = useMemo(() => {
+    const counts = new Map<NodeType, number>();
+    filteredNodes.forEach((node) => {
+      counts.set(node.type, (counts.get(node.type) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredNodes]);
+  const filteredGroupTypeBreakdown = useMemo(() => {
+    const counts = new Map<GroupType, number>();
+    filteredGroups.forEach((group) => {
+      counts.set(group.type, (counts.get(group.type) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredGroups]);
+  const filteredTotals = useMemo(() => {
+    let activeNodes = 0;
+    let inactiveNodes = 0;
+    filteredNodes.forEach((node) => {
+      const status = normalizeStatusValue(node.profile?.['overview.status']);
+      if (ACTIVE_STATES.has(status)) {
+        activeNodes += 1;
+      } else if (INACTIVE_STATES.has(status)) {
+        inactiveNodes += 1;
+      }
+    });
+    return {
+      nodes: filteredNodes.length,
+      groups: filteredGroups.length,
+      connections: filteredLinks.length + filteredGroupLinks.length,
+      nodeLinks: filteredLinks.length,
+      groupLinks: filteredGroupLinks.length,
+      activeNodes,
+      inactiveNodes,
+      unknownNodes: Math.max(filteredNodes.length - activeNodes - inactiveNodes, 0),
+    };
+  }, [filteredNodes, filteredGroups, filteredLinks, filteredGroupLinks]);
+  const summaryRows = filteredNodeTypeBreakdown.filter((row) => row.count > 0);
+  const healthTotal = filteredTotals.activeNodes + filteredTotals.inactiveNodes + filteredTotals.unknownNodes;
+  const groupBreakdown = orderedGroupTypes.map((type) => ({
+    type,
+    label: groupTypeLabelMap[type],
+    count: filteredGroupTypeBreakdown.find((entry) => entry.type === type)?.count ?? 0,
+  }));
+  const virtualNetworkCount = useMemo(
+    () => filteredGroups.filter((group) => group.type === 'virtualNetwork').length,
+    [filteredGroups]
+  );
+  const subnetCount = useMemo(
+    () => filteredGroups.filter((group) => group.type === 'subnet').length,
+    [filteredGroups]
+  );
+  const categoryCoverage = useMemo(() => {
+    const map = new Map<NodeTypeCategory, number>();
+    filteredNodes.forEach((node) => {
+      const category = nodeCategoryMap.get(node.type);
+      if (!category) {
+        return;
+      }
+      map.set(category, (map.get(category) ?? 0) + 1);
+    });
+    return map;
+  }, [filteredNodes, nodeCategoryMap]);
+  const topNodeTypes = filteredNodeTypeBreakdown.slice(0, 4);
+  const avgLinksPerNode =
+    filteredTotals.nodes === 0 ? 0 : (filteredTotals.nodeLinks * 2) / filteredTotals.nodes;
+  const formattedAvgLinks = avgLinksPerNode.toFixed(1);
+
+  const handleResetFilters = () => {
+    setCategoryFilter('all');
+    setTypeFilter('all');
+    setNodeSearch('');
+  };
+
   const handleSummaryTypeSelect = (type: NodeType) => {
-    const candidate = nodes.find((node) => node.type === type);
+    const candidate = filteredNodes.find((node) => node.type === type);
     if (candidate) {
       setSelection({ kind: 'node', id: candidate.id });
     }
@@ -495,24 +778,6 @@ export const DashboardPage = ({
     );
   };
 
-  const { totals, nodeTypeBreakdown, groupTypeBreakdown } = data;
-  const nodeMetricRows: NodeMetricRow[] = [
-    ...trackedNodeTypes.map((type) => ({
-      type,
-      label: formatNodeTypeLabel(type),
-      count: nodeTypeBreakdown.find((row) => row.type === type)?.count ?? 0,
-    })),
-    ...nodeTypeBreakdown.filter((row) => !trackedNodeTypes.includes(row.type)),
-  ].filter((row, index, array) => array.findIndex((entry) => entry.type === row.type) === index);
-
-  const summaryRows = nodeMetricRows.filter((row) => row.count > 0);
-  const healthTotal = totals.activeNodes + totals.inactiveNodes + totals.unknownNodes;
-  const groupBreakdown = orderedGroupTypes.map((type) => ({
-    type,
-    label: groupTypeLabelMap[type],
-    count: groupTypeBreakdown.find((entry) => entry.type === type)?.count ?? 0,
-  }));
-
   return (
     <main className="dashboard-shell view-fade" aria-label="Galxi dashboard overview">
       <section className="dashboard-panel dashboard-summary-panel">
@@ -522,22 +787,26 @@ export const DashboardPage = ({
 
         <div className="dashboard-summary-cards">
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Active Workloads</p>
-            <p className="dashboard-metric-value">{totals.nodes}</p>
-            <p className="dashboard-card-subtitle">Virtual machines and services</p>
+            <p className="dashboard-card-label">Resources in Scope</p>
+            <p className="dashboard-metric-value">{filteredTotals.nodes}</p>
+            <p className="dashboard-card-subtitle">
+              {filtersActive
+                ? `${filteredTotals.nodes} of ${overallTotals.nodes} total`
+                : 'Entire catalog'}
+            </p>
           </article>
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Virtual Networks & Subnets</p>
-            <p className="dashboard-metric-value">{virtualNetworkCount + subnetCount}</p>
+            <p className="dashboard-card-label">Network Scopes</p>
+            <p className="dashboard-metric-value">{filteredTotals.groups}</p>
             <p className="dashboard-card-subtitle">
               {virtualNetworkCount} vNets / {subnetCount} subnets
             </p>
           </article>
           <article className="dashboard-summary-card">
-            <p className="dashboard-card-label">Dependency Links</p>
-            <p className="dashboard-metric-value">{totals.connections}</p>
+            <p className="dashboard-card-label">Link Density</p>
+            <p className="dashboard-metric-value">{formattedAvgLinks}</p>
             <p className="dashboard-card-subtitle">
-              {totals.nodeLinks} node / {totals.groupLinks} group links
+              {filteredTotals.nodeLinks} node / {filteredTotals.groupLinks} group links
             </p>
           </article>
         </div>
@@ -551,33 +820,35 @@ export const DashboardPage = ({
             <div className="dashboard-health-bar" aria-hidden="true">
               <span
                 className="dashboard-health-segment dashboard-health-segment--active"
-                style={{ width: `${healthTotal === 0 ? 0 : (totals.activeNodes / healthTotal) * 100}%` }}
+                style={{
+                  width: `${healthTotal === 0 ? 0 : (filteredTotals.activeNodes / healthTotal) * 100}%`,
+                }}
               />
               <span
                 className="dashboard-health-segment dashboard-health-segment--inactive"
                 style={{
-                  width: `${healthTotal === 0 ? 0 : (totals.inactiveNodes / healthTotal) * 100}%`,
+                  width: `${healthTotal === 0 ? 0 : (filteredTotals.inactiveNodes / healthTotal) * 100}%`,
                 }}
               />
               <span
                 className="dashboard-health-segment dashboard-health-segment--unknown"
                 style={{
-                  width: `${healthTotal === 0 ? 0 : (totals.unknownNodes / healthTotal) * 100}%`,
+                  width: `${healthTotal === 0 ? 0 : (filteredTotals.unknownNodes / healthTotal) * 100}%`,
                 }}
               />
             </div>
             <ul className="dashboard-health-legend">
               <li>
                 <span className="legend-dot legend-dot--active" />
-                Active&nbsp;{totals.activeNodes}
+                Active&nbsp;{filteredTotals.activeNodes}
               </li>
               <li>
                 <span className="legend-dot legend-dot--inactive" />
-                Inactive&nbsp;{totals.inactiveNodes}
+                Inactive&nbsp;{filteredTotals.inactiveNodes}
               </li>
               <li>
                 <span className="legend-dot legend-dot--unknown" />
-                Unknown&nbsp;{totals.unknownNodes}
+                Unknown&nbsp;{filteredTotals.unknownNodes}
               </li>
             </ul>
           </article>
@@ -590,14 +861,14 @@ export const DashboardPage = ({
                   <div className="dashboard-group-row">
                     <span>{entry.label}</span>
                     <span className="dashboard-group-count">
-                      {entry.count} ({formatPercent(entry.count, totals.groups)})
+                      {entry.count} ({formatPercent(entry.count, filteredTotals.groups)})
                     </span>
                   </div>
                   <div className="dashboard-group-bar">
                     <span
                       className="dashboard-group-fill"
                       style={{
-                        width: formatPercent(entry.count, totals.groups),
+                        width: formatPercent(entry.count, filteredTotals.groups),
                       }}
                     />
                   </div>
@@ -607,24 +878,65 @@ export const DashboardPage = ({
           </article>
 
           <article className="dashboard-groups-card">
+            <p className="dashboard-card-label">Category Coverage</p>
+            {categoryCoverage.size === 0 ? (
+              <p className="dashboard-empty">No resources in scope.</p>
+            ) : (
+              <div className="dashboard-category-chip-grid">
+                {nodeTypeCategoryOrder
+                  .filter((category) => categoryCoverage.has(category))
+                  .map((category) => {
+                    const count = categoryCoverage.get(category)!;
+                    return (
+                      <span key={category} className="dashboard-category-chip">
+                        <span className="dashboard-category-chip-label">
+                          {nodeTypeCategoryLabels[category]}
+                        </span>
+                        <span className="dashboard-category-chip-value">{count}</span>
+                      </span>
+                    );
+                  })}
+              </div>
+            )}
+          </article>
+
+          <article className="dashboard-groups-card">
             <p className="dashboard-card-label">Link Topology</p>
             <div className="dashboard-link-split">
               <div>
                 <p className="dashboard-link-label">Node links</p>
-                <p className="dashboard-link-value">{totals.nodeLinks}</p>
+                <p className="dashboard-link-value">{filteredTotals.nodeLinks}</p>
               </div>
               <div>
                 <p className="dashboard-link-label">Group links</p>
-                <p className="dashboard-link-value">{totals.groupLinks}</p>
+                <p className="dashboard-link-value">{filteredTotals.groupLinks}</p>
               </div>
             </div>
           </article>
+
+          <article className="dashboard-groups-card">
+            <p className="dashboard-card-label">Top Resource Types</p>
+            {topNodeTypes.length === 0 ? (
+              <p className="dashboard-empty">No resources match the current filters.</p>
+            ) : (
+              <ul className="dashboard-top-type-list">
+                {topNodeTypes.map((entry) => (
+                  <li key={entry.type}>
+                    <span>{formatNodeTypeLabel(entry.type)}</span>
+                    <span>
+                      {entry.count} ({formatPercent(entry.count, filteredTotals.nodes)})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
         </div>
 
-        {summaryRows.length > 0 && (
+        {summaryRows.length > 0 ? (
           <div className="dashboard-metric-table">
             <div className="dashboard-metric-table-header">
-            <p className="dashboard-card-label">Resource Inventory</p>
+              <p className="dashboard-card-label">Resource Inventory</p>
               <p className="dashboard-card-subtitle">
                 Tap any row to inspect that workload inside the hierarchy.
               </p>
@@ -640,16 +952,79 @@ export const DashboardPage = ({
               <tbody>
                 {summaryRows.map((row) => (
                   <tr key={row.type} onClick={() => handleSummaryTypeSelect(row.type)}>
-                    <td>{row.label ?? formatNodeTypeLabel(row.type)}</td>
+                    <td>{formatNodeTypeLabel(row.type)}</td>
                     <td>{row.count}</td>
-                    <td>{formatPercent(row.count, totals.nodes)}</td>
+                    <td>{formatPercent(row.count, filteredTotals.nodes)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        ) : (
+          <div className="dashboard-metric-table">
+            <div className="dashboard-metric-table-header">
+              <p className="dashboard-card-label">Resource Inventory</p>
+            </div>
+            <p className="dashboard-empty">No resources match the current filters.</p>
+          </div>
         )}
       </section>
+
+      <div className="dashboard-filter-bar">
+        <label className="dashboard-filter-field">
+          <span>Quick Search</span>
+          <input
+            type="search"
+            value={nodeSearch}
+            onChange={(event) => setNodeSearch(event.target.value)}
+            placeholder="Label, type, or group"
+          />
+        </label>
+        <label className="dashboard-filter-field">
+          <span>Category</span>
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value as NodeTypeCategory | 'all')}
+          >
+            <option value="all">All categories</option>
+            {nodeTypeCategoryOrder
+              .filter((category) =>
+                nodeTypeOptions.some((option) => option.category === category)
+              )
+              .map((category) => (
+                <option key={category} value={category}>
+                  {nodeTypeCategoryLabels[category]}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="dashboard-filter-field">
+          <span>Resource Type</span>
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value as NodeType | 'all')}
+          >
+            <option value="all">All resource types</option>
+            {typeFilterOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="dashboard-filter-actions">
+          <p className="dashboard-filter-hint">
+            {filtersActive
+              ? `Showing ${filteredTotals.nodes} of ${overallTotals.nodes} resources`
+              : 'All resources visible'}
+          </p>
+          {filtersActive && (
+            <button type="button" className="dashboard-filter-reset" onClick={handleResetFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="dashboard-grid">
         <section className="dashboard-panel dashboard-panel--hierarchy">
@@ -681,12 +1056,12 @@ export const DashboardPage = ({
               <>
                 <div className="dashboard-insight-header">
                   <div>
-                    <p className="dashboard-section-label">{selectedInsight.typeLabel}</p>
-                    <h3 className="dashboard-insight-title">{selectedInsight.title}</h3>
+                    <p className="dashboard-section-label">{selectedInsight.profile.typeLabel}</p>
+                    <h3 className="dashboard-insight-title">{selectedInsight.profile.title}</h3>
                   </div>
                   <div className="dashboard-insight-meta">
                     <span className={`dashboard-pill dashboard-pill--${selectedInsight.tone}`}>
-                      {selectedInsight.status}
+                      {selectedInsight.statusLabel}
                     </span>
                     <button
                       type="button"
@@ -700,26 +1075,16 @@ export const DashboardPage = ({
                 </div>
                 <>
                   <div className="dashboard-resource-meta">
-                    <div>
-                      <p className="dashboard-meta-label">Resource Type</p>
-                      <p className="dashboard-meta-value">{selectedInsight.typeLabel}</p>
-                    </div>
-                    <div>
-                      <p className="dashboard-meta-label">State</p>
-                      <p className="dashboard-meta-value">{selectedInsight.status}</p>
-                    </div>
-                    <div>
-                      <p className="dashboard-meta-label">Location</p>
-                      <p className="dashboard-meta-value">
-                        {selectedInsight.kind === 'node'
-                          ? selectedInsight.resource.profile?.['overview.location'] || 'Unknown'
-                          : selectedInsight.resource.profile?.['overview.region'] || 'Unknown'}
-                      </p>
-                    </div>
+                    {resourceMetaItems.map((item) => (
+                      <div key={`${item.label}-${item.value}`}>
+                        <p className="dashboard-meta-label">{item.label}</p>
+                        <p className="dashboard-meta-value">{item.value}</p>
+                      </div>
+                    ))}
                   </div>
-                  {selectedInsight.profileMeta && selectedInsight.profileMeta.length > 0 && (
+                  {insightMetaEntries.length > 0 && (
                     <div className="dashboard-tag-grid">
-                      {selectedInsight.profileMeta.map((item) => (
+                      {insightMetaEntries.map((item) => (
                         <span key={`${item.label}-${item.value}`} className="dashboard-tag">
                           {item.label}: {item.value}
                         </span>
@@ -836,22 +1201,27 @@ export const DashboardPage = ({
                           )}
                         </article>
 
-                    <article className="dashboard-insight-card">
-                      <p className="dashboard-card-label">Key Properties</p>
-                      {selectedInsight.profileFields.length === 0 ? (
-                        <p className="dashboard-empty">No profile properties captured yet.</p>
-                      ) : (
-                        <ul className="dashboard-key-properties">
-                          {selectedInsight.profileFields.map((field) => (
-                            <li key={field.id}>
-                              <p className="dashboard-key-label">{field.label}</p>
-                              <p className="dashboard-key-value">{field.value}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </article>
                   </div>
+                  {profileSections.primary.length > 0 && (
+                    <div className="dashboard-profile-section">
+                      <p className="dashboard-section-label">Resource Details</p>
+                      <div className="dashboard-profile-stack">
+                        {profileSections.primary.map((section) => (
+                          <DashboardProfileSectionCard key={section.id} section={section} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {profileSections.secondary.length > 0 && (
+                    <div className="dashboard-profile-section">
+                      <p className="dashboard-section-label">Context</p>
+                      <div className="dashboard-profile-stack">
+                        {profileSections.secondary.map((section) => (
+                          <DashboardProfileSectionCard key={section.id} section={section} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               </>
             ) : (

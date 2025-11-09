@@ -85,6 +85,34 @@ const resizeHandles: Array<{ key: ResizeHandle; className: string; cursor: strin
   },
 ];
 
+type NodeProfileFormProps = {
+  sections: NodeProfileSection[];
+  values: ResourceProfileData;
+  onChange: (fieldKey: string, value: string) => void;
+};
+
+const NodeProfileForm = ({ sections, values, onChange }: NodeProfileFormProps) => (
+  <div className="node-profile-form">
+    {sections.map((section) => (
+      <section key={section.id} className="node-profile-section">
+        <p className="node-profile-section-title">{section.title}</p>
+        <div className="node-profile-field-grid">
+          {section.fields.map((field) => (
+            <label key={field.key}>
+              <span>{field.label}</span>
+              <input
+                value={values[field.key] ?? ''}
+                onChange={(event) => onChange(field.key, event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+);
+
 export const NodeEditorPanel = ({
   mode,
   values,
@@ -208,35 +236,7 @@ export const NodeEditorPanel = ({
       },
       undefined
     );
-};
-
-type NodeProfileFormProps = {
-  sections: NodeProfileSection[];
-  values: ResourceProfileData;
-  onChange: (fieldKey: string, value: string) => void;
-};
-
-const NodeProfileForm = ({ sections, values, onChange }: NodeProfileFormProps) => (
-  <div className="node-profile-form">
-    {sections.map((section) => (
-      <section key={section.id} className="node-profile-section">
-        <p className="node-profile-section-title">{section.title}</p>
-        <div className="node-profile-field-grid">
-          {section.fields.map((field) => (
-            <label key={field.key}>
-              <span>{field.label}</span>
-              <input
-                value={values[field.key] ?? ''}
-                onChange={(event) => onChange(field.key, event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
-          ))}
-        </div>
-      </section>
-    ))}
-  </div>
-);
+  };
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLSpanElement>, handle: ResizeHandle) => {
     if (event.button !== 0) {
