@@ -29,6 +29,7 @@ import { nodeTypeOptions } from './constants/nodeOptions';
 import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import {
   linkTouchesNode,
   makeEdgeKey,
@@ -71,101 +72,17 @@ import type {
 } from './types/graph';
 import type { ProfileFormSection, ResourceProfileData } from './types/profile';
 import { useGraphStore } from './state/graphStore';
-
-type CanvasContextMenuState = {
-  kind: 'canvas';
-  screenX: number;
-  screenY: number;
-  graphX: number;
-  graphY: number;
-};
-
-type NodeContextMenuState = {
-  kind: 'node';
-  screenX: number;
-  screenY: number;
-  nodeId: string;
-};
-
-type ConnectionContextMenuState = {
-  kind: 'connection';
-  screenX: number;
-  screenY: number;
-  edgeKey: string;
-};
-
-type GroupConnectionContextMenuState = {
-  kind: 'group-connection';
-  screenX: number;
-  screenY: number;
-  linkKey: string;
-};
-
-type GroupContextMenuState = {
-  kind: 'group';
-  screenX: number;
-  screenY: number;
-  groupId: string;
-};
-
-type ContextMenuState =
-  | CanvasContextMenuState
-  | NodeContextMenuState
-  | ConnectionContextMenuState
-  | GroupConnectionContextMenuState
-  | GroupContextMenuState;
-
-type NodeFormState =
-  | {
-      mode: 'create';
-      position: { x: number; y: number };
-    }
-  | {
-      mode: 'edit';
-      nodeId: string;
-    };
-
-type ConnectionDraft =
-  | {
-      kind: 'node';
-      sourceNodeId: string;
-      cursor: { x: number; y: number };
-    }
-  | {
-      kind: 'group';
-      sourceGroupId: string;
-      cursor: { x: number; y: number };
-    };
-
-type GroupFormState =
-  | {
-      mode: 'create';
-      groupId: string;
-    }
-  | {
-      mode: 'edit';
-      groupId: string;
-    };
-
-type GroupFormValues = {
-  title: string;
-  type: GroupType;
-};
-
-type ProfileWindowState = {
-  id: string;
-  kind: 'node' | 'group';
-  resourceId: string;
-  position: { x: number; y: number };
-  zIndex: number;
-  editNonce: number;
-};
-
-type PendingDeletion = {
-  kind: 'node' | 'group';
-  id: string;
-  label: string;
-};
+import type {
+  ConnectionDraft,
+  ConnectionEditorSelection,
+  ConnectionFormState,
+  ContextMenuState,
+  GroupFormState,
+  GroupFormValues,
+  NodeFormState,
+  PendingDeletion,
+  ProfileWindowState,
+} from './types/appState';
 
 type GroupDraftType = GroupType;
 
@@ -182,19 +99,6 @@ const NODE_GROUP_PRIORITY_SCORE: Record<GroupType, number> = {
 };
 
 type UtilityToastState = { id: number; message: string };
-type ConnectionFormState =
-  | {
-      mode: 'edit';
-      kind: 'node';
-      linkKey: string;
-      relation: string;
-    }
-  | {
-      mode: 'edit';
-      kind: 'group';
-      linkKey: string;
-      relation: string;
-    };
 const createNodeId = () =>
   typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
@@ -1169,6 +1073,49 @@ const App = () => {
     [groups]
   );
 
+  const duplicateActiveNode = useCallback(() => {
+    if (!activeNodeId) {
+      return;
+    }
+    const original = nodes.find((node) => node.id === activeNodeId);
+    if (!original) {
+      return;
+    }
+    const originalPosition = nodePositionsRef.current[activeNodeId] ?? { x: 0, y: 0 };
+    const newId = createNodeId();
+    const newPosition = { x: originalPosition.x + 40, y: originalPosition.y + 40 };
+    nodePositionsRef.current[newId] = newPosition;
+    setNodes((prev) => [
+      ...prev,
+      {
+        ...original,
+        id: newId,
+        label: original.label ? `${original.label} Copy` : 'Node Copy',
+        profile: mergeProfileWithSchema(getNodeProfileSchema(original.type), original.profile),
+      },
+    ]);
+    setLinks((prev) => [
+      ...prev,
+      ...prev
+        .filter((link) => resolveId(link.source) === activeNodeId)
+        .map((link) => ({ ...link, source: newId })),
+    ]);
+    setActiveNodeId(newId);
+    setHoveredNodeId(newId);
+    setHoveredEdgeKey(null);
+  }, [
+    activeNodeId,
+    nodes,
+    nodePositionsRef,
+    setNodes,
+    setLinks,
+    mergeProfileWithSchema,
+    setActiveNodeId,
+    setHoveredNodeId,
+    getNodeProfileSchema,
+    setHoveredEdgeKey,
+  ]);
+
   const confirmPendingDeletion = useCallback(() => {
     if (!pendingDeletion) {
       return;
@@ -1616,7 +1563,7 @@ const App = () => {
     });
   }, []);
 
-  const connectionEditorSelection = useMemo(() => {
+  const connectionEditorSelection = useMemo<ConnectionEditorSelection | null>(() => {
     if (!connectionForm) {
       return null;
     }
@@ -1810,158 +1757,34 @@ const App = () => {
     });
   }, [setLinks, setGroupLinks, showUtilityToast]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (pendingDeletion) {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          cancelPendingDeletion();
-          return;
-        }
-        if (
-          event.key === 'Enter' &&
-          !event.shiftKey &&
-          !event.metaKey &&
-          !event.ctrlKey &&
-          !event.altKey
-        ) {
-          event.preventDefault();
-          confirmPendingDeletion();
-          return;
-        }
-        return;
-      }
-      const activeElement = document.activeElement as HTMLElement | null;
-      const isEditableElement =
-        !!activeElement &&
-        (activeElement.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName) ||
-          activeElement.getAttribute('role') === 'textbox');
-      const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
-      if (isEditableElement && !(event.key === 'Escape' && !hasModifier && !event.shiftKey)) {
-        return;
-      }
-      if (event.key === 'Escape') {
-        setConnectionDraft(null);
-        setConnectionBuilderMode(false);
-        if (connectionForm) {
-          setConnectionForm(null);
-          return;
-        }
-        if (nodeForm) {
-          setNodeForm(null);
-          return;
-        }
-        if (profileWindows.length > 0) {
-          event.preventDefault();
-          closeTopProfileWindow();
-          return;
-        }
-        if (contextMenu) {
-          handleContextMenuDismiss();
-          return;
-        }
-        setActiveNodeId(null);
-        setHoveredNodeId(null);
-        setHoveredEdgeKey(null);
-        setHoveredGroupLinkKey(null);
-      }
-
-      if (connectionForm) {
-        if (event.key === 'Delete' && connectionEditorSelection) {
-          event.preventDefault();
-          if (connectionForm.kind === 'node') {
-            removeConnectionByKey(connectionForm.linkKey);
-          } else {
-            removeGroupConnectionByKey(connectionForm.linkKey);
-          }
-          return;
-        }
-        if (
-          event.key === 'Enter' &&
-          !event.shiftKey &&
-          !event.metaKey &&
-          !event.ctrlKey &&
-          !event.altKey
-        ) {
-          event.preventDefault();
-          handleConnectionFormSubmit();
-        }
-        return;
-      }
-
-      if (nodeForm) {
-        return;
-      }
-
-      if (event.key === 'Delete' && activeNodeId) {
-        event.preventDefault();
-        requestNodeRemoval(activeNodeId);
-        return;
-      }
-
-      if (event.key === 'Delete' && selectedGroupId) {
-        event.preventDefault();
-        requestGroupRemoval(selectedGroupId);
-        return;
-      }
-
-      if ((event.key === 'd' || event.key === 'D') && event.ctrlKey && activeNodeId) {
-        event.preventDefault();
-        const original = nodes.find((node) => node.id === activeNodeId);
-        if (!original) {
-          return;
-        }
-        const originalPosition = nodePositionsRef.current[activeNodeId] ?? { x: 0, y: 0 };
-        const newId = createNodeId();
-        const newPosition = { x: originalPosition.x + 40, y: originalPosition.y + 40 };
-        nodePositionsRef.current[newId] = newPosition;
-        setNodes((prev) => [
-          ...prev,
-          {
-            ...original,
-            id: newId,
-            label: original.label ? `${original.label} Copy` : 'Node Copy',
-            profile: mergeProfileWithSchema(
-              getNodeProfileSchema(original.type),
-              original.profile
-            ),
-          },
-        ]);
-        setLinks((prev) => [
-          ...prev,
-          ...prev
-            .filter((link) => resolveId(link.source) === activeNodeId)
-            .map((link) => ({ ...link, source: newId })),
-        ]);
-        setActiveNodeId(newId);
-        setHoveredNodeId(newId);
-        setHoveredEdgeKey(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
+  useKeyboardShortcuts({
     pendingDeletion,
     cancelPendingDeletion,
     confirmPendingDeletion,
-    activeNodeId,
     connectionEditorSelection,
     connectionForm,
     contextMenu,
     handleContextMenuDismiss,
     handleConnectionFormSubmit,
     nodeForm,
-    nodes,
+    activeNodeId,
+    selectedGroupId,
     removeConnectionByKey,
     removeGroupConnectionByKey,
     requestNodeRemoval,
     requestGroupRemoval,
-    selectedGroupId,
-    profileWindows.length,
+    setConnectionDraft,
+    setConnectionBuilderMode,
+    setConnectionForm,
+    setNodeForm,
+    setActiveNodeId,
+    setHoveredNodeId,
+    setHoveredEdgeKey,
+    setHoveredGroupLinkKey,
+    profileWindowCount: profileWindows.length,
     closeTopProfileWindow,
-  ]);
+    onDuplicateActiveNode: duplicateActiveNode,
+  });
 
   const nodeFormType = useMemo<NodeType>(() => {
     if (!nodeForm) {

@@ -13,6 +13,7 @@ import { getGroupIcon } from '../constants/groupIcons';
 import { getNodeIcon } from '../constants/nodeIcons';
 import { accent, edgeBase, textSecondary } from '../constants/theme';
 import { makeEdgeKey, makeGroupLinkKey, resolveAxis, shortenSegment } from '../lib/graph-utils';
+import type { ConnectionDraft } from '../types/appState';
 import type {
   CanvasGroup,
   GroupLink,
@@ -23,18 +24,7 @@ import type {
   SimulationLink,
   SimulationNode,
 } from '../types/graph';
-type ConnectionDraft =
-  | {
-      kind: 'node';
-      sourceNodeId: string;
-      cursor: { x: number; y: number };
-    }
-  | {
-      kind: 'group';
-      sourceGroupId: string;
-      cursor: { x: number; y: number };
-    }
-  | null;
+type ConnectionDraftState = ConnectionDraft | null;
 type GroupResizeHandle =
   | 'top-left'
   | 'top'
@@ -175,7 +165,7 @@ type UseForceGraphArgs = ForceGraphCallbacks & {
   nodePositionsRef: MutableRefObject<NodePositionMap>;
   groupPositionsRef: MutableRefObject<GroupPositionMap>;
   zoomTransformRef: MutableRefObject<ZoomTransform>;
-  connectionDraft: ConnectionDraft;
+  connectionDraft: ConnectionDraftState;
   hoveredGroupLinkKey: string | null;
   selectedGroupId: string | null;
   hoveredGroupId: string | null;
