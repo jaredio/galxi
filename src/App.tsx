@@ -47,6 +47,7 @@ import {
   getNodeProfileSchema,
   mergeProfileWithSchema,
 } from './schemas/resources';
+import { applyParentAssignments, groupArea, pointWithinGroup } from './lib/groupParenting';
 import { debounce, loadGraph, saveGraph } from './lib/persistence';
 import { logger } from './lib/logger';
 import {
@@ -178,69 +179,6 @@ const NODE_GROUP_PRIORITY_SCORE: Record<GroupType, number> = {
   subnet: 3,
   virtualNetwork: 2,
   logicalGroup: 1,
-};
-
-const GROUP_PARENT_RULES: Record<GroupType, GroupType[]> = {
-  virtualNetwork: ['logicalGroup'],
-  subnet: ['virtualNetwork', 'logicalGroup'],
-  logicalGroup: ['logicalGroup'],
-};
-
-const GROUP_PARENT_PRIORITY: Record<GroupType, number> = {
-  logicalGroup: 1,
-  virtualNetwork: 2,
-  subnet: 3,
-};
-
-const groupArea = (group: CanvasGroup) => group.width * group.height;
-
-const pointWithinGroup = (point: { x: number; y: number }, group: CanvasGroup) =>
-  point.x >= group.x &&
-  point.x <= group.x + group.width &&
-  point.y >= group.y &&
-  point.y <= group.y + group.height;
-
-const groupContainsGroup = (child: CanvasGroup, parent: CanvasGroup) =>
-  child.x >= parent.x &&
-  child.y >= parent.y &&
-  child.x + child.width <= parent.x + parent.width &&
-  child.y + child.height <= parent.y + parent.height;
-
-const determineGroupParentId = (group: CanvasGroup, groups: CanvasGroup[]) => {
-  const allowedParents = GROUP_PARENT_RULES[group.type] ?? [];
-  if (allowedParents.length === 0) {
-    return undefined;
-  }
-  const candidates = groups.filter(
-    (candidate) =>
-      candidate.id !== group.id &&
-      allowedParents.includes(candidate.type) &&
-      groupContainsGroup(group, candidate)
-  );
-  if (candidates.length === 0) {
-    return undefined;
-  }
-  candidates.sort((a, b) => {
-    const priorityDiff = (GROUP_PARENT_PRIORITY[b.type] ?? 0) - (GROUP_PARENT_PRIORITY[a.type] ?? 0);
-    if (priorityDiff !== 0) {
-      return priorityDiff;
-    }
-    return groupArea(a) - groupArea(b);
-  });
-  return candidates[0].id;
-};
-
-const applyParentAssignments = (groups: CanvasGroup[]) => {
-  let changed = false;
-  const next = groups.map((group, _, arr) => {
-    const parentGroupId = determineGroupParentId(group, arr);
-    if (group.parentGroupId === parentGroupId) {
-      return group;
-    }
-    changed = true;
-    return { ...group, parentGroupId };
-  });
-  return changed ? next : groups;
 };
 
 type UtilityToastState = { id: number; message: string };

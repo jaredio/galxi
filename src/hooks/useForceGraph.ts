@@ -216,6 +216,40 @@ export const useForceGraph = ({
   hoveredGroupId,
   isActive,
 }: UseForceGraphArgs) => {
+  const canvasHandlersRef = useRef({
+    onCanvasClick,
+    onContextMenuDismiss,
+  });
+  const interactionHandlersRef = useRef<ForceGraphCallbacks>({
+    onNodeHover,
+    onNodeClick,
+    onNodeDoubleClick,
+    onNodeAuxClick,
+    onNodeDragEnd,
+    onEdgeHover,
+    onLinkContextMenu,
+    onCanvasClick,
+    onContextMenuDismiss,
+    onNodeContextMenu,
+    onGroupHover,
+    onGroupLinkHover,
+    onGroupLinkContextMenu,
+    onGroupSelect,
+    onGroupAuxClick,
+    onGroupContextMenu,
+    onGroupDoubleClick,
+    onGroupMove,
+    onGroupResize,
+  });
+  type HandlerArgs<K extends keyof ForceGraphCallbacks> = ForceGraphCallbacks[K] extends (
+    ...handlerArgs: infer P
+  ) => unknown
+    ? P
+    : never;
+  const invoke = <K extends keyof ForceGraphCallbacks>(key: K, ...args: HandlerArgs<K>) => {
+    const handler = interactionHandlersRef.current[key] as (...handlerArgs: HandlerArgs<K>) => unknown;
+    handler(...args);
+  };
   const svgSelectionRef = useRef<d3.Selection<SVGSVGElement, any, any, any> | null>(null);
   const containerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
   const groupLayerRef = useRef<d3.Selection<SVGGElement, any, any, any> | null>(null);
@@ -261,6 +295,55 @@ export const useForceGraph = ({
   } | null>(null);
   const groupGeometryRef = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
   const positionFrameRef = useRef<number | null>(null);
+  useEffect(() => {
+    canvasHandlersRef.current = {
+      onCanvasClick,
+      onContextMenuDismiss,
+    };
+  }, [onCanvasClick, onContextMenuDismiss]);
+  useEffect(() => {
+    interactionHandlersRef.current = {
+      onNodeHover,
+      onNodeClick,
+      onNodeDoubleClick,
+      onNodeAuxClick,
+      onNodeDragEnd,
+      onEdgeHover,
+      onLinkContextMenu,
+      onCanvasClick,
+      onContextMenuDismiss,
+      onNodeContextMenu,
+      onGroupHover,
+      onGroupLinkHover,
+      onGroupLinkContextMenu,
+      onGroupSelect,
+      onGroupAuxClick,
+      onGroupContextMenu,
+      onGroupDoubleClick,
+      onGroupMove,
+      onGroupResize,
+    };
+  }, [
+    onNodeHover,
+    onNodeClick,
+    onNodeDoubleClick,
+    onNodeAuxClick,
+    onNodeDragEnd,
+    onEdgeHover,
+    onLinkContextMenu,
+    onCanvasClick,
+    onContextMenuDismiss,
+    onNodeContextMenu,
+    onGroupHover,
+    onGroupLinkHover,
+    onGroupLinkContextMenu,
+    onGroupSelect,
+    onGroupAuxClick,
+    onGroupContextMenu,
+    onGroupDoubleClick,
+    onGroupMove,
+    onGroupResize,
+  ]);
   const computeRectEdgeIntersection = (
     centerX: number,
     centerY: number,
@@ -430,11 +513,22 @@ export const useForceGraph = ({
     updateGroupLinkPositions();
   };
   useEffect(() => {
+    canvasHandlersRef.current = { onCanvasClick, onContextMenuDismiss };
+  }, [onCanvasClick, onContextMenuDismiss]);
+
+  useEffect(() => {
     if (!isActive) {
       return;
     }
     const svgElement = svgRef.current;
     if (!svgElement) {
+      return;
+    }
+    if (containerRef.current) {
+      const width = svgElement.clientWidth || window.innerWidth;
+      const height = svgElement.clientHeight || window.innerHeight;
+      viewDimensionsRef.current = { width, height };
+      d3.select(svgElement).attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`);
       return;
     }
     const svg = d3.select(svgElement);
@@ -447,31 +541,31 @@ export const useForceGraph = ({
       svg.attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`);
     };
     updateViewBox();
-  const container = svg.append('g').attr('class', 'graph-root');
-  containerRef.current = container;
-  const groupLayer = container.append('g').attr('class', 'group-layer');
-  const groupLinkLayer = container
-    .append('g')
-    .attr('class', 'group-link-layer')
-    .style('pointer-events', 'none');
-  const groupLinkHitLayer = container.append('g').attr('class', 'group-link-hit-layer');
-  const groupLinkLabelLayer = container
-    .append('g')
-    .attr('class', 'group-link-label-layer')
-    .style('pointer-events', 'none');
-  const linkHitLayer = container.append('g').attr('class', 'link-hit-layer');
-  const linkLayer = container.append('g').attr('class', 'link-layer');
-  const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
-  const nodeLayer = container.append('g').attr('class', 'node-layer');
-  const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
-  groupLayerRef.current = groupLayer;
-  groupLinkLayerRef.current = groupLinkLayer;
-  groupLinkHitLayerRef.current = groupLinkHitLayer;
-  groupLinkLabelLayerRef.current = groupLinkLabelLayer;
-  linkHitLayerRef.current = linkHitLayer;
-  linkLayerRef.current = linkLayer;
-  linkLabelLayerRef.current = linkLabelLayer;
-  nodeLayerRef.current = nodeLayer;
+    const container = svg.append('g').attr('class', 'graph-root');
+    containerRef.current = container;
+    const groupLayer = container.append('g').attr('class', 'group-layer');
+    const groupLinkLayer = container
+      .append('g')
+      .attr('class', 'group-link-layer')
+      .style('pointer-events', 'none');
+    const groupLinkHitLayer = container.append('g').attr('class', 'group-link-hit-layer');
+    const groupLinkLabelLayer = container
+      .append('g')
+      .attr('class', 'group-link-label-layer')
+      .style('pointer-events', 'none');
+    const linkHitLayer = container.append('g').attr('class', 'link-hit-layer');
+    const linkLayer = container.append('g').attr('class', 'link-layer');
+    const linkLabelLayer = container.append('g').attr('class', 'link-label-layer');
+    const nodeLayer = container.append('g').attr('class', 'node-layer');
+    const draftLayer = container.append('g').attr('class', 'draft-layer').style('pointer-events', 'none');
+    groupLayerRef.current = groupLayer;
+    groupLinkLayerRef.current = groupLinkLayer;
+    groupLinkHitLayerRef.current = groupLinkHitLayer;
+    groupLinkLabelLayerRef.current = groupLinkLabelLayer;
+    linkHitLayerRef.current = linkHitLayer;
+    linkLayerRef.current = linkLayer;
+    linkLabelLayerRef.current = linkLabelLayer;
+    nodeLayerRef.current = nodeLayer;
     draftLayerRef.current = draftLayer;
     const draftLine = draftLayer
       .append('line')
@@ -528,12 +622,15 @@ export const useForceGraph = ({
       });
     zoomBehaviourRef.current = zoom;
     svg.call(zoom).call(zoom.transform, zoomTransformRef.current);
-    svg.on('click', (event: MouseEvent) => {
+    const handleSvgClick = (event: MouseEvent) => {
       if (event.target === svgElement) {
-        onContextMenuDismiss();
-        onCanvasClick();
+        const { onCanvasClick: handleCanvasClick, onContextMenuDismiss: handleDismiss } =
+          canvasHandlersRef.current;
+        handleDismiss();
+        handleCanvasClick();
       }
-    });
+    };
+    svg.on('click', handleSvgClick as unknown as null);
     const handleResize = () => updateViewBox();
     window.addEventListener('resize', handleResize);
     return () => {
@@ -561,7 +658,7 @@ export const useForceGraph = ({
       draftLineRef.current = null;
       svgSelectionRef.current = null;
     };
-  }, [svgRef, zoomTransformRef, onCanvasClick, onContextMenuDismiss, isActive]);
+  }, [isActive]);
   useEffect(() => {
     const nodeLayer = nodeLayerRef.current;
     const linkHitLayer = linkHitLayerRef.current;
@@ -595,12 +692,18 @@ export const useForceGraph = ({
     if (!groupLayer) {
       return;
     }
+    simNodes.forEach((node) => {
+      const nextX = node.x ?? 0;
+      const nextY = node.y ?? 0;
+      node.fx = nextX;
+      node.fy = nextY;
+    });
     const groupDragBehaviour = d3
       .drag<SVGGElement, CanvasGroup>()
       .on('start', (event, datum) => {
         event.sourceEvent?.stopPropagation();
         groupDragStateRef.current = { id: datum.id, x: datum.x, y: datum.y };
-        onGroupSelect(datum.id);
+        invoke('onGroupSelect', datum.id);
       })
       .on('drag', function (event) {
         const dragState = groupDragStateRef.current;
@@ -618,7 +721,7 @@ export const useForceGraph = ({
       .on('end', () => {
         const dragState = groupDragStateRef.current;
         if (dragState) {
-          onGroupMove(dragState.id, { x: dragState.x, y: dragState.y });
+          invoke('onGroupMove', dragState.id, { x: dragState.x, y: dragState.y });
         }
         groupDragStateRef.current = null;
       });
@@ -639,7 +742,7 @@ export const useForceGraph = ({
           dy: 0,
           next: { x: datum.x, y: datum.y, width: datum.width, height: datum.height },
         };
-        onGroupSelect(datum.id);
+        invoke('onGroupSelect', datum.id);
       })
       .on('drag', function (event) {
         const resizeState = groupResizeStateRef.current;
@@ -665,7 +768,7 @@ export const useForceGraph = ({
       .on('end', () => {
         const resizeState = groupResizeStateRef.current;
         if (resizeState) {
-          onGroupResize(resizeState.id, resizeState.next);
+          invoke('onGroupResize', resizeState.id, resizeState.next);
         }
         groupResizeStateRef.current = null;
       });
@@ -710,31 +813,31 @@ export const useForceGraph = ({
     >;
     typedGroupSelection
       .on('mouseenter', (_event: MouseEvent, datum: CanvasGroup) => {
-        onGroupHover(datum.id);
+        invoke('onGroupHover', datum.id);
       })
       .on('mouseleave', () => {
-        onGroupHover(null);
+        invoke('onGroupHover', null);
       })
       .on('click', (event: MouseEvent, datum: CanvasGroup) => {
         event.stopPropagation();
-        onContextMenuDismiss();
-        onGroupSelect(datum.id);
+        invoke('onContextMenuDismiss');
+        invoke('onGroupSelect', datum.id);
       })
       .on('auxclick', (event: MouseEvent, datum: CanvasGroup) => {
         if (event.button === 1) {
           event.preventDefault();
           event.stopPropagation();
-          onGroupAuxClick(event, datum);
+          invoke('onGroupAuxClick', event, datum);
         }
       })
       .on('dblclick', (event: MouseEvent, datum: CanvasGroup) => {
         event.stopPropagation();
-        onGroupDoubleClick(datum);
+        invoke('onGroupDoubleClick', datum);
       })
       .on('contextmenu', (event: MouseEvent, datum: CanvasGroup) => {
         event.preventDefault();
         event.stopPropagation();
-        onGroupContextMenu(event, datum);
+        invoke('onGroupContextMenu', event, datum);
       });
     (typedGroupSelection as unknown as d3.Selection<SVGGElement, CanvasGroup, any, any>).call(
       groupDragBehaviour as unknown as (
@@ -799,20 +902,20 @@ export const useForceGraph = ({
         );
       groupLinkHitSelection
         .on('mouseenter', (_event, datum) => {
-          onGroupLinkHover(makeGroupLinkKey(datum));
+          invoke('onGroupLinkHover', makeGroupLinkKey(datum));
         })
         .on('mouseleave', () => {
-          onGroupLinkHover(null);
+          invoke('onGroupLinkHover', null);
         })
         .on('contextmenu', (event: MouseEvent, datum: GroupLink) => {
           event.preventDefault();
           event.stopPropagation();
-          onContextMenuDismiss();
-          onGroupLinkContextMenu(event, datum);
+          invoke('onContextMenuDismiss');
+          invoke('onGroupLinkContextMenu', event, datum);
         })
         .on('click', (event: MouseEvent) => {
           event.stopPropagation();
-          onContextMenuDismiss();
+          invoke('onContextMenuDismiss');
         });
       const groupLinkLabelSelection = groupLinkLabelLayer
         .selectAll<SVGTextElement, GroupLink>('text.group-link-label')
@@ -1015,37 +1118,37 @@ export const useForceGraph = ({
     };
     nodesSelection
       .on('mouseenter', (_event: MouseEvent, datum: SimulationNode) => {
-        onNodeHover(datum.id);
+        invoke('onNodeHover', datum.id);
       })
       .on('mouseleave', () => {
-        onNodeHover(null);
+        invoke('onNodeHover', null);
       })
       .on('click', (event: MouseEvent, datum: SimulationNode) => {
         event.stopPropagation();
-        onContextMenuDismiss();
-        onEdgeHover(null);
-        onNodeClick(datum);
-        onNodeHover(datum.id);
+        invoke('onContextMenuDismiss');
+        invoke('onEdgeHover', null);
+        invoke('onNodeClick', datum);
+        invoke('onNodeHover', datum.id);
       })
       .on('dblclick', (event: MouseEvent, datum: SimulationNode) => {
         event.stopPropagation();
-        onContextMenuDismiss();
-        onEdgeHover(null);
-        onNodeClick(datum);
-        onNodeHover(datum.id);
-        onNodeDoubleClick(datum);
+        invoke('onContextMenuDismiss');
+        invoke('onEdgeHover', null);
+        invoke('onNodeClick', datum);
+        invoke('onNodeHover', datum.id);
+        invoke('onNodeDoubleClick', datum);
       })
       .on('auxclick', (event: MouseEvent, datum: SimulationNode) => {
         if (event.button === 1) {
           event.preventDefault();
           event.stopPropagation();
-          onNodeAuxClick(event, datum);
+          invoke('onNodeAuxClick', event, datum);
         }
       })
       .on('contextmenu', (event: MouseEvent, datum: SimulationNode) => {
         event.preventDefault();
         event.stopPropagation();
-        onNodeContextMenu(event, datum);
+        invoke('onNodeContextMenu', event, datum);
       });
                     const dragBehaviour = d3
       .drag<SVGGElement, SimulationNode>()
@@ -1096,7 +1199,7 @@ export const useForceGraph = ({
         const datum = node.datum();
         node.style('cursor', 'grab');
         if (datum) {
-          onNodeDragEnd(datum.id, { x: datum.x ?? 0, y: datum.y ?? 0 });
+          invoke('onNodeDragEnd', datum.id, { x: datum.x ?? 0, y: datum.y ?? 0 });
         }
         schedulePositionsUpdate();
       });
@@ -1108,10 +1211,10 @@ export const useForceGraph = ({
 
 
     const handleLinkEnter = (_event: MouseEvent, datum: SimulationLink) => {
-      onEdgeHover(makeEdgeKey(datum));
+      invoke('onEdgeHover', makeEdgeKey(datum));
     };
     const handleLinkLeave = () => {
-      onEdgeHover(null);
+      invoke('onEdgeHover', null);
     };
     linkSelection.on('mouseenter', handleLinkEnter).on('mouseleave', handleLinkLeave);
     linkHitSelection
@@ -1120,12 +1223,12 @@ export const useForceGraph = ({
       .on('contextmenu', (event: MouseEvent, datum: SimulationLink) => {
         event.preventDefault();
         event.stopPropagation();
-        onContextMenuDismiss();
-        onLinkContextMenu(event, datum);
+        invoke('onContextMenuDismiss');
+        invoke('onLinkContextMenu', event, datum);
       })
       .on('click', (event: MouseEvent) => {
         event.stopPropagation();
-        onContextMenuDismiss();
+        invoke('onContextMenuDismiss');
       });
     applyPositions();
     nodeSelectionRef.current = nodesSelection as d3.Selection<SVGGElement, SimulationNode, SVGGElement, unknown>;
@@ -1148,31 +1251,7 @@ export const useForceGraph = ({
         positionFrameRef.current = null;
       }
     };
-  }, [
-    nodes,
-    links,
-    groupLinks,
-    groups,
-    nodePositionsRef,
-    groupPositionsRef,
-    onNodeHover,
-    onNodeClick,
-    onNodeAuxClick,
-    onNodeDoubleClick,
-    onEdgeHover,
-    onLinkContextMenu,
-    onContextMenuDismiss,
-    onNodeContextMenu,
-    onGroupHover,
-    onGroupLinkHover,
-    onGroupLinkContextMenu,
-    onGroupSelect,
-    onGroupAuxClick,
-    onGroupContextMenu,
-    onGroupDoubleClick,
-    onGroupMove,
-    onGroupResize,
-  ]);
+  }, [nodes, links, groupLinks, groups, nodePositionsRef, groupPositionsRef]);
   useEffect(() => {
     const selection = groupSelectionRef.current;
     if (!selection) {
@@ -1291,3 +1370,4 @@ export const useForceGraph = ({
     resetZoom,
   };
 };
+
