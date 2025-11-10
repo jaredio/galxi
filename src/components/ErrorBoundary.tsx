@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { logger } from '../lib/logger';
+
 type ErrorBoundaryProps = {
   children: ReactNode;
   fallback?: ReactNode;
@@ -21,8 +23,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('Error caught by ErrorBoundary:', error, errorInfo);
-    // TODO: Send to error tracking service (e.g., Sentry) when configured
+    logger.error('Galxi ErrorBoundary captured an exception', error, { info: errorInfo });
   }
 
   render(): ReactNode {
@@ -32,31 +33,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div
-          style={{
-            padding: '40px',
-            textAlign: 'center',
-            fontFamily: 'system-ui, sans-serif',
-          }}
-        >
-          <h1 style={{ color: '#dc2626', marginBottom: '16px' }}>Something went wrong</h1>
-          <p style={{ color: '#6b7280', marginBottom: '24px' }}>
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
-          >
-            Reload Page
-          </button>
+        <div className="app-error">
+          <div className="app-error-card">
+            <h1>Galxi hit a snag</h1>
+            <p>{this.state.error?.message || 'An unexpected error occurred.'}</p>
+            <p className="app-error-meta">Try reloading to continue.</p>
+            <div className="app-error-actions">
+              <button type="button" className="btn btn-accent" onClick={() => window.location.reload()}>
+                Reload Galxi
+              </button>
+            </div>
+          </div>
         </div>
       );
     }

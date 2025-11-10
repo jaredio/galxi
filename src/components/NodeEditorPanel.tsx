@@ -11,7 +11,7 @@ import type { NodeTypeCategory, NodeTypeOption } from '../constants/nodeOptions'
 import { nodeTypeCategoryLabels, nodeTypeCategoryOrder } from '../constants/nodeOptions';
 import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
 import { ProfileForm } from './ProfileForm';
-import { sanitizeInput, validateLabel } from '../lib/validation';
+import { validateLabel } from '../lib/validation';
 
 export type NodeFormMode = 'create' | 'edit';
 
@@ -195,7 +195,7 @@ export const NodeEditorPanel = ({
             <span>Label</span>
             <input
               value={values.label}
-              onChange={(event) => onLabelChange(sanitizeInput(event.target.value, 100))}
+              onChange={(event) => onLabelChange(event.target.value)}
               placeholder={placeholder}
               autoFocus={autoFocus}
               maxLength={100}

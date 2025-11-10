@@ -18,10 +18,7 @@ export const sanitizeInput = (input: string, maxLength = 500): string => {
     return '';
   }
 
-  return input
-    .trim()
-    .slice(0, maxLength)
-    .replace(/[<>]/g, ''); // Remove potential XSS chars
+  return input.slice(0, maxLength).replace(/[<>]/g, '');
 };
 
 /**
@@ -29,24 +26,18 @@ export const sanitizeInput = (input: string, maxLength = 500): string => {
  */
 export const validateLabel = (label: string): ValidationResult => {
   const sanitized = sanitizeInput(label, 100);
+  const normalized = sanitized.trim();
 
-  if (sanitized.length === 0) {
+  if (normalized.length === 0) {
     return {
       valid: false,
       error: 'Label cannot be empty',
     };
   }
 
-  if (sanitized.length > 100) {
-    return {
-      valid: false,
-      error: 'Label is too long (max 100 characters)',
-    };
-  }
-
   return {
     valid: true,
-    value: sanitized,
+    value: normalized,
   };
 };
 
@@ -55,8 +46,9 @@ export const validateLabel = (label: string): ValidationResult => {
  */
 export const validateRelation = (relation: string): ValidationResult => {
   const sanitized = sanitizeInput(relation, 50);
+  const normalized = sanitized.trim();
 
-  if (sanitized.length > 50) {
+  if (normalized.length > 50) {
     return {
       valid: false,
       error: 'Relation is too long (max 50 characters)',
@@ -65,7 +57,7 @@ export const validateRelation = (relation: string): ValidationResult => {
 
   return {
     valid: true,
-    value: sanitized,
+    value: normalized,
   };
 };
 
@@ -93,23 +85,17 @@ export const validateProfileField = (value: string): ValidationResult => {
  */
 export const validateGroupTitle = (title: string): ValidationResult => {
   const sanitized = sanitizeInput(title, 100);
+  const normalized = sanitized.trim();
 
-  if (sanitized.length === 0) {
+  if (normalized.length === 0) {
     return {
       valid: false,
       error: 'Title cannot be empty',
     };
   }
 
-  if (sanitized.length > 100) {
-    return {
-      valid: false,
-      error: 'Title is too long (max 100 characters)',
-    };
-  }
-
   return {
     valid: true,
-    value: sanitized,
+    value: normalized,
   };
 };

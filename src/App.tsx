@@ -12,7 +12,7 @@ import { ConnectionEditorPanel } from './components/ConnectionEditorPanel';
 import { GroupEditorPanel } from './components/GroupEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { ProfileWindow } from './components/ProfileWindow';
-import { EditIcon, PlusIcon, TrashIcon, EyeIcon } from './components/icons';
+import { EditIcon, PlusIcon, TrashIcon, EyeIcon, SettingsIcon } from './components/icons';
 import { DashboardPage, type DashboardEntity } from './components/DashboardPage';
 import { Topbar } from './components/Topbar';
 import { ZoomControls } from './components/ZoomControls';
@@ -157,6 +157,13 @@ type ProfileWindowState = {
   resourceId: string;
   position: { x: number; y: number };
   zIndex: number;
+  editNonce: number;
+};
+
+type PendingDeletion = {
+  kind: 'node' | 'group';
+  id: string;
+  label: string;
 };
 
 type GroupDraftType = GroupType;
@@ -299,12 +306,12 @@ const App = () => {
     type: 'vm',
     group: '',
   });
-const [nodeProfileDraft, setNodeProfileDraft] = useState<ResourceProfileData>(() =>
-  createDefaultNodeProfile('vm')
-);
-const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(() =>
-  createDefaultGroupProfile('virtualNetwork')
-);
+  const [nodeProfileDraft, setNodeProfileDraft] = useState<ResourceProfileData>(() =>
+    createDefaultNodeProfile('vm')
+  );
+  const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(() =>
+    createDefaultGroupProfile('virtualNetwork')
+  );
   useEffect(() => {
     if (!nodeForm || nodeForm.mode !== 'edit') {
       return;
@@ -346,6 +353,8 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   const [profileWindows, setProfileWindows] = useState<ProfileWindowState[]>([]);
   const profileSpawnIndexRef = useRef(0);
   const profileZIndexRef = useRef(60);
+  const profileEditNonceRef = useRef(0);
+  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const autosaveCallbackRef = useRef<
     | null
     | ((
@@ -427,13 +436,19 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   }, []);
 
   const openProfileWindow = useCallback(
-    (kind: ProfileWindowState['kind'], resourceId: string) => {
+    (kind: ProfileWindowState['kind'], resourceId: string, options?: { startEditing?: boolean }) => {
       const windowId = `${kind}:${resourceId}`;
+      const shouldEdit = Boolean(options?.startEditing);
+      const editNonce = shouldEdit ? ++profileEditNonceRef.current : 0;
       setProfileWindows((prev) => {
         const existing = prev.find((win) => win.id === windowId);
         const zIndex = getNextProfileZIndex();
         if (existing) {
-          return prev.map((win) => (win.id === windowId ? { ...win, zIndex } : win));
+          return prev.map((win) =>
+            win.id === windowId
+              ? { ...win, zIndex, editNonce: shouldEdit ? editNonce : win.editNonce }
+              : win
+          );
         }
         return [
           ...prev,
@@ -443,6 +458,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
             resourceId,
             position: getProfileSpawnPosition(),
             zIndex,
+            editNonce: shouldEdit ? editNonce : 0,
           },
         ];
       });
@@ -665,7 +681,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
         groups: restored.groups.length,
         restoredAt: restored.timestamp,
       });
-      showUtilityToast(`Restored session from ${formatTimestamp(restored.timestamp)}.`);
+      showUtilityToast(`Restored from: ${formatTimestamp(restored.timestamp)}.`);
     }
     setPersistenceReady(true);
   }, [replaceGraph, showUtilityToast]);
@@ -1067,8 +1083,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   );
 
   const handleLabelChange = useCallback((value: string) => {
-    const sanitized = sanitizeInput(value, 100);
-    setFormValues((prev) => ({ ...prev, label: sanitized }));
+    setFormValues((prev) => ({ ...prev, label: value }));
   }, []);
 
   const handleTypeChange = useCallback(
@@ -1202,29 +1217,37 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     (nodeId: string) => {
       const target = nodes.find((node) => node.id === nodeId);
       const label = target?.label?.trim().length ? target!.label : 'this node';
-      if (!window.confirm(`Delete ${label} and all associated connections?`)) {
-        return false;
-      }
-      removeNodeById(nodeId);
-      return true;
+      setPendingDeletion({ kind: 'node', id: nodeId, label });
     },
-    [nodes, removeNodeById]
+    [nodes]
   );
 
   const requestGroupRemoval = useCallback(
     (groupId: string) => {
       const target = groups.find((group) => group.id === groupId);
       const label = target?.title?.trim().length ? target!.title : 'this group';
-      if (
-        !window.confirm(`Delete ${label} along with nested links, connections, and placement info?`)
-      ) {
-        return false;
-      }
-      removeGroupById(groupId);
-      return true;
+      setPendingDeletion({ kind: 'group', id: groupId, label });
     },
-    [groups, removeGroupById]
+    [groups]
   );
+
+  const confirmPendingDeletion = useCallback(() => {
+    if (!pendingDeletion) {
+      return;
+    }
+    if (pendingDeletion.kind === 'node') {
+      removeNodeById(pendingDeletion.id);
+      showUtilityToast(`${pendingDeletion.label} deleted.`);
+    } else {
+      removeGroupById(pendingDeletion.id);
+      showUtilityToast(`${pendingDeletion.label} deleted.`);
+    }
+    setPendingDeletion(null);
+  }, [pendingDeletion, removeNodeById, removeGroupById, showUtilityToast]);
+
+  const cancelPendingDeletion = useCallback(() => {
+    setPendingDeletion(null);
+  }, []);
 
   const handleGroupHover = useCallback((groupId: string | null) => {
     setHoveredGroupId(groupId);
@@ -1633,13 +1656,12 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   );
 
   const handleGroupTitleChange = useCallback((value: string) => {
-    const sanitized = sanitizeInput(value, 100);
-    setGroupFormValues((prev) => ({ ...prev, title: sanitized }));
+    setGroupFormValues((prev) => ({ ...prev, title: value }));
   }, []);
 
   const handleGroupTypeChange = useCallback((value: GroupType) => {
     setGroupFormValues((prev) => ({ ...prev, type: value }));
-    setGroupProfileDraft(createDefaultGroupProfile(value));
+    setGroupProfileDraft((prev) => mergeProfileWithSchema(getGroupProfileSchema(value), prev));
   }, []);
 
   const handleGroupProfileFieldChange = useCallback((fieldKey: string, value: string) => {
@@ -1852,6 +1874,25 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (pendingDeletion) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelPendingDeletion();
+          return;
+        }
+        if (
+          event.key === 'Enter' &&
+          !event.shiftKey &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey
+        ) {
+          event.preventDefault();
+          confirmPendingDeletion();
+          return;
+        }
+        return;
+      }
       const activeElement = document.activeElement as HTMLElement | null;
       const isEditableElement =
         !!activeElement &&
@@ -1964,6 +2005,9 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    pendingDeletion,
+    cancelPendingDeletion,
+    confirmPendingDeletion,
     activeNodeId,
     connectionEditorSelection,
     connectionForm,
@@ -2420,9 +2464,15 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
           onSelect: () => openProfileWindow('group', contextMenu.groupId),
         },
         {
+          id: 'edit-group-profile',
+          label: 'Edit profile details',
+          icon: <EditIcon />,
+          onSelect: () => openProfileWindow('group', contextMenu.groupId, { startEditing: true }),
+        },
+        {
           id: 'edit-group',
           label: 'Edit group',
-          icon: <EditIcon />,
+          icon: <SettingsIcon />,
           onSelect: () => openGroupEditor(contextMenu.groupId),
         },
         {
@@ -2443,19 +2493,25 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
         onSelect: () => openProfileWindow('node', contextMenu.nodeId),
       },
       {
+        id: 'edit-node-profile',
+        label: 'Edit profile details',
+        icon: <EditIcon />,
+        onSelect: () => openProfileWindow('node', contextMenu.nodeId, { startEditing: true }),
+      },
+      {
         id: 'edit-node',
         label: 'Edit node',
-        icon: <EditIcon />,
+        icon: <SettingsIcon />,
         onSelect: () => openNodeEditorById(contextMenu.nodeId),
       },
-        {
-          id: 'delete-node',
-          label: 'Delete node',
-          icon: <TrashIcon />,
-          tone: 'danger' as const,
-          onSelect: () => requestNodeRemoval(contextMenu.nodeId),
-        },
-      ];
+      {
+        id: 'delete-node',
+        label: 'Delete node',
+        icon: <TrashIcon />,
+        tone: 'danger' as const,
+        onSelect: () => requestNodeRemoval(contextMenu.nodeId),
+      },
+    ];
   }, [
     contextMenu,
     handleContextMenuAddNode,
@@ -2555,16 +2611,15 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
                     {...content}
                     position={window.position}
                     zIndex={window.zIndex}
+                    startEditNonce={window.editNonce}
                     onMove={(position) => moveProfileWindow(window.id, position)}
-                    onClose={() => closeProfileWindowById(window.id)}
-                    onFocus={() => focusProfileWindow(window.id)}
-                    editable
-                    onFieldChange={(fieldKey, value) =>
-                      handleProfileFieldChange('node', window.resourceId, fieldKey, value)
-                    }
-                    onOpenEditor={() => openNodeEditorById(window.resourceId)}
-                  />
-                );
+                  onClose={() => closeProfileWindowById(window.id)}
+                  onFocus={() => focusProfileWindow(window.id)}
+                  onFieldChange={(fieldKey, value) =>
+                    handleProfileFieldChange('node', window.resourceId, fieldKey, value)
+                  }
+                />
+              );
               }
               const targetGroup = groups.find((group) => group.id === window.resourceId);
               if (!targetGroup) {
@@ -2577,14 +2632,13 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
                   {...content}
                   position={window.position}
                   zIndex={window.zIndex}
+                  startEditNonce={window.editNonce}
                   onMove={(position) => moveProfileWindow(window.id, position)}
                   onClose={() => closeProfileWindowById(window.id)}
                   onFocus={() => focusProfileWindow(window.id)}
-                  editable
                   onFieldChange={(fieldKey, value) =>
                     handleProfileFieldChange('group', window.resourceId, fieldKey, value)
                   }
-                  onOpenEditor={() => openGroupEditor(window.resourceId)}
                 />
               );
             })}
@@ -2681,6 +2735,32 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
           onFocusOnCanvas={handleDashboardEntityFocus}
           profileContext={profileContext}
         />
+      )}
+
+      {pendingDeletion && (
+        <div
+          className="deletion-banner"
+          role="alertdialog"
+          aria-live="assertive"
+          aria-label="Delete resource confirmation"
+        >
+          <div className="deletion-banner__body">
+            <p>
+              Delete <strong>{pendingDeletion.label}</strong>? This removes the{' '}
+              {pendingDeletion.kind === 'node'
+                ? 'resource and its connections.'
+                : 'group, nested links, and placement data.'}
+            </p>
+            <div className="deletion-banner__actions">
+              <button type="button" className="btn" onClick={cancelPendingDeletion}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-danger" onClick={confirmPendingDeletion}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -10,9 +10,8 @@ type ProfileWindowProps = ProfileWindowContent & {
   onMove: (position: { x: number; y: number }) => void;
   onClose: () => void;
   onFocus: () => void;
-  editable?: boolean;
   onFieldChange?: (fieldId: string, value: string) => void;
-  onOpenEditor?: () => void;
+  startEditNonce?: number;
 };
 
 type SectionProps = ProfileSection & {
@@ -120,14 +119,32 @@ export const ProfileWindow = ({
   onMove,
   onClose,
   onFocus,
-  editable = false,
   onFieldChange,
-  onOpenEditor,
+  startEditNonce = 0,
 }: ProfileWindowProps) => {
   const pointerCleanupRef = useRef<(() => void) | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'connections'>('overview');
-  const hasConnectionsTab = true;
+  const hasConnectionsTab = connections.length > 0;
+  const lastEditNonceRef = useRef(startEditNonce);
+
+  useEffect(() => {
+    if (startEditNonce > 0 && startEditNonce !== lastEditNonceRef.current) {
+      lastEditNonceRef.current = startEditNonce;
+      setIsEditing(true);
+      return;
+    }
+    if (startEditNonce === 0 && lastEditNonceRef.current !== 0) {
+      lastEditNonceRef.current = 0;
+      setIsEditing(false);
+    }
+  }, [startEditNonce]);
+
+  useEffect(() => {
+    if (!hasConnectionsTab && activeTab === 'connections') {
+      setActiveTab('overview');
+    }
+  }, [hasConnectionsTab, activeTab]);
 
   const stopTrackingPointer = useCallback(() => {
     if (pointerCleanupRef.current) {
@@ -182,13 +199,6 @@ export const ProfileWindow = ({
     },
     [onFocus, position.x, position.y, trackPointer]
   );
-
-  const toggleEditing = () => {
-    if (!editable || !onFieldChange) {
-      return;
-    }
-    setIsEditing((prev) => !prev);
-  };
 
   const renderSections = (data: ProfileSection[]) =>
     data.map((section) => (
@@ -279,20 +289,6 @@ export const ProfileWindow = ({
         )}
       </div>
 
-      {(editable || onOpenEditor) && (
-        <div className="profile-actions profile-actions--footer">
-          {onOpenEditor && (
-            <button type="button" className="profile-button profile-button--subtle" onClick={onOpenEditor}>
-              <EditIcon /> Resource Editor
-            </button>
-          )}
-          {editable && onFieldChange && (
-            <button type="button" className="profile-button" onClick={toggleEditing}>
-              {isEditing ? 'Finish Editing' : 'Edit Details'}
-            </button>
-          )}
-        </div>
-      )}
     </article>
   );
 };

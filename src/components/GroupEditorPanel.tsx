@@ -9,7 +9,7 @@ import { groupTypeLabelMap } from '../constants/groupLabels';
 import type { GroupType } from '../types/graph';
 import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
 import { ProfileForm } from './ProfileForm';
-import { sanitizeInput, validateGroupTitle } from '../lib/validation';
+import { validateGroupTitle } from '../lib/validation';
 
 type ResizeHandle =
   | 'top'
@@ -122,7 +122,7 @@ export const GroupEditorPanel = ({
             <span>Group Name</span>
             <input
               value={values.title}
-              onChange={(event) => onTitleChange(sanitizeInput(event.target.value, 100))}
+              onChange={(event) => onTitleChange(event.target.value)}
               placeholder={placeholder}
               autoFocus={autoFocus}
               maxLength={100}

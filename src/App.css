@@ -560,10 +560,12 @@
 }
 
 .galxi-sidebar__group:hover .galxi-sidebar__submenu,
-.galxi-sidebar__group:focus-within .galxi-sidebar__submenu {
+.galxi-sidebar__group:focus-within .galxi-sidebar__submenu,
+.galxi-sidebar__group--open .galxi-sidebar__submenu {
   opacity: 1;
   visibility: visible;
   transform: translateX(0);
+  pointer-events: auto;
 }
 
 .galxi-sidebar__submenu-item {
@@ -616,6 +618,55 @@
     opacity: 1;
     transform: translate(-50%, 0);
   }
+}
+
+.deletion-banner {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(14, 16, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55);
+  padding: 1.1rem 1.35rem;
+  width: min(480px, calc(100% - 32px));
+  z-index: 120;
+}
+
+.deletion-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.deletion-banner__body p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--textPrimary);
+}
+
+.deletion-banner__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.deletion-banner__actions .btn {
+  flex: 0 0 auto;
+  min-width: 120px;
+}
+
+.btn-danger {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: #f87171;
+  color: #0f1117;
+}
+
+.btn-danger:hover {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: #ef4444;
+  color: #fff;
 }
 
 .draft-layer {
@@ -1865,6 +1916,47 @@
 .danger-link:hover {
   color: #fca5a5;
   border-color: rgba(248, 113, 113, 0.55);
+}
+
+.app-error {
+  min-height: 100vh;
+  background: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+}
+
+.app-error-card {
+  max-width: 520px;
+  width: 100%;
+  background: rgba(12, 14, 18, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55);
+}
+
+.app-error-card h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+  color: var(--textPrimary);
+}
+
+.app-error-card p {
+  margin: 0.3rem 0;
+  color: var(--textSecondary);
+}
+
+.app-error-meta {
+  font-size: 0.9rem;
+}
+
+.app-error-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
 }
 
 .node-editor-resize {
