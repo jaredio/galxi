@@ -650,6 +650,9 @@ export const useForceGraph = ({
     };
   }, [isActive]);
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     const nodeLayer = nodeLayerRef.current;
     const linkHitLayer = linkHitLayerRef.current;
     const linkLayer = linkLayerRef.current;
@@ -1241,7 +1244,7 @@ export const useForceGraph = ({
         positionFrameRef.current = null;
       }
     };
-  }, [nodes, links, groupLinks, groups, nodePositionsRef, groupPositionsRef]);
+  }, [nodes, links, groupLinks, groups, nodePositionsRef, groupPositionsRef, isActive]);
   useEffect(() => {
     const selection = groupSelectionRef.current;
     if (!selection) {
