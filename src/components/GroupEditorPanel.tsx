@@ -9,6 +9,7 @@ import { groupTypeLabelMap } from '../constants/groupLabels';
 import type { GroupType } from '../types/graph';
 import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
 import { ProfileForm } from './ProfileForm';
+import { sanitizeInput, validateGroupTitle } from '../lib/validation';
 
 type ResizeHandle =
   | 'top'
@@ -93,7 +94,15 @@ export const GroupEditorPanel = ({
   const isCreateFlow = mode === 'create';
   const [createStep, setCreateStep] = useState<'basics' | 'details'>('basics');
   const showDetailsStep = isCreateFlow && createStep === 'details';
-  const canProceedToDetails = values.title.trim().length > 0;
+  const titleValidation = useMemo(() => validateGroupTitle(values.title), [values.title]);
+  const titleError = titleValidation.valid ? null : titleValidation.error;
+  const titleErrorId = 'group-title-error';
+  const canProceedToDetails = titleValidation.valid;
+  const submitDisabled = !titleValidation.valid;
+  const filteredGroupOptions = useMemo(
+    () => groupTypeOptions.filter((option) => option.category === groupCategory),
+    [groupCategory]
+  );
 
   useEffect(() => {
     setGroupCategory(resolveCategory(values.type));
@@ -104,9 +113,92 @@ export const GroupEditorPanel = ({
     }
   }, [mode, values.type]);
 
-  const filteredGroupOptions = useMemo(
-    () => groupTypeOptions.filter((option) => option.category === groupCategory),
-    [groupCategory]
+  const renderBasicsSection = useCallback(
+    (eyebrow: string, placeholder: string, autoFocus = false) => (
+      <section className="wizard-section">
+        <div className="wizard-pane">
+          <p className="wizard-eyebrow">{eyebrow}</p>
+          <label className="wizard-field-row">
+            <span>Group Name</span>
+            <input
+              value={values.title}
+              onChange={(event) => onTitleChange(sanitizeInput(event.target.value, 100))}
+              placeholder={placeholder}
+              autoFocus={autoFocus}
+              maxLength={100}
+              aria-invalid={!titleValidation.valid}
+              aria-describedby={titleError ? titleErrorId : undefined}
+            />
+          </label>
+          {titleError && (
+            <p className="wizard-field-error" id={titleErrorId} role="alert">
+              {titleError}
+            </p>
+          )}
+        </div>
+        <div className="wizard-divider" />
+        <div className="type-picker type-picker--premium">
+          <div className="type-picker-head">
+            <div>
+              <span className="type-picker-label">Group Type</span>
+              <span className="type-picker-value">{groupTypeLabelMap[values.type]}</span>
+            </div>
+          </div>
+          {availableCategories.length > 1 && (
+            <div className="type-category-row" role="tablist" aria-label="Group type categories">
+              {availableCategories.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  role="tab"
+                  aria-selected={groupCategory === category}
+                  className={`type-category${groupCategory === category ? ' selected' : ''}`}
+                  onClick={() => setGroupCategory(category)}
+                >
+                  {groupTypeCategoryLabels[category]}
+                </button>
+              ))}
+            </div>
+          )}
+          <div key={groupCategory} className="type-card-grid type-card-grid--animated">
+            {filteredGroupOptions.map((option) => {
+              const selected = option.value === values.type;
+              return (
+                <button
+                  type="button"
+                  key={option.value}
+                  className={`type-card${selected ? ' selected' : ''}`}
+                  onClick={() => onTypeChange(option.value)}
+                  aria-pressed={selected}
+                >
+                  <div className="type-card-icon" aria-hidden="true">
+                    <img src={getGroupIcon(option.value)} alt="" />
+                  </div>
+                  <div className="type-card-body">
+                    <span className="type-card-title">{option.label}</span>
+                    <span className="type-card-description">{option.description}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    ),
+    [
+      availableCategories,
+      filteredGroupOptions,
+      groupCategory,
+      groupTypeCategoryLabels,
+      groupTypeLabelMap,
+      onTitleChange,
+      onTypeChange,
+      setGroupCategory,
+      titleError,
+      titleValidation.valid,
+      values.title,
+      values.type,
+    ]
   );
 
   const stopTrackingPointer = useCallback(() => {
@@ -244,75 +336,27 @@ export const GroupEditorPanel = ({
 
       <form className="node-editor-form" onSubmit={handleSubmit}>
         <div className="node-editor-body group-editor-body">
-          {showDetailsStep ? (
-            <ProfileForm
-              sections={profileSections}
-              values={profileDraft}
-              onChange={onProfileFieldChange}
-              hint="Document ownership, placement, or policy data for this scope. Everything stays optional."
-            />
+          {isCreateFlow ? (
+            showDetailsStep ? (
+              <ProfileForm
+                sections={profileSections}
+                values={profileDraft}
+                onChange={onProfileFieldChange}
+                hint="Document ownership, placement, or policy data for this scope. Everything stays optional."
+              />
+            ) : (
+              renderBasicsSection('New Group', 'Descriptive label', mode === 'create')
+            )
           ) : (
-            <section className="wizard-section">
-              <div className="wizard-pane">
-                <p className="wizard-eyebrow">New Group</p>
-                <label className="wizard-field-row">
-                  <span>Group Name</span>
-                  <input
-                    value={values.title}
-                    onChange={(event) => onTitleChange(event.target.value)}
-                    placeholder="Descriptive label"
-                    autoFocus={mode === 'create'}
-                  />
-                </label>
-              </div>
-              <div className="wizard-divider" />
-              <div className="type-picker type-picker--premium">
-                <div className="type-picker-head">
-                  <div>
-                    <span className="type-picker-label">Group Type</span>
-                    <span className="type-picker-value">{groupTypeLabelMap[values.type]}</span>
-                  </div>
-                </div>
-                {availableCategories.length > 1 && (
-                  <div className="type-category-row" role="tablist" aria-label="Group type categories">
-                    {availableCategories.map((category) => (
-                      <button
-                        key={category}
-                        type="button"
-                        role="tab"
-                        aria-selected={groupCategory === category}
-                        className={`type-category${groupCategory === category ? ' selected' : ''}`}
-                        onClick={() => setGroupCategory(category)}
-                      >
-                        {groupTypeCategoryLabels[category]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div key={groupCategory} className="type-card-grid type-card-grid--animated">
-                  {filteredGroupOptions.map((option) => {
-                    const selected = option.value === values.type;
-                    return (
-                      <button
-                        type="button"
-                        key={option.value}
-                        className={`type-card${selected ? ' selected' : ''}`}
-                        onClick={() => onTypeChange(option.value)}
-                        aria-pressed={selected}
-                      >
-                        <div className="type-card-icon" aria-hidden="true">
-                          <img src={getGroupIcon(option.value)} alt="" />
-                        </div>
-                        <div className="type-card-body">
-                          <span className="type-card-title">{option.label}</span>
-                          <span className="type-card-description">{option.description}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </section>
+            <>
+              {renderBasicsSection('Group Basics', 'Descriptive label')}
+              <ProfileForm
+                sections={profileSections}
+                values={profileDraft}
+                onChange={onProfileFieldChange}
+                hint="Update ownership, placement, or policy data for this scope."
+              />
+            </>
           )}
         </div>
 
@@ -327,7 +371,7 @@ export const GroupEditorPanel = ({
                   <button type="button" className="btn" onClick={() => setCreateStep('basics')}>
                     Back
                   </button>
-                  <button type="submit" className="btn btn-accent">
+                  <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
                     {saveButtonLabel}
                   </button>
                 </>
@@ -342,7 +386,7 @@ export const GroupEditorPanel = ({
                 </button>
               )
             ) : (
-              <button type="submit" className="btn btn-accent">
+              <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
                 {saveButtonLabel}
               </button>
             )}

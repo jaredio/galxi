@@ -47,11 +47,22 @@ import {
   getNodeProfileSchema,
   mergeProfileWithSchema,
 } from './schemas/resources';
+import { debounce, loadGraph, saveGraph } from './lib/persistence';
+import { logger } from './lib/logger';
+import {
+  sanitizeInput,
+  validateGroupTitle,
+  validateLabel,
+  validateProfileField,
+  validateRelation,
+} from './lib/validation';
 import type {
   CanvasGroup,
   GroupLink,
   GroupPositionMap,
   GroupType,
+  NetworkLink,
+  NetworkNode,
   NodePositionMap,
   NodeType,
   SimulationLink,
@@ -249,6 +260,14 @@ const createGroupId = () =>
     ? globalThis.crypto.randomUUID()
     : `group-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+const formatTimestamp = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
 const App = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
@@ -264,6 +283,7 @@ const App = () => {
   const setLinks = useGraphStore((state) => state.setLinks);
   const setGroupLinks = useGraphStore((state) => state.setGroupLinks);
   const setGroups = useGraphStore((state) => state.setGroups);
+  const replaceGraph = useGraphStore((state) => state.replaceGraph);
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
   const isCanvasView = activeTab === 'canvas';
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
@@ -322,9 +342,24 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     relation: string;
   } | null>(null);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [persistenceReady, setPersistenceReady] = useState(false);
   const [profileWindows, setProfileWindows] = useState<ProfileWindowState[]>([]);
   const profileSpawnIndexRef = useRef(0);
   const profileZIndexRef = useRef(60);
+  const autosaveCallbackRef = useRef<
+    | null
+    | ((
+        payload: {
+          nodes: NetworkNode[];
+          links: NetworkLink[];
+          groups: CanvasGroup[];
+          groupLinks: GroupLink[];
+          nodePositions: NodePositionMap;
+          groupPositions: GroupPositionMap;
+        }
+      ) => void)
+  >(null);
+  const autosaveErrorRef = useRef(false);
   const [groupDraft, setGroupDraft] = useState<CanvasGroup | null>(null);
   const [connectionBuilderMode, setConnectionBuilderMode] = useState(false);
   const profileContext = useMemo(
@@ -612,6 +647,65 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   const showUtilityToast = useCallback((message: string) => {
     setUtilityToast({ id: Date.now(), message });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setPersistenceReady(true);
+      return;
+    }
+    const restored = loadGraph();
+    if (restored) {
+      replaceGraph(restored);
+      nodePositionsRef.current = restored.nodePositions ?? {};
+      groupPositionsRef.current = restored.groupPositions ?? {};
+      setWelcomeDismissed(true);
+      logger.info('Restored graph session from persistence', {
+        nodes: restored.nodes.length,
+        links: restored.links.length,
+        groups: restored.groups.length,
+        restoredAt: restored.timestamp,
+      });
+      showUtilityToast(`Restored session from ${formatTimestamp(restored.timestamp)}.`);
+    }
+    setPersistenceReady(true);
+  }, [replaceGraph, showUtilityToast]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    autosaveCallbackRef.current = debounce((payload) => {
+      const success = saveGraph(payload);
+      if (!success) {
+        if (!autosaveErrorRef.current) {
+          autosaveErrorRef.current = true;
+          showUtilityToast('Autosave failed. Check console logs.');
+        }
+        return;
+      }
+      if (autosaveErrorRef.current) {
+        autosaveErrorRef.current = false;
+        showUtilityToast('Autosave recovered.');
+      }
+    }, 1200);
+    return () => {
+      autosaveCallbackRef.current = null;
+    };
+  }, [showUtilityToast]);
+
+  useEffect(() => {
+    if (!persistenceReady || !autosaveCallbackRef.current) {
+      return;
+    }
+    autosaveCallbackRef.current({
+      nodes,
+      links,
+      groups,
+      groupLinks,
+      nodePositions: { ...nodePositionsRef.current },
+      groupPositions: { ...groupPositionsRef.current },
+    });
+  }, [persistenceReady, nodes, links, groups, groupLinks]);
 
   const handleNodeHover = useCallback((nodeId: string | null) => {
     setHoveredNodeId(nodeId);
@@ -973,7 +1067,8 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   );
 
   const handleLabelChange = useCallback((value: string) => {
-    setFormValues((prev) => ({ ...prev, label: value }));
+    const sanitized = sanitizeInput(value, 100);
+    setFormValues((prev) => ({ ...prev, label: sanitized }));
   }, []);
 
   const handleTypeChange = useCallback(
@@ -985,11 +1080,16 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   );
 
   const handleNodeProfileFieldChange = useCallback((fieldKey: string, value: string) => {
+    const result = validateProfileField(value);
+    if (!result.valid) {
+      return;
+    }
+    const nextValue = result.value ?? '';
     setNodeProfileDraft((prev) => {
-      if (prev[fieldKey] === value) {
+      if (prev[fieldKey] === nextValue) {
         return prev;
       }
-      return { ...prev, [fieldKey]: value };
+      return { ...prev, [fieldKey]: nextValue };
     });
   }, []);
 
@@ -1020,8 +1120,10 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
 
   const handleConnectionRelationChange = useCallback(
     (key: string, relation: string) => {
+      const result = validateRelation(relation);
+      const value = result.value ?? '';
       setLinks((prev) =>
-        prev.map((link) => (makeLinkKey(link) === key ? { ...link, relation } : link))
+        prev.map((link) => (makeLinkKey(link) === key ? { ...link, relation: value } : link))
       );
     },
     [setLinks]
@@ -1095,6 +1197,34 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     setContextMenu,
     closeProfileWindowsByResource,
   ]);
+
+  const requestNodeRemoval = useCallback(
+    (nodeId: string) => {
+      const target = nodes.find((node) => node.id === nodeId);
+      const label = target?.label?.trim().length ? target!.label : 'this node';
+      if (!window.confirm(`Delete ${label} and all associated connections?`)) {
+        return false;
+      }
+      removeNodeById(nodeId);
+      return true;
+    },
+    [nodes, removeNodeById]
+  );
+
+  const requestGroupRemoval = useCallback(
+    (groupId: string) => {
+      const target = groups.find((group) => group.id === groupId);
+      const label = target?.title?.trim().length ? target!.title : 'this group';
+      if (
+        !window.confirm(`Delete ${label} along with nested links, connections, and placement info?`)
+      ) {
+        return false;
+      }
+      removeGroupById(groupId);
+      return true;
+    },
+    [groups, removeGroupById]
+  );
 
   const handleGroupHover = useCallback((groupId: string | null) => {
     setHoveredGroupId(groupId);
@@ -1503,7 +1633,8 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   );
 
   const handleGroupTitleChange = useCallback((value: string) => {
-    setGroupFormValues((prev) => ({ ...prev, title: value }));
+    const sanitized = sanitizeInput(value, 100);
+    setGroupFormValues((prev) => ({ ...prev, title: sanitized }));
   }, []);
 
   const handleGroupTypeChange = useCallback((value: GroupType) => {
@@ -1512,11 +1643,16 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   }, []);
 
   const handleGroupProfileFieldChange = useCallback((fieldKey: string, value: string) => {
+    const result = validateProfileField(value);
+    if (!result.valid) {
+      return;
+    }
+    const nextValue = result.value ?? '';
     setGroupProfileDraft((prev) => {
-      if (prev[fieldKey] === value) {
+      if (prev[fieldKey] === nextValue) {
         return prev;
       }
-      return { ...prev, [fieldKey]: value };
+      return { ...prev, [fieldKey]: nextValue };
     });
   }, []);
 
@@ -1669,7 +1805,9 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   );
 
   const handleConnectionFormRelationChange = useCallback((value: string) => {
-    setConnectionForm((current) => (current ? { ...current, relation: value } : current));
+    const result = validateRelation(value);
+    const nextValue = result.value ?? '';
+    setConnectionForm((current) => (current ? { ...current, relation: nextValue } : current));
   }, []);
 
   const handleConnectionFormClose = useCallback(() => {
@@ -1714,6 +1852,16 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const activeElement = document.activeElement as HTMLElement | null;
+      const isEditableElement =
+        !!activeElement &&
+        (activeElement.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName) ||
+          activeElement.getAttribute('role') === 'textbox');
+      const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
+      if (isEditableElement && !(event.key === 'Escape' && !hasModifier && !event.shiftKey)) {
+        return;
+      }
       if (event.key === 'Escape') {
         setConnectionDraft(null);
         setConnectionBuilderMode(false);
@@ -1769,7 +1917,13 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
 
       if (event.key === 'Delete' && activeNodeId) {
         event.preventDefault();
-        removeNodeById(activeNodeId);
+        requestNodeRemoval(activeNodeId);
+        return;
+      }
+
+      if (event.key === 'Delete' && selectedGroupId) {
+        event.preventDefault();
+        requestGroupRemoval(selectedGroupId);
         return;
       }
 
@@ -1820,7 +1974,9 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     nodes,
     removeConnectionByKey,
     removeGroupConnectionByKey,
-    removeNodeById,
+    requestNodeRemoval,
+    requestGroupRemoval,
+    selectedGroupId,
     profileWindows.length,
     closeTopProfileWindow,
   ]);
@@ -1871,9 +2027,13 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
       if (!nodeForm) {
         return;
       }
-
-      const label = formValues.label.trim() || 'Untitled Node';
-      const group = formValues.group.trim();
+      const labelResult = validateLabel(formValues.label);
+      if (!labelResult.valid || !labelResult.value) {
+        showUtilityToast(labelResult.error ?? 'Enter a node name to continue.');
+        return;
+      }
+      const label = labelResult.value;
+      const group = sanitizeInput(formValues.group, 100);
 
       if (nodeForm.mode === 'create') {
         const newId = createNodeId();
@@ -1916,7 +2076,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
       setNodeForm(null);
       setNodeProfileDraft(createDefaultNodeProfile('vm'));
     },
-    [formValues, nodeForm, nodeProfileDraft]
+    [formValues, nodeForm, nodeProfileDraft, showUtilityToast]
   );
 
   const handleNodeFormClose = useCallback(() => {
@@ -1930,9 +2090,14 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
       if (!groupForm) {
         return;
       }
-      const title = groupFormValues.title.trim() || 'Untitled Group';
-       const schema = getGroupProfileSchema(groupFormValues.type);
-       const mergedProfile = mergeProfileWithSchema(schema, groupProfileDraft);
+      const titleResult = validateGroupTitle(groupFormValues.title);
+      if (!titleResult.valid || !titleResult.value) {
+        showUtilityToast(titleResult.error ?? 'Enter a group name to continue.');
+        return;
+      }
+      const title = titleResult.value;
+      const schema = getGroupProfileSchema(groupFormValues.type);
+      const mergedProfile = mergeProfileWithSchema(schema, groupProfileDraft);
       if (groupForm.mode === 'create') {
         if (!groupDraft || groupDraft.id !== groupForm.groupId) {
           return;
@@ -1958,7 +2123,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
       setGroupForm(null);
       setGroupProfileDraft(createDefaultGroupProfile('virtualNetwork'));
     },
-    [groupForm, groupFormValues, updateGroupById, groupDraft, setGroups, groupProfileDraft]
+    [groupForm, groupFormValues, updateGroupById, groupDraft, setGroups, groupProfileDraft, showUtilityToast]
   );
 
   const handleGroupFormClose = useCallback(() => {
@@ -1973,8 +2138,8 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     if (!groupForm) {
       return;
     }
-    removeGroupById(groupForm.groupId);
-  }, [groupForm, removeGroupById]);
+    requestGroupRemoval(groupForm.groupId);
+  }, [groupForm, requestGroupRemoval]);
 
   const nodeEditorConnections = useMemo<NodeConnection[]>(() => {
     if (!nodeForm || nodeForm.mode !== 'edit') {
@@ -2153,8 +2318,9 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
   }, [resetZoom]);
 
   const handleEmptyStateCreate = useCallback(() => {
+    handleSidebarCreateNode();
     setWelcomeDismissed(true);
-  }, []);
+  }, [handleSidebarCreateNode]);
 
   const contextMenuItems = useMemo(() => {
     if (!contextMenu) {
@@ -2264,7 +2430,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
           label: 'Delete group',
           icon: <TrashIcon />,
           tone: 'danger' as const,
-          onSelect: () => removeGroupById(contextMenu.groupId),
+          onSelect: () => requestGroupRemoval(contextMenu.groupId),
         },
       ];
     }
@@ -2282,14 +2448,14 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
         icon: <EditIcon />,
         onSelect: () => openNodeEditorById(contextMenu.nodeId),
       },
-      {
-        id: 'delete-node',
-        label: 'Delete node',
-        icon: <TrashIcon />,
-        tone: 'danger' as const,
-        onSelect: () => removeNodeById(contextMenu.nodeId),
-      },
-    ];
+        {
+          id: 'delete-node',
+          label: 'Delete node',
+          icon: <TrashIcon />,
+          tone: 'danger' as const,
+          onSelect: () => requestNodeRemoval(contextMenu.nodeId),
+        },
+      ];
   }, [
     contextMenu,
     handleContextMenuAddNode,
@@ -2297,9 +2463,9 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
     openNodeEditorById,
     removeConnectionByKey,
     removeGroupConnectionByKey,
-    removeNodeById,
+    requestNodeRemoval,
     openGroupEditor,
-    removeGroupById,
+    requestGroupRemoval,
     links,
     groupLinks,
     openProfileWindow,
@@ -2435,7 +2601,7 @@ const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(
               onSubmit={handleNodeFormSubmit}
               onDeleteNode={() => {
                 if (nodeForm.mode === 'edit') {
-                  removeNodeById(nodeForm.nodeId);
+                  requestNodeRemoval(nodeForm.nodeId);
                 }
               }}
               nodeTypeOptions={nodeTypeOptions}

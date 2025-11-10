@@ -1544,6 +1544,13 @@
   background: rgba(16, 18, 24, 0.98);
 }
 
+.wizard-field-error {
+  margin: -0.3rem 0 0.4rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+}
+
 .wizard-pane-header h3 {
   margin: 0;
   font-size: 1.1rem;

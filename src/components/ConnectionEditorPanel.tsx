@@ -317,6 +317,7 @@ export const ConnectionEditorPanel = ({
                   onChange={(event) => onRelationChange(event.target.value)}
                   placeholder="Describe relation"
                   autoFocus
+                  maxLength={50}
                 />
               </label>
             </section>

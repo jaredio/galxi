@@ -3,7 +3,14 @@
  * Provides save/load functionality for graph data
  */
 
-import type { CanvasGroup, GroupLink, NetworkLink, NetworkNode } from '../types/graph';
+import type {
+  CanvasGroup,
+  GroupLink,
+  GroupPositionMap,
+  NetworkLink,
+  NetworkNode,
+  NodePositionMap,
+} from '../types/graph';
 import { logger } from './logger';
 
 const STORAGE_KEY = 'galxi-graph-data';
@@ -16,6 +23,8 @@ export type GraphData = {
   links: NetworkLink[];
   groups: CanvasGroup[];
   groupLinks: GroupLink[];
+  nodePositions: NodePositionMap;
+  groupPositions: GroupPositionMap;
 };
 
 /**
@@ -26,6 +35,8 @@ export const saveGraph = (data: {
   links: NetworkLink[];
   groups: CanvasGroup[];
   groupLinks: GroupLink[];
+  nodePositions: NodePositionMap;
+  groupPositions: GroupPositionMap;
 }): boolean => {
   try {
     const graphData: GraphData = {
@@ -41,6 +52,8 @@ export const saveGraph = (data: {
       nodeCount: data.nodes.length,
       linkCount: data.links.length,
       groupCount: data.groups.length,
+      nodePositions: Object.keys(data.nodePositions).length,
+      groupPositions: Object.keys(data.groupPositions).length,
     });
 
     return true;
@@ -83,7 +96,11 @@ export const loadGraph = (): GraphData | null => {
       timestamp: data.timestamp,
     });
 
-    return data;
+    return {
+      ...data,
+      nodePositions: data.nodePositions ?? {},
+      groupPositions: data.groupPositions ?? {},
+    };
   } catch (error) {
     logger.error('Failed to load graph data', error as Error);
     return null;

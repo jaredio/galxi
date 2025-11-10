@@ -11,6 +11,7 @@ import type { NodeTypeCategory, NodeTypeOption } from '../constants/nodeOptions'
 import { nodeTypeCategoryLabels, nodeTypeCategoryOrder } from '../constants/nodeOptions';
 import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
 import { ProfileForm } from './ProfileForm';
+import { sanitizeInput, validateLabel } from '../lib/validation';
 
 export type NodeFormMode = 'create' | 'edit';
 
@@ -175,10 +176,104 @@ export const NodeEditorPanel = ({
 
   const isCreateFlow = mode === 'create';
   const showDetailsStep = isCreateFlow && createStep === 'details';
-  const canProceedToDetails = values.label.trim().length > 0;
+  const labelValidation = useMemo(() => validateLabel(values.label), [values.label]);
+  const labelError = labelValidation.valid ? null : labelValidation.error;
+  const labelErrorId = 'node-label-error';
+  const canProceedToDetails = labelValidation.valid;
+  const submitDisabled = !labelValidation.valid;
   const filteredNodeTypeOptions = useMemo(
     () => nodeTypeOptions.filter((option) => option.category === typeCategory),
     [nodeTypeOptions, typeCategory]
+  );
+
+  const renderBasicsSection = useCallback(
+    (eyebrow: string, placeholder: string, autoFocus = false) => (
+      <section className="wizard-section">
+        <div className="wizard-pane">
+          <p className="wizard-eyebrow">{eyebrow}</p>
+          <label className="wizard-field-row">
+            <span>Label</span>
+            <input
+              value={values.label}
+              onChange={(event) => onLabelChange(sanitizeInput(event.target.value, 100))}
+              placeholder={placeholder}
+              autoFocus={autoFocus}
+              maxLength={100}
+              aria-invalid={!labelValidation.valid}
+              aria-describedby={labelError ? labelErrorId : undefined}
+            />
+          </label>
+          {labelError && (
+            <p className="wizard-field-error" id={labelErrorId} role="alert">
+              {labelError}
+            </p>
+          )}
+        </div>
+        <div className="wizard-divider" />
+        <div className="type-picker type-picker--premium">
+          <div className="type-picker-head">
+            <div>
+              <span className="type-picker-label">Resource type</span>
+              <span className="type-picker-value">{nodeTypeLabelMap[values.type]}</span>
+            </div>
+          </div>
+          <div className="type-category-row" role="tablist" aria-label="Node type categories">
+            {availableCategories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                role="tab"
+                aria-selected={typeCategory === category}
+                className={`type-category${typeCategory === category ? ' selected' : ''}`}
+                onClick={() => setTypeCategory(category)}
+              >
+                {nodeTypeCategoryLabels[category]}
+              </button>
+            ))}
+          </div>
+          <div key={typeCategory} className="type-card-grid type-card-grid--animated">
+            {filteredNodeTypeOptions.length === 0 ? (
+              <p className="type-card-empty">Nothing in this catalog yet.</p>
+            ) : (
+              filteredNodeTypeOptions.map((option) => {
+                const selected = option.value === values.type;
+                return (
+                  <button
+                    type="button"
+                    key={option.value}
+                    className={`type-card${selected ? ' selected' : ''}`}
+                    onClick={() => onTypeChange(option.value)}
+                    aria-pressed={selected}
+                  >
+                    <div className="type-card-icon" aria-hidden="true">
+                      <img src={getNodeIcon(option.value)} alt="" />
+                    </div>
+                    <div className="type-card-body">
+                      <span className="type-card-title">{option.label}</span>
+                      <span className="type-card-description">{option.description}</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </section>
+    ),
+    [
+      availableCategories,
+      filteredNodeTypeOptions,
+      labelError,
+      labelValidation.valid,
+      nodeTypeCategoryLabels,
+      nodeTypeLabelMap,
+      onLabelChange,
+      onTypeChange,
+      setTypeCategory,
+      typeCategory,
+      values.label,
+      values.type,
+    ]
   );
 
   const handleHeaderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -323,77 +418,27 @@ export const NodeEditorPanel = ({
         <div className="node-editor-body">
           {activeTab === 'info' && (
             <div className="node-editor-section-stack">
-              {showDetailsStep ? (
-                <ProfileForm
-                  sections={profileSections}
-                  values={profileDraft}
-                  onChange={onProfileFieldChange}
-                  hint="All profile fields are optional. Populate only what you have on hand."
-                />
+              {isCreateFlow ? (
+                showDetailsStep ? (
+                  <ProfileForm
+                    sections={profileSections}
+                    values={profileDraft}
+                    onChange={onProfileFieldChange}
+                    hint="All profile fields are optional. Populate only what you have on hand."
+                  />
+                ) : (
+                  renderBasicsSection('New Node', 'Enter node name', mode === 'create')
+                )
               ) : (
-                <section className="wizard-section">
-                  <div className="wizard-pane">
-                    <p className="wizard-eyebrow">New Node</p>
-                    <label className="wizard-field-row">
-                      <span>Label</span>
-                      <input
-                        value={values.label}
-                        onChange={(event) => onLabelChange(event.target.value)}
-                        placeholder="Enter node name"
-                        autoFocus={mode === 'create'}
-                      />
-                    </label>
-                  </div>
-                  <div className="wizard-divider" />
-                  <div className="type-picker type-picker--premium">
-                    <div className="type-picker-head">
-                      <div>
-                        <span className="type-picker-label">Resource type</span>
-                        <span className="type-picker-value">{nodeTypeLabelMap[values.type]}</span>
-                      </div>
-                    </div>
-                    <div className="type-category-row" role="tablist" aria-label="Node type categories">
-                      {availableCategories.map((category) => (
-                        <button
-                          key={category}
-                          type="button"
-                          role="tab"
-                          aria-selected={typeCategory === category}
-                          className={`type-category${typeCategory === category ? ' selected' : ''}`}
-                          onClick={() => setTypeCategory(category)}
-                        >
-                          {nodeTypeCategoryLabels[category]}
-                        </button>
-                      ))}
-                    </div>
-                    <div key={typeCategory} className="type-card-grid type-card-grid--animated">
-                      {filteredNodeTypeOptions.length === 0 ? (
-                        <p className="type-card-empty">Nothing in this catalog yet.</p>
-                      ) : (
-                        filteredNodeTypeOptions.map((option) => {
-                          const selected = option.value === values.type;
-                          return (
-                            <button
-                              type="button"
-                              key={option.value}
-                              className={`type-card${selected ? ' selected' : ''}`}
-                              onClick={() => onTypeChange(option.value)}
-                              aria-pressed={selected}
-                            >
-                              <div className="type-card-icon" aria-hidden="true">
-                                <img src={getNodeIcon(option.value)} alt="" />
-                              </div>
-                              <div className="type-card-body">
-                                <span className="type-card-title">{option.label}</span>
-                                <span className="type-card-description">{option.description}</span>
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </section>
+                <>
+                  {renderBasicsSection('Node Basics', 'Node name')}
+                  <ProfileForm
+                    sections={profileSections}
+                    values={profileDraft}
+                    onChange={onProfileFieldChange}
+                    hint="Update ownership, placement, or policy metadata for this resource."
+                  />
+                </>
               )}
             </div>
           )}
@@ -423,6 +468,7 @@ export const NodeEditorPanel = ({
                                 onConnectionRelationChange(connection.key, event.target.value)
                               }
                               placeholder="Describe relation"
+                              maxLength={50}
                             />
                           </div>
                           <button
@@ -450,6 +496,7 @@ export const NodeEditorPanel = ({
                                 onConnectionRelationChange(connection.key, event.target.value)
                               }
                               placeholder="Describe relation"
+                              maxLength={50}
                             />
                           </div>
                           <button
@@ -481,7 +528,7 @@ export const NodeEditorPanel = ({
                   <button type="button" className="btn" onClick={() => setCreateStep('basics')}>
                     Back
                   </button>
-                  <button type="submit" className="btn btn-accent">
+                  <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
                     Create Node
                   </button>
                 </>
@@ -496,7 +543,7 @@ export const NodeEditorPanel = ({
                 </button>
               )
             ) : (
-              <button type="submit" className="btn btn-accent">
+              <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
                 Save Changes
               </button>
             )}
