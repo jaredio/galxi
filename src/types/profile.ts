@@ -17,6 +17,12 @@ export type ProfileSection = {
   variant?: 'default' | 'cards';
 };
 
+export type ProfileFormSection = {
+  id: string;
+  title: string;
+  fields: Array<{ id: string; label: string; key: string }>;
+};
+
 export type ProfileWindowContent = {
   title: string;
   typeLabel: string;

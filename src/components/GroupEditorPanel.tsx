@@ -7,6 +7,8 @@ import { getGroupIcon } from '../constants/groupIcons';
 import { groupTypeCategoryLabels, groupTypeCategoryOrder, groupTypeOptions } from '../constants/groupTypes';
 import { groupTypeLabelMap } from '../constants/groupLabels';
 import type { GroupType } from '../types/graph';
+import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
+import { ProfileForm } from './ProfileForm';
 
 type ResizeHandle =
   | 'top'
@@ -51,6 +53,9 @@ type GroupEditorPanelProps = {
   onResize: (geometry: { x: number; y: number; width: number; height: number }) => void;
   onToggleExpand: () => void;
   isExpanded: boolean;
+  profileDraft: ResourceProfileData;
+  profileSections: ProfileFormSection[];
+  onProfileFieldChange: (fieldKey: string, value: string) => void;
 };
 
 export const GroupEditorPanel = ({
@@ -67,6 +72,9 @@ export const GroupEditorPanel = ({
   onResize,
   onToggleExpand,
   isExpanded,
+  profileDraft,
+  profileSections,
+  onProfileFieldChange,
 }: GroupEditorPanelProps) => {
   const pointerCleanupRef = useRef<(() => void) | null>(null);
   const categoryByType = useMemo(
@@ -82,10 +90,19 @@ export const GroupEditorPanel = ({
     [categoryByType, availableCategories]
   );
   const [groupCategory, setGroupCategory] = useState(resolveCategory(values.type));
+  const isCreateFlow = mode === 'create';
+  const [createStep, setCreateStep] = useState<'basics' | 'details'>('basics');
+  const showDetailsStep = isCreateFlow && createStep === 'details';
+  const canProceedToDetails = values.title.trim().length > 0;
 
   useEffect(() => {
     setGroupCategory(resolveCategory(values.type));
   }, [values.type, resolveCategory]);
+  useEffect(() => {
+    if (mode === 'create') {
+      setCreateStep('basics');
+    }
+  }, [mode, values.type]);
 
   const filteredGroupOptions = useMemo(
     () => groupTypeOptions.filter((option) => option.category === groupCategory),
@@ -191,19 +208,18 @@ export const GroupEditorPanel = ({
     onSubmit(event);
   };
 
+  const panelClassName = `node-editor group-editor${isExpanded ? ' is-expanded' : ''}`;
+  const panelStyle = {
+    left: position.x,
+    top: position.y,
+    width: size.width,
+    height: size.height,
+  };
+  const headerTitle = mode === 'create' ? 'New Group' : values.title || 'Edit Group';
+  const headerSubtitle = groupTypeLabelMap[values.type] ?? 'Group';
+
   return (
-    <aside
-      className={`node-editor group-editor${isExpanded ? ' is-expanded' : ''}`}
-      role="dialog"
-      aria-modal="false"
-      tabIndex={-1}
-      style={{
-        left: position.x,
-        top: position.y,
-        width: size.width,
-        height: size.height,
-      }}
-    >
+    <aside className={panelClassName} role="dialog" aria-modal="false" tabIndex={-1} style={panelStyle}>
       <header
         className="node-editor-header"
         onPointerDown={handleHeaderPointerDown}
@@ -217,72 +233,87 @@ export const GroupEditorPanel = ({
             {groupIcon ? <img src={groupIcon} alt="" /> : <NetworkIcon />}
           </span>
           <div className="node-editor-title-text">
-            <h2>{mode === 'create' ? 'Create Group' : 'Edit Group'}</h2>
-            <span className="node-editor-eyebrow">
-              {groupTypeLabelMap[values.type] ?? 'Group'}
-            </span>
+            <h2>{headerTitle}</h2>
+            <span className="node-editor-eyebrow">{headerSubtitle}</span>
           </div>
         </div>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Close group editor">
+        <button type="button" className="icon-button icon-button--plain" onClick={onClose} aria-label="Close">
           <CloseIcon />
         </button>
       </header>
 
       <form className="node-editor-form" onSubmit={handleSubmit}>
         <div className="node-editor-body group-editor-body">
-          <section className="node-editor-section">
-            <label>
-              <span>Group Name</span>
-              <input
-                value={values.title}
-                onChange={(event) => onTitleChange(event.target.value)}
-                placeholder="Descriptive label"
-                autoFocus={mode === 'create'}
-              />
-            </label>
-            <div className="type-picker">
-              <div className="type-picker-head">
-                <span className="type-picker-label">Group Type</span>
-                <span className="type-picker-value">{groupTypeLabelMap[values.type]}</span>
+          {showDetailsStep ? (
+            <ProfileForm
+              sections={profileSections}
+              values={profileDraft}
+              onChange={onProfileFieldChange}
+              hint="Document ownership, placement, or policy data for this scope. Everything stays optional."
+            />
+          ) : (
+            <section className="wizard-section">
+              <div className="wizard-pane">
+                <p className="wizard-eyebrow">New Group</p>
+                <label className="wizard-field-row">
+                  <span>Group Name</span>
+                  <input
+                    value={values.title}
+                    onChange={(event) => onTitleChange(event.target.value)}
+                    placeholder="Descriptive label"
+                    autoFocus={mode === 'create'}
+                  />
+                </label>
               </div>
-              {availableCategories.length > 1 && (
-                <div className="type-category-row" role="tablist" aria-label="Group type categories">
-                  {availableCategories.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      role="tab"
-                      aria-selected={groupCategory === category}
-                      className={`type-category${groupCategory === category ? ' selected' : ''}`}
-                      onClick={() => setGroupCategory(category)}
-                    >
-                      {groupTypeCategoryLabels[category]}
-                    </button>
-                  ))}
+              <div className="wizard-divider" />
+              <div className="type-picker type-picker--premium">
+                <div className="type-picker-head">
+                  <div>
+                    <span className="type-picker-label">Group Type</span>
+                    <span className="type-picker-value">{groupTypeLabelMap[values.type]}</span>
+                  </div>
                 </div>
-              )}
-              <div className="type-card-grid">
-                {filteredGroupOptions.map((option) => {
-                  const selected = option.value === values.type;
-                  return (
-                    <button
-                      type="button"
-                      key={option.value}
-                      className={`type-card${selected ? ' selected' : ''}`}
-                      onClick={() => onTypeChange(option.value)}
-                      aria-pressed={selected}
-                    >
-                      <img src={getGroupIcon(option.value)} alt="" aria-hidden="true" className="type-card-icon" />
-                      <div className="type-card-body">
-                        <span className="type-card-title">{option.label}</span>
-                        <span className="type-card-description">{option.description}</span>
-                      </div>
-                    </button>
-                  );
-                })}
+                {availableCategories.length > 1 && (
+                  <div className="type-category-row" role="tablist" aria-label="Group type categories">
+                    {availableCategories.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        role="tab"
+                        aria-selected={groupCategory === category}
+                        className={`type-category${groupCategory === category ? ' selected' : ''}`}
+                        onClick={() => setGroupCategory(category)}
+                      >
+                        {groupTypeCategoryLabels[category]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div key={groupCategory} className="type-card-grid type-card-grid--animated">
+                  {filteredGroupOptions.map((option) => {
+                    const selected = option.value === values.type;
+                    return (
+                      <button
+                        type="button"
+                        key={option.value}
+                        className={`type-card${selected ? ' selected' : ''}`}
+                        onClick={() => onTypeChange(option.value)}
+                        aria-pressed={selected}
+                      >
+                        <div className="type-card-icon" aria-hidden="true">
+                          <img src={getGroupIcon(option.value)} alt="" />
+                        </div>
+                        <div className="type-card-body">
+                          <span className="type-card-title">{option.label}</span>
+                          <span className="type-card-description">{option.description}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
         </div>
 
         <footer className="node-editor-footer">
@@ -290,9 +321,31 @@ export const GroupEditorPanel = ({
             <button type="button" className="btn" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-accent">
-              {saveButtonLabel}
-            </button>
+            {isCreateFlow ? (
+              showDetailsStep ? (
+                <>
+                  <button type="button" className="btn" onClick={() => setCreateStep('basics')}>
+                    Back
+                  </button>
+                  <button type="submit" className="btn btn-accent">
+                    {saveButtonLabel}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  onClick={() => setCreateStep('details')}
+                  disabled={!canProceedToDetails}
+                >
+                  Continue
+                </button>
+              )
+            ) : (
+              <button type="submit" className="btn btn-accent">
+                {saveButtonLabel}
+              </button>
+            )}
           </div>
           {mode === 'edit' && onDelete && (
             <button type="button" className="danger-link" onClick={onDelete}>

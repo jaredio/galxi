@@ -1,5 +1,5 @@
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
 
 import { CloseIcon, EditIcon, TrashIcon } from './icons';
@@ -9,7 +9,8 @@ import { getNodeIcon } from '../constants/nodeIcons';
 import type { NodeType } from '../types/graph';
 import type { NodeTypeCategory, NodeTypeOption } from '../constants/nodeOptions';
 import { nodeTypeCategoryLabels, nodeTypeCategoryOrder } from '../constants/nodeOptions';
-import type { ResourceProfileData } from '../types/profile';
+import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
+import { ProfileForm } from './ProfileForm';
 
 export type NodeFormMode = 'create' | 'edit';
 
@@ -26,12 +27,6 @@ export type NodeConnection = {
   relation: string;
 };
 
-type NodeProfileSection = {
-  id: string;
-  title: string;
-  fields: Array<{ id: string; label: string; key: string }>;
-};
-
 type NodeEditorPanelProps = {
   mode: NodeFormMode;
   values: NodeFormValues;
@@ -43,7 +38,7 @@ type NodeEditorPanelProps = {
   onDeleteNode: () => void;
   nodeTypeOptions: NodeTypeOption[];
   profileDraft: ResourceProfileData;
-  profileSections: NodeProfileSection[];
+  profileSections: ProfileFormSection[];
   onProfileFieldChange: (fieldKey: string, value: string) => void;
   connections: NodeConnection[];
   onConnectionRelationChange: (key: string, relation: string) => void;
@@ -84,35 +79,6 @@ const resizeHandles: Array<{ key: ResizeHandle; className: string; cursor: strin
     cursor: 'nwse-resize',
   },
 ];
-
-type NodeProfileFormProps = {
-  sections: NodeProfileSection[];
-  values: ResourceProfileData;
-  onChange: (fieldKey: string, value: string) => void;
-};
-
-const NodeProfileForm = memo(({ sections, values, onChange }: NodeProfileFormProps) => (
-  <div className="node-profile-form">
-    {sections.map((section) => (
-      <section key={section.id} className="node-profile-section">
-        <p className="node-profile-section-title">{section.title}</p>
-        <div className="node-profile-field-grid">
-          {section.fields.map((field) => (
-            <label key={field.key}>
-              <span>{field.label}</span>
-              <input
-                value={values[field.key] ?? ''}
-                onChange={(event) => onChange(field.key, event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
-          ))}
-        </div>
-      </section>
-    ))}
-  </div>
-));
-
 export const NodeEditorPanel = ({
   mode,
   values,
@@ -294,20 +260,18 @@ export const NodeEditorPanel = ({
   const nodeTypeLabel = useMemo(() => nodeTypeLabelMap[nodeType] ?? nodeType, [nodeType]);
   const totalConnections = connections.length;
   const connectionsTabDisabled = mode === 'create';
+  const panelClassName = `node-editor${mode === 'create' ? ' is-create' : ''}${isExpanded ? ' is-expanded' : ''}`;
+  const panelStyle = {
+    left: position.x,
+    top: position.y,
+    width: size.width,
+    height: size.height,
+  };
+  const headerTitle = mode === 'create' ? 'New Node' : values.label || 'Edit Node';
+  const headerSubtitle = mode === 'create' ? 'Create node' : nodeTypeLabel;
 
   return (
-    <aside
-      className={`node-editor${mode === 'create' ? ' is-create' : ''}${isExpanded ? ' is-expanded' : ''}`}
-      role="dialog"
-      aria-modal="false"
-      tabIndex={-1}
-      style={{
-        left: position.x,
-        top: position.y,
-        width: size.width,
-        height: size.height,
-      }}
-    >
+    <aside className={panelClassName} role="dialog" aria-modal="false" tabIndex={-1} style={panelStyle}>
       <header
         className="node-editor-header"
         onPointerDown={handleHeaderPointerDown}
@@ -321,64 +285,72 @@ export const NodeEditorPanel = ({
             <img src={nodeIcon} alt="" />
           </span>
           <div className="node-editor-title-text">
-            <h2>{values.label || 'Untitled Node'}</h2>
-            <span className="node-editor-eyebrow">
-              {mode === 'create' ? 'Create node' : nodeTypeLabel}
-            </span>
+            <h2>{headerTitle}</h2>
+            <span className="node-editor-eyebrow">{headerSubtitle}</span>
           </div>
         </div>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Close node editor">
+        <button type="button" className="icon-button icon-button--plain" onClick={onClose} aria-label="Close">
           <CloseIcon />
         </button>
       </header>
 
       <form className="node-editor-form" onSubmit={onSubmit}>
-        <div className="node-editor-tabs" role="tablist">
-          <button
-            type="button"
-            className={`node-editor-tab${activeTab === 'info' ? ' active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === 'info'}
-            onClick={() => setActiveTab('info')}
-          >
-            Info
-          </button>
-          <button
-            type="button"
-            className={`node-editor-tab${activeTab === 'connections' ? ' active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === 'connections'}
-            onClick={() => setActiveTab('connections')}
-            disabled={connectionsTabDisabled}
-          >
-            Connections
-            <span className="node-editor-tab-count">{totalConnections}</span>
-          </button>
-        </div>
+        {!isCreateFlow && (
+          <div className="node-editor-tabs" role="tablist">
+            <button
+              type="button"
+              className={`node-editor-tab${activeTab === 'info' ? ' active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === 'info'}
+              onClick={() => setActiveTab('info')}
+            >
+              Info
+            </button>
+            <button
+              type="button"
+              className={`node-editor-tab${activeTab === 'connections' ? ' active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === 'connections'}
+              onClick={() => setActiveTab('connections')}
+              disabled={connectionsTabDisabled}
+            >
+              Connections
+              <span className="node-editor-tab-count">{totalConnections}</span>
+            </button>
+          </div>
+        )}
 
         <div className="node-editor-body">
           {activeTab === 'info' && (
             <div className="node-editor-section-stack">
               {showDetailsStep ? (
-                <>
-                  <p className="node-profile-hint">All fields are optional. You can edit them later.</p>
-                  <NodeProfileForm sections={profileSections} values={profileDraft} onChange={onProfileFieldChange} />
-                </>
+                <ProfileForm
+                  sections={profileSections}
+                  values={profileDraft}
+                  onChange={onProfileFieldChange}
+                  hint="All profile fields are optional. Populate only what you have on hand."
+                />
               ) : (
-                <section className="node-editor-section">
-                  <label>
-                    <span>Label</span>
-                    <input
-                      value={values.label}
-                      onChange={(event) => onLabelChange(event.target.value)}
-                      placeholder="Enter node name"
-                      autoFocus={mode === 'create'}
-                    />
-                  </label>
-                  <div className="type-picker">
+                <section className="wizard-section">
+                  <div className="wizard-pane">
+                    <p className="wizard-eyebrow">New Node</p>
+                    <label className="wizard-field-row">
+                      <span>Label</span>
+                      <input
+                        value={values.label}
+                        onChange={(event) => onLabelChange(event.target.value)}
+                        placeholder="Enter node name"
+                        autoFocus={mode === 'create'}
+                      />
+                    </label>
+                  </div>
+                  <div className="wizard-divider" />
+                  <div className="type-picker type-picker--premium">
                     <div className="type-picker-head">
-                      <span className="type-picker-label">Type</span>
-                      <span className="type-picker-value">{nodeTypeLabelMap[values.type]}</span>
+                      <div>
+                        <span className="type-picker-label">Resource type</span>
+                        <span className="type-picker-value">{nodeTypeLabelMap[values.type]}</span>
+                      </div>
                     </div>
                     <div className="type-category-row" role="tablist" aria-label="Node type categories">
                       {availableCategories.map((category) => (
@@ -394,9 +366,9 @@ export const NodeEditorPanel = ({
                         </button>
                       ))}
                     </div>
-                    <div className="type-card-grid">
+                    <div key={typeCategory} className="type-card-grid type-card-grid--animated">
                       {filteredNodeTypeOptions.length === 0 ? (
-                        <p className="type-card-empty">No node types in this category yet.</p>
+                        <p className="type-card-empty">Nothing in this catalog yet.</p>
                       ) : (
                         filteredNodeTypeOptions.map((option) => {
                           const selected = option.value === values.type;
@@ -408,12 +380,9 @@ export const NodeEditorPanel = ({
                               onClick={() => onTypeChange(option.value)}
                               aria-pressed={selected}
                             >
-                              <img
-                                src={getNodeIcon(option.value)}
-                                alt=""
-                                aria-hidden="true"
-                                className="type-card-icon"
-                              />
+                              <div className="type-card-icon" aria-hidden="true">
+                                <img src={getNodeIcon(option.value)} alt="" />
+                              </div>
                               <div className="type-card-body">
                                 <span className="type-card-title">{option.label}</span>
                                 <span className="type-card-description">{option.description}</span>

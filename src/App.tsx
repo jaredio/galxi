@@ -57,7 +57,7 @@ import type {
   SimulationLink,
   SimulationNode,
 } from './types/graph';
-import type { ResourceProfileData } from './types/profile';
+import type { ProfileFormSection, ResourceProfileData } from './types/profile';
 import { useGraphStore } from './state/graphStore';
 
 type CanvasContextMenuState = {
@@ -279,9 +279,12 @@ const App = () => {
     type: 'vm',
     group: '',
   });
-  const [nodeProfileDraft, setNodeProfileDraft] = useState<ResourceProfileData>(() =>
-    createDefaultNodeProfile('vm')
-  );
+const [nodeProfileDraft, setNodeProfileDraft] = useState<ResourceProfileData>(() =>
+  createDefaultNodeProfile('vm')
+);
+const [groupProfileDraft, setGroupProfileDraft] = useState<ResourceProfileData>(() =>
+  createDefaultGroupProfile('virtualNetwork')
+);
   useEffect(() => {
     if (!nodeForm || nodeForm.mode !== 'edit') {
       return;
@@ -1210,6 +1213,12 @@ const App = () => {
         return;
       }
       setGroupFormValues({ title: target.title, type: target.type });
+      setGroupProfileDraft(
+        mergeProfileWithSchema(
+          getGroupProfileSchema(target.type),
+          target.profile ?? createDefaultGroupProfile(target.type)
+        )
+      );
       setGroupForm({ mode, groupId });
       setSelectedGroupId(groupId);
       setActiveNodeId(null);
@@ -1483,6 +1492,7 @@ const App = () => {
       setGroupDraft(nextGroup);
       setHoveredGroupId(null);
       setGroupFormValues({ title: nextGroup.title, type: groupType });
+      setGroupProfileDraft(createDefaultGroupProfile(groupType));
       setGroupForm({ mode: 'create', groupId: id });
       setNodeForm(null);
       setConnectionForm(null);
@@ -1498,6 +1508,16 @@ const App = () => {
 
   const handleGroupTypeChange = useCallback((value: GroupType) => {
     setGroupFormValues((prev) => ({ ...prev, type: value }));
+    setGroupProfileDraft(createDefaultGroupProfile(value));
+  }, []);
+
+  const handleGroupProfileFieldChange = useCallback((fieldKey: string, value: string) => {
+    setGroupProfileDraft((prev) => {
+      if (prev[fieldKey] === value) {
+        return prev;
+      }
+      return { ...prev, [fieldKey]: value };
+    });
   }, []);
 
   const connectionEditorSelection = useMemo(() => {
@@ -1830,6 +1850,20 @@ const App = () => {
       })),
     [nodeProfileSchema]
   );
+  const groupProfileSchema = useMemo(() => getGroupProfileSchema(groupFormValues.type), [groupFormValues.type]);
+  const groupProfileSections = useMemo<ProfileFormSection[]>(
+    () =>
+      groupProfileSchema.sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        fields: section.fields.map((field) => ({
+          id: field.id,
+          label: field.label,
+          key: `${section.id}.${field.id}`,
+        })),
+      })),
+    [groupProfileSchema]
+  );
 
   const handleNodeFormSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -1897,6 +1931,8 @@ const App = () => {
         return;
       }
       const title = groupFormValues.title.trim() || 'Untitled Group';
+       const schema = getGroupProfileSchema(groupFormValues.type);
+       const mergedProfile = mergeProfileWithSchema(schema, groupProfileDraft);
       if (groupForm.mode === 'create') {
         if (!groupDraft || groupDraft.id !== groupForm.groupId) {
           return;
@@ -1905,28 +1941,24 @@ const App = () => {
           ...groupDraft,
           title,
           type: groupFormValues.type,
-          profile:
-            groupDraft.type === groupFormValues.type
-              ? groupDraft.profile ?? createDefaultGroupProfile(groupFormValues.type)
-              : createDefaultGroupProfile(groupFormValues.type),
+          profile: mergedProfile,
         };
         setGroups((prev) => applyParentAssignments([...prev, newGroup]));
         setGroupDraft(null);
         setGroupForm(null);
+        setGroupProfileDraft(createDefaultGroupProfile('virtualNetwork'));
         return;
       }
       updateGroupById(groupForm.groupId, (group) => ({
         ...group,
         title,
         type: groupFormValues.type,
-        profile:
-          group.type === groupFormValues.type
-            ? mergeProfileWithSchema(getGroupProfileSchema(groupFormValues.type), group.profile)
-            : createDefaultGroupProfile(groupFormValues.type),
+        profile: mergedProfile,
       }));
       setGroupForm(null);
+      setGroupProfileDraft(createDefaultGroupProfile('virtualNetwork'));
     },
-    [groupForm, groupFormValues, updateGroupById, groupDraft, setGroups]
+    [groupForm, groupFormValues, updateGroupById, groupDraft, setGroups, groupProfileDraft]
   );
 
   const handleGroupFormClose = useCallback(() => {
@@ -1934,6 +1966,7 @@ const App = () => {
       setGroupDraft(null);
     }
     setGroupForm(null);
+    setGroupProfileDraft(createDefaultGroupProfile('virtualNetwork'));
   }, [groupForm]);
 
   const handleGroupDelete = useCallback(() => {
@@ -2460,6 +2493,9 @@ const App = () => {
               onResize={handlePanelResize}
               onToggleExpand={handlePanelToggleExpand}
               isExpanded={panelExpanded}
+              profileDraft={groupProfileDraft}
+              profileSections={groupProfileSections}
+              onProfileFieldChange={handleGroupProfileFieldChange}
             />
           )}
 
