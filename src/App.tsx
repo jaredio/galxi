@@ -12,7 +12,6 @@ import { ConnectionEditorPanel } from './components/ConnectionEditorPanel';
 import { GroupEditorPanel } from './components/GroupEditorPanel';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from './components/NodeEditorPanel';
 import { ProfileWindow } from './components/ProfileWindow';
-import { EditIcon, PlusIcon, TrashIcon, EyeIcon, SettingsIcon } from './components/icons';
 import { DashboardPage, type DashboardEntity } from './components/DashboardPage';
 import { Topbar } from './components/Topbar';
 import { ZoomControls } from './components/ZoomControls';
@@ -30,6 +29,9 @@ import type { TabId } from './constants/tabs';
 import { accent, applyTheme, baseTheme, edgeBase, textPrimary, textSecondary } from './constants/theme';
 import { useForceGraph } from './hooks/useForceGraph';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useGraphPersistence } from './hooks/useGraphPersistence';
+import { usePanelLayout } from './hooks/usePanelLayout';
+import { useContextMenuItems } from './hooks/useContextMenuItems';
 import {
   linkTouchesNode,
   makeEdgeKey,
@@ -49,8 +51,6 @@ import {
   mergeProfileWithSchema,
 } from './schemas/resources';
 import { applyParentAssignments, groupArea, pointWithinGroup } from './lib/groupParenting';
-import { debounce, loadGraph, saveGraph } from './lib/persistence';
-import { logger } from './lib/logger';
 import {
   sanitizeInput,
   validateGroupTitle,
@@ -63,8 +63,6 @@ import type {
   GroupLink,
   GroupPositionMap,
   GroupType,
-  NetworkLink,
-  NetworkNode,
   NodePositionMap,
   NodeType,
   SimulationLink,
@@ -124,7 +122,6 @@ const App = () => {
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
   const nodePositionsRef = useRef<NodePositionMap>({});
   const groupPositionsRef = useRef<GroupPositionMap>({});
-  const panelViewportRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   const nodes = useGraphStore((state) => state.nodes);
   const links = useGraphStore((state) => state.links);
@@ -178,13 +175,15 @@ const App = () => {
     hoveredNodeId: string | null;
     hoveredEdgeKey: string | null;
   }>({ activeNodeId: null, hoveredNodeId: null, hoveredEdgeKey: null });
-  const [panelGeometry, setPanelGeometry] = useState<{ x: number; y: number; width: number; height: number }>(() => ({
-    x: 48,
-    y: 72,
-    width: 820,
-    height: 860,
-  }));
-  const [panelExpanded, setPanelExpanded] = useState(false);
+  const {
+    panelGeometry,
+    panelExpanded,
+    collapsePanel,
+    ensurePanelVisible,
+    handlePanelMove,
+    handlePanelResize,
+    handlePanelToggleExpand,
+  } = usePanelLayout();
   const [utilityToast, setUtilityToast] = useState<UtilityToastState | null>(null);
   const [connectionForm, setConnectionForm] = useState<ConnectionFormState | null>(null);
   const lastSyncedConnectionRef = useRef<{
@@ -193,26 +192,11 @@ const App = () => {
     relation: string;
   } | null>(null);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
-  const [persistenceReady, setPersistenceReady] = useState(false);
   const [profileWindows, setProfileWindows] = useState<ProfileWindowState[]>([]);
   const profileSpawnIndexRef = useRef(0);
   const profileZIndexRef = useRef(60);
   const profileEditNonceRef = useRef(0);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
-  const autosaveCallbackRef = useRef<
-    | null
-    | ((
-        payload: {
-          nodes: NetworkNode[];
-          links: NetworkLink[];
-          groups: CanvasGroup[];
-          groupLinks: GroupLink[];
-          nodePositions: NodePositionMap;
-          groupPositions: GroupPositionMap;
-        }
-      ) => void)
-  >(null);
-  const autosaveErrorRef = useRef(false);
   const [groupDraft, setGroupDraft] = useState<CanvasGroup | null>(null);
   const [connectionBuilderMode, setConnectionBuilderMode] = useState(false);
   const profileContext = useMemo(
@@ -466,40 +450,6 @@ const App = () => {
     setGroupFormValues({ title: target.title, type: target.type });
   }, [groupForm, groups]);
 
-  const clampPanelGeometry = useCallback(
-    (geometry: { x: number; y: number; width: number; height: number }) => {
-      const viewport = panelViewportRef.current;
-      const minWidth = 320;
-      const minHeight = 260;
-      const maxWidth = viewport.width ? Math.max(minWidth, viewport.width - 80) : 1600;
-      const maxHeight = viewport.height ? Math.max(minHeight, viewport.height - 80) : 1200;
-      const width = Math.min(Math.max(geometry.width, minWidth), maxWidth);
-      const height = Math.min(Math.max(geometry.height, minHeight), maxHeight);
-      const maxX = Math.max(0, (viewport.width || width) - width - 24);
-      const maxY = Math.max(0, (viewport.height || height) - height - 24);
-      const x = Math.min(Math.max(geometry.x, 16), maxX);
-      const y = Math.min(Math.max(geometry.y, 48), maxY);
-      return { x, y, width, height };
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const updateViewport = () => {
-      panelViewportRef.current = {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      };
-      setPanelGeometry((prev) => clampPanelGeometry(prev));
-    };
-    updateViewport();
-    window.addEventListener('resize', updateViewport);
-    return () => window.removeEventListener('resize', updateViewport);
-  }, [clampPanelGeometry]);
-
   const handleContextMenuDismiss = useCallback(() => {
     setContextMenu(null);
   }, []);
@@ -508,64 +458,25 @@ const App = () => {
     setUtilityToast({ id: Date.now(), message });
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      setPersistenceReady(true);
-      return;
-    }
-    const restored = loadGraph();
-    if (restored) {
-      replaceGraph(restored);
-      nodePositionsRef.current = restored.nodePositions ?? {};
-      groupPositionsRef.current = restored.groupPositions ?? {};
+  const handlePersistenceRestore = useCallback(
+    (restored: { timestamp: string }) => {
       setWelcomeDismissed(true);
-      logger.info('Restored graph session from persistence', {
-        nodes: restored.nodes.length,
-        links: restored.links.length,
-        groups: restored.groups.length,
-        restoredAt: restored.timestamp,
-      });
       showUtilityToast(`Restored from: ${formatTimestamp(restored.timestamp)}.`);
-    }
-    setPersistenceReady(true);
-  }, [replaceGraph, showUtilityToast]);
+    },
+    [showUtilityToast]
+  );
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    autosaveCallbackRef.current = debounce((payload) => {
-      const success = saveGraph(payload);
-      if (!success) {
-        if (!autosaveErrorRef.current) {
-          autosaveErrorRef.current = true;
-          showUtilityToast('Autosave failed. Check console logs.');
-        }
-        return;
-      }
-      if (autosaveErrorRef.current) {
-        autosaveErrorRef.current = false;
-        showUtilityToast('Autosave recovered.');
-      }
-    }, 1200);
-    return () => {
-      autosaveCallbackRef.current = null;
-    };
-  }, [showUtilityToast]);
-
-  useEffect(() => {
-    if (!persistenceReady || !autosaveCallbackRef.current) {
-      return;
-    }
-    autosaveCallbackRef.current({
-      nodes,
-      links,
-      groups,
-      groupLinks,
-      nodePositions: { ...nodePositionsRef.current },
-      groupPositions: { ...groupPositionsRef.current },
-    });
-  }, [persistenceReady, nodes, links, groups, groupLinks]);
+  useGraphPersistence({
+    nodes,
+    links,
+    groups,
+    groupLinks,
+    nodePositionsRef,
+    groupPositionsRef,
+    replaceGraph,
+    notify: showUtilityToast,
+    onRestore: handlePersistenceRestore,
+  });
 
   const handleNodeHover = useCallback((nodeId: string | null) => {
     setHoveredNodeId(nodeId);
@@ -703,8 +614,7 @@ const App = () => {
         setHoveredGroupId(null);
 
         if (created) {
-          setPanelExpanded(false);
-          setPanelGeometry((prev) => clampPanelGeometry(prev));
+          collapsePanel();
           lastSyncedConnectionRef.current = {
             kind: 'node',
             key: linkKey,
@@ -756,8 +666,7 @@ const App = () => {
         setContextMenu(null);
 
         if (created) {
-          setPanelExpanded(false);
-          setPanelGeometry((prev) => clampPanelGeometry(prev));
+          collapsePanel();
           lastSyncedConnectionRef.current = {
             kind: 'group',
             key: linkKey,
@@ -789,9 +698,7 @@ const App = () => {
       setConnectionForm,
       setSelectedGroupId,
       setHoveredGroupId,
-      clampPanelGeometry,
-      setPanelGeometry,
-      setPanelExpanded,
+      collapsePanel,
     ]
   );
 
@@ -918,12 +825,12 @@ const App = () => {
       setActiveNodeId(nodeId);
       setHoveredNodeId(nodeId);
       setContextMenu(null);
-      setPanelGeometry((prev) => clampPanelGeometry(prev));
+      ensurePanelVisible();
       setSelectedGroupId(null);
       setGroupForm(null);
       setHoveredGroupId(null);
     },
-    [nodes, clampPanelGeometry]
+    [nodes, ensurePanelVisible]
   );
 
   const handleLabelChange = useCallback((value: string) => {
@@ -1265,7 +1172,7 @@ const App = () => {
       setNodeForm(null);
       setConnectionForm(null);
       setContextMenu(null);
-      setPanelGeometry((prev) => clampPanelGeometry(prev));
+      ensurePanelVisible();
     },
     [
       groups,
@@ -1276,8 +1183,7 @@ const App = () => {
       setNodeForm,
       setConnectionForm,
       setContextMenu,
-      setPanelGeometry,
-      clampPanelGeometry,
+      ensurePanelVisible,
     ]
   );
 
@@ -1485,19 +1391,12 @@ const App = () => {
       });
       handleContextMenuDismiss();
       setConnectionForm(null);
-      setPanelExpanded(false);
       setSelectedGroupId(null);
       setHoveredGroupId(null);
       setGroupForm(null);
-      setPanelGeometry((prev) =>
-        clampPanelGeometry({
-          ...prev,
-          width: 820,
-          height: 860,
-        })
-      );
+      collapsePanel();
     },
-    [clampPanelGeometry, handleContextMenuDismiss]
+    [collapsePanel, handleContextMenuDismiss]
   );
 
   const handleContextMenuAddNode = useCallback(() => {
@@ -1537,9 +1436,9 @@ const App = () => {
       setNodeForm(null);
       setConnectionForm(null);
       setContextMenu(null);
-      setPanelGeometry((prev) => clampPanelGeometry(prev));
+      ensurePanelVisible();
     },
-    [getGraphCenterPosition, clampPanelGeometry, setPanelGeometry]
+    [getGraphCenterPosition, ensurePanelVisible]
   );
 
   const handleGroupTitleChange = useCallback((value: string) => {
@@ -1699,15 +1598,13 @@ const App = () => {
         setHoveredGroupLinkKey(linkKey);
       }
       handleContextMenuDismiss();
-      setPanelExpanded(false);
-      setPanelGeometry((prev) => clampPanelGeometry(prev));
+      collapsePanel();
     },
     [
       links,
       groupLinks,
       handleContextMenuDismiss,
-      clampPanelGeometry,
-      setPanelGeometry,
+      collapsePanel,
       setNodeForm,
       setGroupForm,
     ]
@@ -2129,201 +2026,20 @@ const App = () => {
     setWelcomeDismissed(true);
   }, [handleSidebarCreateNode]);
 
-  const contextMenuItems = useMemo(() => {
-    if (!contextMenu) {
-      return [];
-    }
-    if (contextMenu.kind === 'canvas') {
-      return [
-        {
-          id: 'add-node',
-          label: 'Add node here',
-          icon: <PlusIcon />,
-          onSelect: handleContextMenuAddNode,
-        },
-      ];
-    }
-
-    if (contextMenu.kind === 'connection') {
-      const targetLink = links.find((link) => makeEdgeKey(link) === contextMenu.edgeKey);
-      const items = [];
-      if (targetLink) {
-        items.push(
-          {
-            id: 'open-source-node',
-            label: 'Open source profile',
-            icon: <EyeIcon />,
-            onSelect: () => openProfileWindow('node', targetLink.source),
-          },
-          {
-            id: 'open-target-node',
-            label: 'Open target profile',
-            icon: <EyeIcon />,
-            onSelect: () => openProfileWindow('node', targetLink.target),
-          }
-        );
-      }
-      items.push(
-        {
-          id: 'edit-connection',
-          label: 'Edit connection',
-          icon: <EditIcon />,
-          onSelect: () => openConnectionEditorByKey(contextMenu.edgeKey, 'node'),
-        },
-        {
-          id: 'delete-connection',
-          label: 'Delete connection',
-          icon: <TrashIcon />,
-          tone: 'danger' as const,
-          onSelect: () => removeConnectionByKey(contextMenu.edgeKey),
-        }
-      );
-      return items;
-    }
-
-    if (contextMenu.kind === 'group-connection') {
-      const targetLink = groupLinks.find((link) => makeGroupLinkKey(link) === contextMenu.linkKey);
-      const items = [];
-      if (targetLink) {
-        items.push(
-          {
-            id: 'open-source-group',
-            label: 'Open source profile',
-            icon: <EyeIcon />,
-            onSelect: () => openProfileWindow('group', targetLink.sourceGroupId),
-          },
-          {
-            id: 'open-target-group',
-            label: 'Open target profile',
-            icon: <EyeIcon />,
-            onSelect: () => openProfileWindow('group', targetLink.targetGroupId),
-          }
-        );
-      }
-      items.push(
-        {
-          id: 'edit-group-connection',
-          label: 'Edit group link',
-          icon: <EditIcon />,
-          onSelect: () => openConnectionEditorByKey(contextMenu.linkKey, 'group'),
-        },
-        {
-          id: 'delete-group-connection',
-          label: 'Delete group link',
-          icon: <TrashIcon />,
-          tone: 'danger' as const,
-          onSelect: () => removeGroupConnectionByKey(contextMenu.linkKey),
-        }
-      );
-      return items;
-    }
-
-    if (contextMenu.kind === 'group') {
-      return [
-        {
-          id: 'open-group-profile',
-          label: 'Open profile',
-          icon: <EyeIcon />,
-          onSelect: () => openProfileWindow('group', contextMenu.groupId),
-        },
-        {
-          id: 'edit-group-profile',
-          label: 'Edit profile details',
-          icon: <EditIcon />,
-          onSelect: () => openProfileWindow('group', contextMenu.groupId, { startEditing: true }),
-        },
-        {
-          id: 'edit-group',
-          label: 'Edit group',
-          icon: <SettingsIcon />,
-          onSelect: () => openGroupEditor(contextMenu.groupId),
-        },
-        {
-          id: 'delete-group',
-          label: 'Delete group',
-          icon: <TrashIcon />,
-          tone: 'danger' as const,
-          onSelect: () => requestGroupRemoval(contextMenu.groupId),
-        },
-      ];
-    }
-
-    return [
-      {
-        id: 'open-node-profile',
-        label: 'Open profile',
-        icon: <EyeIcon />,
-        onSelect: () => openProfileWindow('node', contextMenu.nodeId),
-      },
-      {
-        id: 'edit-node-profile',
-        label: 'Edit profile details',
-        icon: <EditIcon />,
-        onSelect: () => openProfileWindow('node', contextMenu.nodeId, { startEditing: true }),
-      },
-      {
-        id: 'edit-node',
-        label: 'Edit node',
-        icon: <SettingsIcon />,
-        onSelect: () => openNodeEditorById(contextMenu.nodeId),
-      },
-      {
-        id: 'delete-node',
-        label: 'Delete node',
-        icon: <TrashIcon />,
-        tone: 'danger' as const,
-        onSelect: () => requestNodeRemoval(contextMenu.nodeId),
-      },
-    ];
-  }, [
+  const contextMenuItems = useContextMenuItems({
     contextMenu,
-    handleContextMenuAddNode,
-    openConnectionEditorByKey,
-    openNodeEditorById,
-    removeConnectionByKey,
-    removeGroupConnectionByKey,
-    requestNodeRemoval,
-    openGroupEditor,
-    requestGroupRemoval,
     links,
     groupLinks,
+    onAddNodeAtPosition: handleContextMenuAddNode,
     openProfileWindow,
-  ]);
-
-  const handlePanelMove = useCallback(
-    (position: { x: number; y: number }) => {
-      setPanelGeometry((prev) => clampPanelGeometry({ ...prev, ...position }));
-    },
-    [clampPanelGeometry]
-  );
-
-  const handlePanelResize = useCallback(
-    (geometry: { x: number; y: number; width: number; height: number }) => {
-      setPanelGeometry(() =>
-        clampPanelGeometry({
-          x: geometry.x,
-          y: geometry.y,
-          width: geometry.width,
-          height: geometry.height,
-        })
-      );
-    },
-    [clampPanelGeometry]
-  );
-
-  const handlePanelToggleExpand = useCallback(() => {
-    setPanelExpanded((prev) => {
-      const next = !prev;
-      setPanelGeometry((current) =>
-        clampPanelGeometry({
-          ...current,
-          width: next ? 960 : 820,
-          height: next ? 980 : 860,
-        })
-      );
-      return next;
-    });
-  }, [clampPanelGeometry]);
+    openConnectionEditorByKey,
+    removeConnectionByKey,
+    removeGroupConnectionByKey,
+    openGroupEditor,
+    requestGroupRemoval,
+    openNodeEditorById,
+    requestNodeRemoval,
+  });
 
   const showWelcome = !welcomeDismissed && nodes.length === 0 && groups.length === 0;
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 
-type ContextMenuItem = {
+export type ContextMenuItem = {
   id: string;
   label: string;
   icon?: ReactNode;
