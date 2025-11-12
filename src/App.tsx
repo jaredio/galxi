@@ -117,6 +117,8 @@ const formatTimestamp = (value: string) => {
   return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 };
 
+const NODE_DUPLICATE_OFFSET = 40; // Offset duplicates so the new node stays visible
+
 const App = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
@@ -1083,7 +1085,7 @@ const App = () => {
     }
     const originalPosition = nodePositionsRef.current[activeNodeId] ?? { x: 0, y: 0 };
     const newId = createNodeId();
-    const newPosition = { x: originalPosition.x + 40, y: originalPosition.y + 40 };
+    const newPosition = { x: originalPosition.x + NODE_DUPLICATE_OFFSET, y: originalPosition.y + NODE_DUPLICATE_OFFSET };
     nodePositionsRef.current[newId] = newPosition;
     setNodes((prev) => [
       ...prev,
