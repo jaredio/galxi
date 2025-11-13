@@ -12,6 +12,7 @@ import {
   mergeProfileWithSchema,
 } from '../schemas/resources';
 import { makeEdgeKey, makeGroupLinkKey } from './graph-utils';
+import { resolveStatusTone } from './status';
 import type { CanvasGroup, GroupLink, NetworkLink, NetworkNode } from '../types/graph';
 import type { ProfileField, ProfileSection, ProfileWindowContent, ResourceProfileData } from '../types/profile';
 
@@ -20,20 +21,6 @@ type ProfileBuildContext = {
   groups: CanvasGroup[];
   links: NetworkLink[];
   groupLinks: GroupLink[];
-};
-
-const statusTone = (status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' => {
-  const normalized = status.toLowerCase();
-  if (['running', 'active', 'healthy', 'operational'].some((key) => normalized.includes(key))) {
-    return 'success';
-  }
-  if (['stopped', 'disabled', 'warning', 'degraded'].some((key) => normalized.includes(key))) {
-    return 'warning';
-  }
-  if (['error', 'failed', 'blocked'].some((key) => normalized.includes(key))) {
-    return 'danger';
-  }
-  return 'neutral';
 };
 
 const buildSections = (
@@ -253,7 +240,7 @@ export const buildNodeProfileContent = (
     connections: connectionSections,
     status: {
       label: statusLabel,
-      tone: statusTone(statusLabel),
+      tone: resolveStatusTone(statusLabel),
     },
     meta: meta.length > 0 ? meta : undefined,
   };
@@ -284,7 +271,7 @@ export const buildGroupProfileContent = (
     connections: connectionSections,
     status: {
       label: statusLabel,
-      tone: statusTone(statusLabel),
+      tone: resolveStatusTone(statusLabel),
     },
     meta: meta.length > 0 ? meta : undefined,
   };

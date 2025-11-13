@@ -207,10 +207,12 @@ const App = () => {
     }),
     [nodes, groups, links, groupLinks]
   );
-  const dashboardSummary = useMemo(
-    () => generateDashboardSummary({ nodes, links, groups, groupLinks }),
-    [nodes, links, groups, groupLinks]
-  );
+  const dashboardSummary = useMemo(() => {
+    if (activeTab !== 'dashboard') {
+      return null;
+    }
+    return generateDashboardSummary({ nodes, links, groups, groupLinks });
+  }, [activeTab, nodes, links, groups, groupLinks]);
 
   const resolveNodeLabel = useCallback(
     (nodeId: string) => {
@@ -1749,7 +1751,7 @@ const App = () => {
         </>
       ) : (
         <DashboardPage
-          data={dashboardSummary}
+          data={dashboardSummary!}
           nodes={nodes}
           groups={groups}
           links={links}

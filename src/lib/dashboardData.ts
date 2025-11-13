@@ -1,4 +1,5 @@
 import type { CanvasGroup, GroupLink, GroupType, NetworkLink, NetworkNode, NodeType } from '../types/graph';
+import { isActiveStatus, isInactiveStatus, normalizeStatusValue } from './status';
 
 export type CanvasData = {
   nodes: NetworkNode[];
@@ -22,32 +23,6 @@ export type DashboardData = {
   groupTypeBreakdown: Array<{ type: GroupType; count: number }>;
 };
 
-const normalizeStatus = (value: string | undefined) => value?.trim().toLowerCase() ?? '';
-
-const ACTIVE_STATES = new Set([
-  'running',
-  'active',
-  'online',
-  'available',
-  'connected',
-  'healthy',
-  'ready',
-  'up',
-  'enabled',
-]);
-
-const INACTIVE_STATES = new Set([
-  'stopped',
-  'offline',
-  'disconnected',
-  'failed',
-  'error',
-  'inactive',
-  'down',
-  'disabled',
-  'deallocated',
-]);
-
 export const generateDashboardSummary = ({ nodes, groups, links, groupLinks }: CanvasData): DashboardData => {
   const nodeTypeCounts = new Map<NodeType, number>();
   const groupTypeCounts = new Map<GroupType, number>();
@@ -57,10 +32,10 @@ export const generateDashboardSummary = ({ nodes, groups, links, groupLinks }: C
 
   nodes.forEach((node) => {
     nodeTypeCounts.set(node.type, (nodeTypeCounts.get(node.type) ?? 0) + 1);
-    const status = normalizeStatus(node.profile?.['overview.status']);
-    if (ACTIVE_STATES.has(status)) {
+    const status = normalizeStatusValue(node.profile?.['overview.status']);
+    if (isActiveStatus(status)) {
       activeNodes += 1;
-    } else if (INACTIVE_STATES.has(status)) {
+    } else if (isInactiveStatus(status)) {
       inactiveNodes += 1;
     }
   });

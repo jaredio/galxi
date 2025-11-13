@@ -9,6 +9,13 @@ import type { NodeTypeCategory } from '../constants/nodeOptions';
 import { nodeTypeCategoryLabels, nodeTypeCategoryOrder, nodeTypeOptions } from '../constants/nodeOptions';
 import { buildGroupProfileContent, buildNodeProfileContent } from '../lib/profileData';
 import type { DashboardData } from '../lib/dashboardData';
+import {
+  isActiveStatus,
+  isInactiveStatus,
+  normalizeStatusValue,
+  resolveStatusTone,
+  type StatusTone,
+} from '../lib/status';
 import type { CanvasGroup, GroupLink, GroupType, NetworkLink, NetworkNode, NodeType } from '../types/graph';
 import type { ProfileField, ProfileSection, ProfileWindowContent } from '../types/profile';
 
@@ -44,8 +51,6 @@ type GroupTreeNode = {
   children: GroupTreeNode[];
   nodes: NetworkNode[];
 };
-
-type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
 type NodeInsight = {
   kind: 'node';
@@ -94,50 +99,6 @@ const toTitleCase = (value: string) =>
 const formatNodeTypeLabel = (type: NodeType) => nodeTypeLabelMap[type] ?? toTitleCase(type);
 
 const getStatusLabel = (value?: string) => (value?.trim().length ? value.trim() : 'Unknown');
-
-const normalizeStatusValue = (value?: string) => value?.trim().toLowerCase() ?? '';
-
-const ACTIVE_STATES = new Set([
-  'running',
-  'active',
-  'online',
-  'available',
-  'connected',
-  'healthy',
-  'ready',
-  'up',
-  'enabled',
-]);
-
-const INACTIVE_STATES = new Set([
-  'stopped',
-  'offline',
-  'disconnected',
-  'failed',
-  'error',
-  'inactive',
-  'down',
-  'disabled',
-  'deallocated',
-]);
-
-const resolveStatusTone = (status: string): StatusTone => {
-  const normalized = status.trim().toLowerCase();
-  if (
-    ['running', 'online', 'active', 'available', 'healthy', 'ready', 'connected'].some((token) =>
-      normalized.includes(token)
-    )
-  ) {
-    return 'success';
-  }
-  if (['degraded', 'pending', 'initializing', 'warming'].some((token) => normalized.includes(token))) {
-    return 'warning';
-  }
-  if (['failed', 'error', 'offline', 'stopped', 'down', 'blocked'].some((token) => normalized.includes(token))) {
-    return 'danger';
-  }
-  return 'neutral';
-};
 
 const mapProfileToneToStatusTone = (
   tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral'
@@ -617,9 +578,9 @@ export const DashboardPage = ({
     let inactiveNodes = 0;
     filteredNodes.forEach((node) => {
       const status = normalizeStatusValue(node.profile?.['overview.status']);
-      if (ACTIVE_STATES.has(status)) {
+      if (isActiveStatus(status)) {
         activeNodes += 1;
-      } else if (INACTIVE_STATES.has(status)) {
+      } else if (isInactiveStatus(status)) {
         inactiveNodes += 1;
       }
     });
