@@ -16,6 +16,104 @@ import { logger } from './logger';
 const STORAGE_KEY = 'galxi-graph-data';
 const STORAGE_VERSION = 1;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isNodePositionMap = (value: unknown): value is NodePositionMap => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return Object.values(value).every(
+    (coords) =>
+      isRecord(coords) &&
+      typeof coords.x === 'number' &&
+      Number.isFinite(coords.x) &&
+      typeof coords.y === 'number' &&
+      Number.isFinite(coords.y)
+  );
+};
+
+const isNetworkNode = (value: unknown): value is NetworkNode => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    typeof value.type === 'string' &&
+    typeof value.label === 'string' &&
+    (typeof value.group === 'string' || typeof value.group === 'undefined')
+  );
+};
+
+const isNetworkLink = (value: unknown): value is NetworkLink => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.source === 'string' &&
+    typeof value.target === 'string' &&
+    typeof value.relation === 'string'
+  );
+};
+
+const isCanvasGroup = (value: unknown): value is CanvasGroup => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    typeof value.type === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.x === 'number' &&
+    typeof value.y === 'number' &&
+    typeof value.width === 'number' &&
+    typeof value.height === 'number'
+  );
+};
+
+const isGroupLink = (value: unknown): value is GroupLink => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.sourceGroupId === 'string' &&
+    typeof value.targetGroupId === 'string' &&
+    typeof value.relation === 'string'
+  );
+};
+
+const isGraphDataPayload = (value: unknown): value is GraphData => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (typeof value.version !== 'number' || typeof value.timestamp !== 'string') {
+    return false;
+  }
+  if (
+    !Array.isArray(value.nodes) ||
+    !value.nodes.every(isNetworkNode) ||
+    !Array.isArray(value.links) ||
+    !value.links.every(isNetworkLink)
+  ) {
+    return false;
+  }
+  if (
+    !Array.isArray(value.groups) ||
+    !value.groups.every(isCanvasGroup) ||
+    !Array.isArray(value.groupLinks) ||
+    !value.groupLinks.every(isGroupLink)
+  ) {
+    return false;
+  }
+  if (!isNodePositionMap(value.nodePositions ?? {})) {
+    return false;
+  }
+  if (!isNodePositionMap(value.groupPositions ?? {})) {
+    return false;
+  }
+  return true;
+};
+
 export type GraphData = {
   version: number;
   timestamp: string;
@@ -78,7 +176,18 @@ export const loadGraph = (): GraphData | null => {
       return null;
     }
 
-    const data = JSON.parse(serialized) as GraphData;
+    const parsed = JSON.parse(serialized) as unknown;
+
+    if (!isGraphDataPayload(parsed)) {
+      logger.warn('Saved graph data failed validation, ignoring payload');
+      return null;
+    }
+
+    const data: GraphData = {
+      ...parsed,
+      nodePositions: parsed.nodePositions ?? {},
+      groupPositions: parsed.groupPositions ?? {},
+    };
 
     // Validate version
     if (data.version !== STORAGE_VERSION) {
