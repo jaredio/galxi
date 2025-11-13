@@ -967,33 +967,7 @@ export const useForceGraph = ({
         simulation.tick();
       }
     }
-    const nodesSelection = nodeLayer
-      .selectAll<SVGGElement, SimulationNode>('g.node')
-      .data(simNodes, (datum) => datum.id)
-      .join(
-        (enter) => {
-          const group = enter.append('g').attr('class', 'node').style('cursor', 'grab');
-          group
-            .append('circle')
-            .attr('class', 'node-hit-area')
-            .attr('fill', 'transparent')
-            .attr('pointer-events', 'all')
-            .attr('r', NODE_BASE_RADIUS + 12);
-          group
-            .append('image')
-            .attr('class', 'node-icon')
-            .attr('preserveAspectRatio', 'xMidYMid meet')
-            .style('pointer-events', 'none');
-          group
-            .append('text')
-            .attr('class', 'node-label')
-            .attr('text-anchor', 'middle')
-            .style('pointer-events', 'none');
-          return group;
-        },
-        (update) => update.style('cursor', 'grab'),
-        (exit) => exit.remove()
-      );
+    const nodesSelection = joinNodeSelection(nodeLayer, simNodes);
     const schedulePositionsUpdate = () => {
       if (positionFrameRef.current !== null) {
         return;
@@ -1003,20 +977,6 @@ export const useForceGraph = ({
         applyPositions();
       });
     };
-    nodesSelection
-      .select<SVGImageElement>('image.node-icon')
-      .attr('href', (datum) => getNodeIcon(datum.type))
-      .attr('width', NODE_BASE_RADIUS * 2)
-      .attr('height', NODE_BASE_RADIUS * 2)
-      .attr('x', -NODE_BASE_RADIUS)
-      .attr('y', -NODE_BASE_RADIUS)
-      .style('pointer-events', 'none');
-    nodesSelection
-      .select<SVGTextElement>('text.node-label')
-      .attr('fill', textSecondary)
-      .attr('y', NODE_BASE_RADIUS + LABEL_OFFSET)
-      .text((datum) => datum.label)
-      .style('pointer-events', 'none');
     const linkHitSelection = linkHitLayer
       .selectAll<SVGLineElement, SimulationLink>('line.link-hit')
       .data(simLinks, (datum) => makeEdgeKey(datum))
