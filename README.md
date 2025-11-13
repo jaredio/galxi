@@ -29,15 +29,15 @@ Galxi is a visual topology designer for cloud and network architects. It lets yo
    ```bash
    npm run dev
    ```
-   Vite will serve Galxi at `http://localhost:5173` by default.
+   Vite serves Galxi at `http://localhost:5173` by default.
 
 ## Available Scripts
 
-- `npm run dev` – start the Vite dev server with hot module reload.
-- `npm run build` – type-check with `tsc` and build the production bundle.
-- `npm run preview` – preview the production build locally.
-- `npm run test` – execute the Vitest suite in CI mode.
-- `npm run test:watch` – run Vitest in watch mode during development.
+- `npm run dev` – Vite dev server with HMR.
+- `npm run build` – `tsc` type-check + Vite production build.
+- `npm run preview` – Preview the production build locally.
+- `npm run test` – Execute Vitest once (CI mode).
+- `npm run test:watch` – Run Vitest in watch mode.
 
 ## Testing
 
@@ -46,4 +46,3 @@ Unit tests are powered by **Vitest + jsdom**. Run `npm run test` (or `npm run te
 ## License
 
 This project is provided as-is under the MIT license.
-

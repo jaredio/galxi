@@ -34,6 +34,7 @@ import { usePanelLayout } from './hooks/usePanelLayout';
 import { useContextMenuItems } from './hooks/useContextMenuItems';
 import { useProfileWindows } from './hooks/useProfileWindows';
 import { useDeletionBanner } from './hooks/useDeletionBanner';
+import { useGraphOrchestration } from './hooks/useGraphOrchestration';
 import {
   linkTouchesNode,
   makeEdgeKey,
@@ -136,13 +137,6 @@ const App = () => {
   const replaceGraph = useGraphStore((state) => state.replaceGraph);
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
   const isCanvasView = activeTab === 'canvas';
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
-  const [hoveredGroupLinkKey, setHoveredGroupLinkKey] = useState<string | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [nodeForm, setNodeForm] = useState<NodeFormState | null>(null);
   const [formValues, setFormValues] = useState<NodeFormValues>({
     label: '',
@@ -166,7 +160,6 @@ const App = () => {
     const normalizedGroup = currentNode.group ?? '';
     setFormValues((prev) => (prev.group === normalizedGroup ? prev : { ...prev, group: normalizedGroup }));
   }, [nodeForm, nodes]);
-  const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null);
   const [groupForm, setGroupForm] = useState<GroupFormState | null>(null);
   const [groupFormValues, setGroupFormValues] = useState<GroupFormValues>({
     title: '',
@@ -205,7 +198,6 @@ const App = () => {
     closeTopProfileWindow,
   } = useProfileWindows();
   const [groupDraft, setGroupDraft] = useState<CanvasGroup | null>(null);
-  const [connectionBuilderMode, setConnectionBuilderMode] = useState(false);
   const profileContext = useMemo(
     () => ({
       nodes,
@@ -364,13 +356,63 @@ const App = () => {
     setGroupFormValues({ title: target.title, type: target.type });
   }, [groupForm, groups]);
 
-  const handleContextMenuDismiss = useCallback(() => {
-    setContextMenu(null);
-  }, []);
-
   const showUtilityToast = useCallback((message: string) => {
     setUtilityToast({ id: Date.now(), message });
   }, []);
+
+  const {
+    state: {
+      connectionDraft,
+      connectionBuilderMode,
+      activeNodeId,
+      hoveredNodeId,
+      hoveredEdgeKey,
+      hoveredGroupLinkKey,
+      hoveredGroupId,
+      selectedGroupId,
+      contextMenu,
+    },
+    actions: {
+      setConnectionDraft,
+      setConnectionBuilderMode,
+      setActiveNodeId,
+      setHoveredNodeId,
+      setHoveredEdgeKey,
+      setHoveredGroupLinkKey,
+      setHoveredGroupId,
+      setSelectedGroupId,
+      setContextMenu,
+      handleSidebarStartConnection,
+      handleCanvasBackgroundClick,
+      handleNodeClick,
+      handleNodeAuxClick,
+      handleNodeDoubleClick,
+      handleNodeContextMenu,
+      handleEdgeHover,
+      handleGroupHover,
+      handleGroupLinkHover,
+      handleGroupLinkContextMenu,
+      handleGroupAuxClick,
+      handleGroupSelect,
+      handleGroupContextMenu,
+      handleGroupDoubleClick,
+      handleContextMenuDismiss,
+    },
+  } = useGraphOrchestration({
+    links,
+    groupLinks,
+    setLinks,
+    setGroupLinks,
+    collapsePanel,
+    setConnectionForm,
+    setNodeForm,
+    setGroupForm,
+    showUtilityToast,
+    openProfileWindow,
+    nodePositionsRef,
+    groupPositionsRef,
+    lastSyncedConnectionRef,
+  });
 
   const handlePersistenceRestore = useCallback(
     (restored: { timestamp: string }) => {
@@ -396,22 +438,12 @@ const App = () => {
     setHoveredNodeId(nodeId);
   }, []);
 
-  const handleEdgeHover = useCallback((edgeKey: string | null) => {
-    setHoveredEdgeKey(edgeKey);
-  }, []);
-
   const handleThemeUtilities = useCallback(() => {
     showUtilityToast('Theme controls coming soon.');
   }, [showUtilityToast]);
 
   const handleSettingsUtilities = useCallback(() => {
     showUtilityToast('Settings panel coming soon.');
-  }, [showUtilityToast]);
-
-  const handleSidebarStartConnection = useCallback(() => {
-    setConnectionDraft(null);
-    setConnectionBuilderMode(true);
-    showUtilityToast('Select the source node to start a connection.');
   }, [showUtilityToast]);
 
   const findBestGroupForPoint = useCallback(
@@ -475,248 +507,12 @@ const App = () => {
     });
   }, [findBestGroupForPoint, groups, setNodes]);
 
-  const handleCanvasBackgroundClick = useCallback(() => {
-    setConnectionDraft(null);
-    setConnectionBuilderMode(false);
-    setActiveNodeId(null);
-    setHoveredNodeId(null);
-    setHoveredEdgeKey(null);
-    setHoveredGroupLinkKey(null);
-    setContextMenu(null);
-    setConnectionForm(null);
-    setSelectedGroupId(null);
-    setHoveredGroupId(null);
-    setGroupForm(null);
-  }, []);
-
-  const finalizeConnectionDraft = useCallback(
-    (target: { kind: 'node'; nodeId: string } | { kind: 'group'; groupId: string }) => {
-      if (!connectionDraft) {
-        return false;
-      }
-
-      if (connectionDraft.kind === 'node' && target.kind === 'node') {
-        const targetNodeId = target.nodeId;
-        if (connectionDraft.sourceNodeId === targetNodeId) {
-          setConnectionDraft(null);
-          return true;
-        }
-
-        const sourceId = connectionDraft.sourceNodeId;
-        const linkKey = `${sourceId}->${targetNodeId}`;
-        const linkExists = links.some((link) => link.source === sourceId && link.target === targetNodeId);
-        const created = !linkExists;
-
-        if (created) {
-          setLinks((prev) => [
-            ...prev,
-            {
-              source: sourceId,
-              target: targetNodeId,
-              relation: '',
-            },
-          ]);
-        }
-
-        setConnectionDraft(null);
-        setActiveNodeId(targetNodeId);
-        setHoveredNodeId(targetNodeId);
-        setHoveredEdgeKey(linkKey);
-        setHoveredGroupLinkKey(null);
-        setContextMenu(null);
-        setSelectedGroupId(null);
-        setHoveredGroupId(null);
-
-        if (created) {
-          collapsePanel();
-          lastSyncedConnectionRef.current = {
-            kind: 'node',
-            key: linkKey,
-            relation: '',
-          };
-          setConnectionForm({
-            mode: 'edit',
-            kind: 'node',
-            linkKey,
-            relation: '',
-          });
-        }
-        return true;
-      }
-
-      if (connectionDraft.kind === 'group' && target.kind === 'group') {
-        const targetGroupId = target.groupId;
-        if (connectionDraft.sourceGroupId === targetGroupId) {
-          setConnectionDraft(null);
-          return true;
-        }
-
-        const sourceGroupId = connectionDraft.sourceGroupId;
-        const linkKey = `${sourceGroupId}->${targetGroupId}`;
-        const linkExists = groupLinks.some(
-          (link) => link.sourceGroupId === sourceGroupId && link.targetGroupId === targetGroupId
-        );
-
-        const created = !linkExists;
-
-        if (created) {
-          setGroupLinks((prev) => [
-            ...prev,
-            {
-              sourceGroupId,
-              targetGroupId,
-              relation: '',
-            },
-          ]);
-        }
-
-        setConnectionDraft(null);
-        setSelectedGroupId(targetGroupId);
-        setHoveredGroupId(targetGroupId);
-        setActiveNodeId(null);
-        setHoveredNodeId(null);
-        setHoveredEdgeKey(null);
-        setHoveredGroupLinkKey(linkKey);
-        setContextMenu(null);
-
-        if (created) {
-          collapsePanel();
-          lastSyncedConnectionRef.current = {
-            kind: 'group',
-            key: linkKey,
-            relation: '',
-          };
-          setConnectionForm({
-            mode: 'edit',
-            kind: 'group',
-            linkKey,
-            relation: '',
-          });
-        }
-        return true;
-      }
-
-      return false;
-    },
-    [
-      connectionDraft,
-      links,
-      setLinks,
-      groupLinks,
-      setGroupLinks,
-      setActiveNodeId,
-      setHoveredNodeId,
-      setHoveredEdgeKey,
-      setHoveredGroupLinkKey,
-      setContextMenu,
-      setConnectionForm,
-      setSelectedGroupId,
-      setHoveredGroupId,
-      collapsePanel,
-    ]
-  );
-
-  const handleNodeClick = useCallback(
-    (node: SimulationNode) => {
-      if (connectionBuilderMode && !connectionDraft) {
-        setConnectionBuilderMode(false);
-        const sourcePosition =
-          nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
-        setConnectionDraft({
-          kind: 'node',
-          sourceNodeId: node.id,
-          cursor: { x: sourcePosition.x, y: sourcePosition.y },
-        });
-        setActiveNodeId(node.id);
-        setHoveredNodeId(node.id);
-        setContextMenu(null);
-        setHoveredGroupLinkKey(null);
-        setConnectionForm(null);
-        setSelectedGroupId(null);
-        setGroupForm(null);
-        setHoveredGroupId(null);
-        showUtilityToast('Select the target to finish the connection.');
-        return;
-      }
-      if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
-        return;
-      }
-
-      setConnectionDraft(null);
-      setActiveNodeId(node.id);
-      setHoveredNodeId(node.id);
-      setContextMenu(null);
-      setHoveredGroupLinkKey(null);
-      setConnectionForm(null);
-      setSelectedGroupId(null);
-      setGroupForm(null);
-      setHoveredGroupId(null);
-    },
-    [connectionBuilderMode, connectionDraft, finalizeConnectionDraft, showUtilityToast]
-  );
-
-  const handleNodeAuxClick = useCallback(
-    (_event: MouseEvent, node: SimulationNode) => {
-      if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
-        return;
-      }
-
-      const sourcePosition =
-        nodePositionsRef.current[node.id] ?? { x: node.x ?? 0, y: node.y ?? 0 };
-
-      setConnectionDraft({
-        kind: 'node',
-        sourceNodeId: node.id,
-        cursor: { x: sourcePosition.x, y: sourcePosition.y },
-      });
-      setActiveNodeId(node.id);
-      setHoveredNodeId(node.id);
-      setContextMenu(null);
-      setHoveredGroupLinkKey(null);
-      setConnectionForm(null);
-      setSelectedGroupId(null);
-      setGroupForm(null);
-      setHoveredGroupId(null);
-    },
-    [finalizeConnectionDraft]
-  );
-
-  const handleNodeDoubleClick = useCallback(
-    (node: SimulationNode) => {
-      if (finalizeConnectionDraft({ kind: 'node', nodeId: node.id })) {
-        return;
-      }
-      openProfileWindow('node', node.id);
-    },
-    [finalizeConnectionDraft, openProfileWindow]
-  );
-
   const handleNodeDragEnd = useCallback(
     (nodeId: string, position: { x: number; y: number }) => {
       assignNodeToGroupByPosition(nodeId, position);
     },
     [assignNodeToGroupByPosition]
   );
-
-  const handleNodeContextMenu = useCallback((event: MouseEvent, node: SimulationNode) => {
-    event.preventDefault();
-    setConnectionDraft(null);
-    setActiveNodeId(node.id);
-    setHoveredNodeId(node.id);
-    setHoveredEdgeKey(null);
-    setHoveredGroupLinkKey(null);
-    setConnectionForm(null);
-    setSelectedGroupId(null);
-    setGroupForm(null);
-    setHoveredGroupId(null);
-    setContextMenu({
-      kind: 'node',
-      screenX: event.clientX,
-      screenY: event.clientY,
-      nodeId: node.id,
-    });
-  }, [setHoveredEdgeKey, setSelectedGroupId, setGroupForm, setHoveredGroupId]);
-
   const openNodeEditorById = useCallback(
     (nodeId: string) => {
       const target = nodes.find((candidate) => candidate.id === nodeId);
@@ -938,116 +734,6 @@ const App = () => {
     notify: showUtilityToast,
   });
 
-  const handleGroupHover = useCallback((groupId: string | null) => {
-    setHoveredGroupId(groupId);
-  }, []);
-
-  const handleGroupLinkHover = useCallback((linkKey: string | null) => {
-    setHoveredGroupLinkKey(linkKey);
-  }, []);
-
-  const handleGroupLinkContextMenu = useCallback(
-    (event: MouseEvent, link: GroupLink) => {
-      const linkKey = makeGroupLinkKey(link);
-      setConnectionDraft(null);
-      setActiveNodeId(null);
-      setHoveredNodeId(null);
-      setHoveredEdgeKey(null);
-      setSelectedGroupId(null);
-      setHoveredGroupId(null);
-      setConnectionForm(null);
-      setHoveredGroupLinkKey(linkKey);
-      setContextMenu({
-        kind: 'group-connection',
-        screenX: event.clientX,
-        screenY: event.clientY,
-        linkKey,
-      });
-    },
-    [
-      setConnectionDraft,
-      setActiveNodeId,
-      setHoveredNodeId,
-      setHoveredEdgeKey,
-      setSelectedGroupId,
-      setHoveredGroupId,
-      setConnectionForm,
-      setContextMenu,
-    ]
-  );
-
-  const handleGroupAuxClick = useCallback(
-    (_event: MouseEvent, group: CanvasGroup) => {
-      if (finalizeConnectionDraft({ kind: 'group', groupId: group.id })) {
-        return;
-      }
-
-      const sourcePosition =
-        groupPositionsRef.current[group.id] ?? {
-          x: group.x + group.width / 2,
-          y: group.y + group.height / 2,
-        };
-
-      setConnectionDraft({
-        kind: 'group',
-        sourceGroupId: group.id,
-        cursor: { x: sourcePosition.x, y: sourcePosition.y },
-      });
-      setSelectedGroupId(group.id);
-      setHoveredGroupId(group.id);
-      setActiveNodeId(null);
-      setHoveredNodeId(null);
-      setHoveredEdgeKey(null);
-      setHoveredGroupLinkKey(null);
-      setContextMenu(null);
-      setConnectionForm(null);
-      setGroupForm(null);
-    },
-    [
-      finalizeConnectionDraft,
-      groupPositionsRef,
-      setConnectionDraft,
-      setSelectedGroupId,
-      setHoveredGroupId,
-      setActiveNodeId,
-      setHoveredNodeId,
-      setHoveredEdgeKey,
-      setHoveredGroupLinkKey,
-      setContextMenu,
-      setConnectionForm,
-      setGroupForm,
-    ]
-  );
-
-  const handleGroupSelect = useCallback(
-    (groupId: string | null) => {
-      if (groupId && finalizeConnectionDraft({ kind: 'group', groupId })) {
-        return;
-      }
-
-      setSelectedGroupId(groupId);
-      if (groupId) {
-        setActiveNodeId(null);
-        setNodeForm(null);
-        setContextMenu(null);
-        setHoveredEdgeKey(null);
-      } else {
-        setGroupForm(null);
-        setConnectionForm(null);
-      }
-    },
-    [
-      finalizeConnectionDraft,
-      setActiveNodeId,
-      setNodeForm,
-      setConnectionForm,
-      setContextMenu,
-      setHoveredEdgeKey,
-      setHoveredGroupLinkKey,
-      setGroupForm,
-    ]
-  );
-
   const openGroupEditor = useCallback(
     (groupId: string, mode: GroupFormState['mode'] = 'edit') => {
       const target = groups.find((group) => group.id === groupId);
@@ -1080,44 +766,6 @@ const App = () => {
       setContextMenu,
       ensurePanelVisible,
     ]
-  );
-
-  const handleGroupContextMenu = useCallback(
-    (event: MouseEvent, group: CanvasGroup) => {
-      setContextMenu({
-        kind: 'group',
-        screenX: event.clientX,
-        screenY: event.clientY,
-        groupId: group.id,
-      });
-      setSelectedGroupId(group.id);
-      setHoveredGroupId(group.id);
-      setActiveNodeId(null);
-      setNodeForm(null);
-      setConnectionForm(null);
-      setHoveredEdgeKey(null);
-      setHoveredGroupLinkKey(null);
-    },
-    [
-      setContextMenu,
-      setSelectedGroupId,
-      setHoveredGroupId,
-      setActiveNodeId,
-      setNodeForm,
-      setConnectionForm,
-      setHoveredEdgeKey,
-      setHoveredGroupLinkKey,
-    ]
-  );
-
-  const handleGroupDoubleClick = useCallback(
-    (group: CanvasGroup) => {
-      if (finalizeConnectionDraft({ kind: 'group', groupId: group.id })) {
-        return;
-      }
-      openProfileWindow('group', group.id);
-    },
-    [finalizeConnectionDraft, openProfileWindow]
   );
 
   const handleGroupMove = useCallback(
