@@ -683,6 +683,19 @@ export const useForceGraph = ({
       };
     });
     const simLinks = links.map(makeSimulationLink);
+    const nodeById = new Map(simNodes.map((node) => [node.id, node]));
+    simLinks.forEach((link) => {
+      const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+      const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+      const nextSource = nodeById.get(sourceId);
+      const nextTarget = nodeById.get(targetId);
+      if (nextSource) {
+        link.source = nextSource;
+      }
+      if (nextTarget) {
+        link.target = nextTarget;
+      }
+    });
     const groupLayer = groupLayerRef.current;
     if (!groupLayer) {
       return;
