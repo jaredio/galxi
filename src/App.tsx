@@ -899,12 +899,15 @@ const App = () => {
         profile: mergeProfileWithSchema(getNodeProfileSchema(original.type), original.profile),
       },
     ]);
-    setLinks((prev) => [
-      ...prev,
-      ...prev
+    setLinks((prev) => {
+      const duplicatedSources = prev
         .filter((link) => resolveId(link.source) === activeNodeId)
-        .map((link) => ({ ...link, source: newId })),
-    ]);
+        .map((link) => ({ ...link, source: newId }));
+      const duplicatedTargets = prev
+        .filter((link) => resolveId(link.target) === activeNodeId)
+        .map((link) => ({ ...link, target: newId }));
+      return [...prev, ...duplicatedSources, ...duplicatedTargets];
+    });
     setActiveNodeId(newId);
     setHoveredNodeId(newId);
     setHoveredEdgeKey(null);
