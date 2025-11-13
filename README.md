@@ -10,6 +10,10 @@ Galxi is a visual topology designer for cloud and network architects. It lets yo
 - **Zustand 5** – lightweight store for nodes, groups, and links.
 - **Vite 7** – build tool + dev server.
 
+## Requirements
+
+- **Node.js 20.19+ (or 22.12+)** – the Vite toolchain enforces this minimum. Use the provided `.nvmrc` to align local and CI environments before installing dependencies.
+
 ## License
 
 This project is provided as-is under the MIT license.
