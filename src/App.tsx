@@ -230,23 +230,6 @@ const App = () => {
     [groups]
   );
 
-  const handleDashboardEntityFocus = useCallback(
-    (entity: DashboardEntity) => {
-      setActiveTab('canvas');
-      if (entity.kind === 'node') {
-        setActiveNodeId(entity.id);
-        const targetNode = nodes.find((node) => node.id === entity.id);
-        if (targetNode?.group) {
-          setSelectedGroupId(targetNode.group);
-        }
-        return;
-      }
-      setActiveNodeId(null);
-      setSelectedGroupId(entity.id);
-    },
-    [nodes, setActiveNodeId, setSelectedGroupId, setActiveTab]
-  );
-
   useEffect(() => {
     applyTheme(baseTheme);
   }, []);
@@ -415,6 +398,23 @@ const App = () => {
     groupPositionsRef,
     lastSyncedConnectionRef,
   });
+
+  const handleDashboardEntityFocus = useCallback(
+    (entity: DashboardEntity) => {
+      setActiveTab('canvas');
+      if (entity.kind === 'node') {
+        setActiveNodeId(entity.id);
+        const targetNode = nodes.find((node) => node.id === entity.id);
+        if (targetNode?.group) {
+          setSelectedGroupId(targetNode.group);
+        }
+        return;
+      }
+      setActiveNodeId(null);
+      setSelectedGroupId(entity.id);
+    },
+    [nodes, setActiveNodeId, setSelectedGroupId, setActiveTab]
+  );
 
   const handlePersistenceRestore = useCallback(
     (restored: { timestamp: string }) => {
