@@ -33,6 +33,7 @@ import { useGraphPersistence } from './hooks/useGraphPersistence';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useContextMenuItems } from './hooks/useContextMenuItems';
 import { useProfileWindows } from './hooks/useProfileWindows';
+import { useDeletionBanner } from './hooks/useDeletionBanner';
 import {
   linkTouchesNode,
   makeEdgeKey,
@@ -203,7 +204,6 @@ const App = () => {
     closeProfileWindowsByResource,
     closeTopProfileWindow,
   } = useProfileWindows();
-  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const [groupDraft, setGroupDraft] = useState<CanvasGroup | null>(null);
   const [connectionBuilderMode, setConnectionBuilderMode] = useState(false);
   const profileContext = useMemo(
@@ -218,6 +218,22 @@ const App = () => {
   const dashboardSummary = useMemo(
     () => generateDashboardSummary({ nodes, links, groups, groupLinks }),
     [nodes, links, groups, groupLinks]
+  );
+
+  const resolveNodeLabel = useCallback(
+    (nodeId: string) => {
+      const target = nodes.find((node) => node.id === nodeId);
+      return target?.label?.trim().length ? target.label : 'this node';
+    },
+    [nodes]
+  );
+
+  const resolveGroupLabel = useCallback(
+    (groupId: string) => {
+      const target = groups.find((group) => group.id === groupId);
+      return target?.title?.trim().length ? target.title : 'this group';
+    },
+    [groups]
   );
 
   const handleDashboardEntityFocus = useCallback(
@@ -862,24 +878,6 @@ const App = () => {
     closeProfileWindowsByResource,
   ]);
 
-  const requestNodeRemoval = useCallback(
-    (nodeId: string) => {
-      const target = nodes.find((node) => node.id === nodeId);
-      const label = target?.label?.trim().length ? target!.label : 'this node';
-      setPendingDeletion({ kind: 'node', id: nodeId, label });
-    },
-    [nodes]
-  );
-
-  const requestGroupRemoval = useCallback(
-    (groupId: string) => {
-      const target = groups.find((group) => group.id === groupId);
-      const label = target?.title?.trim().length ? target!.title : 'this group';
-      setPendingDeletion({ kind: 'group', id: groupId, label });
-    },
-    [groups]
-  );
-
   const duplicateActiveNode = useCallback(() => {
     if (!activeNodeId) {
       return;
@@ -923,23 +921,19 @@ const App = () => {
     setHoveredEdgeKey,
   ]);
 
-  const confirmPendingDeletion = useCallback(() => {
-    if (!pendingDeletion) {
-      return;
-    }
-    if (pendingDeletion.kind === 'node') {
-      removeNodeById(pendingDeletion.id);
-      showUtilityToast(`${pendingDeletion.label} deleted.`);
-    } else {
-      removeGroupById(pendingDeletion.id);
-      showUtilityToast(`${pendingDeletion.label} deleted.`);
-    }
-    setPendingDeletion(null);
-  }, [pendingDeletion, removeNodeById, removeGroupById, showUtilityToast]);
-
-  const cancelPendingDeletion = useCallback(() => {
-    setPendingDeletion(null);
-  }, []);
+  const {
+    pendingDeletion,
+    requestNodeRemoval,
+    requestGroupRemoval,
+    confirmPendingDeletion,
+    cancelPendingDeletion,
+  } = useDeletionBanner({
+    resolveNodeLabel,
+    resolveGroupLabel,
+    removeNodeById,
+    removeGroupById,
+    notify: showUtilityToast,
+  });
 
   const handleGroupHover = useCallback((groupId: string | null) => {
     setHoveredGroupId(groupId);
