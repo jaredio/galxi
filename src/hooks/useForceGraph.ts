@@ -664,8 +664,10 @@ export const useForceGraph = ({
     const { width, height } = viewDimensionsRef.current;
     const viewWidth = width || svgElement.clientWidth || window.innerWidth;
     const viewHeight = height || svgElement.clientHeight || window.innerHeight;
+    let seededPositions = false;
     const simNodes: SimulationNode[] = nodes.map((node) => {
       if (!nodePositionsRef.current[node.id]) {
+        seededPositions = true;
         nodePositionsRef.current[node.id] = {
           x: (Math.random() - 0.5) * viewWidth * 0.6,
           y: (Math.random() - 0.5) * viewHeight * 0.6,
@@ -945,23 +947,25 @@ export const useForceGraph = ({
       groupLinkLabelSelectionRef.current = null;
     }
     groupSelectionRef.current = typedGroupSelection;
-    const simulation = d3
-      .forceSimulation<SimulationNode>(simNodes)
-      .force(
-        'link',
-        d3
-          .forceLink<SimulationNode, SimulationLink>(simLinks)
-          .id((node) => node.id)
-          .distance(160)
-          .strength(0.12)
-      )
-      .force('charge', d3.forceManyBody().strength(-140))
-      .force('center', d3.forceCenter(0, 0))
-      .force('collision', d3.forceCollide<SimulationNode>().radius(44))
-      .alphaDecay(0.12)
-      .stop();
-    for (let tick = 0; tick < 200; tick += 1) {
-      simulation.tick();
+    if (seededPositions) {
+      const simulation = d3
+        .forceSimulation<SimulationNode>(simNodes)
+        .force(
+          'link',
+          d3
+            .forceLink<SimulationNode, SimulationLink>(simLinks)
+            .id((node) => node.id)
+            .distance(160)
+            .strength(0.12)
+        )
+        .force('charge', d3.forceManyBody().strength(-140))
+        .force('center', d3.forceCenter(0, 0))
+        .force('collision', d3.forceCollide<SimulationNode>().radius(44))
+        .alphaDecay(0.12)
+        .stop();
+      for (let tick = 0; tick < 200; tick += 1) {
+        simulation.tick();
+      }
     }
     const nodesSelection = nodeLayer
       .selectAll<SVGGElement, SimulationNode>('g.node')
