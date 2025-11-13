@@ -4,40 +4,23 @@ Galxi is a visual topology designer for cloud and network architects. It lets yo
 
 ## Tech Stack
 
-- **React 19** – component architecture and state flow.
-- **TypeScript 5.9** – type safety across the canvas and editor tooling.
-- **D3.js 7** – force simulation, SVG rendering, and interaction bindings.
-- **Zustand 5** – lightweight store for nodes, groups, and links.
-- **Vite 7** – build tool + dev server.
+- **React 19** - component architecture and state flow.
+- **TypeScript 5.9** - type safety across the canvas and editor tooling.
+- **D3.js 7** - force simulation, SVG rendering, and interaction bindings.
+- **Zustand 5** - lightweight store for nodes, groups, and links.
+- **Vite 7** - build tool + dev server.
 
 ## Requirements
 
-- **Node.js 20.19+ (or 22.12+)** – the Vite toolchain enforces this minimum. Use the provided `.nvmrc` to align local and CI environments before installing dependencies.
-
-## Getting Started
-
-1. **Select the right Node version**
-   ```bash
-   nvm use
-   ```
-   (Or install Node 20.19.x manually if you are not using `nvm`.)
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-3. **Start the dev server**
-   ```bash
-   npm run dev
-   ```
-   Vite serves Galxi at `http://localhost:5173` by default.
+- **Node.js 20.19+ (or 22.12+)** - the Vite toolchain enforces this minimum. Use the provided `.nvmrc` to align local and CI environments before installing dependencies.
 
 ## Available Scripts
 
-- `npm run dev` – Vite dev server with HMR.
-- `npm run build` – `tsc` type-check + Vite production build.
-- `npm run preview` – Preview the production build locally.
-- `npm run test` – Execute Vitest once (CI mode).
-- `npm run test:watch` – Run Vitest in watch mode.
+- `npm run dev` - Vite dev server with HMR.
+- `npm run build` - `tsc` type-check + Vite production build.
+- `npm run preview` - preview the production build locally.
+- `npm run test` - execute Vitest once (CI mode).
+- `npm run test:watch` - run Vitest in watch mode.
 
 ## Testing
 
