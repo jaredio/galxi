@@ -39,6 +39,10 @@ const GROUP_CORNER_RADIUS = 14;
 const GROUP_HANDLE_SIZE = 12;
 const GROUP_MIN_WIDTH = 200;
 const GROUP_MIN_HEIGHT = 140;
+type MutableSimulationLink = {
+  source: SimulationNode | string;
+  target: SimulationNode | string;
+};
 const groupHandleDefinitions: Array<{ key: GroupResizeHandle; cursor: string }> = [
   { key: 'top-left', cursor: 'nwse-resize' },
   { key: 'top', cursor: 'ns-resize' },
@@ -670,7 +674,7 @@ export const useForceGraph = ({
     const viewWidth = width || svgElement.clientWidth || window.innerWidth;
     const viewHeight = height || svgElement.clientHeight || window.innerHeight;
     let seededPositions = false;
-    const simNodes: SimulationNode[] = nodes.map((node) => {
+    const simNodes = nodes.map<SimulationNode>((node) => {
       if (!nodePositionsRef.current[node.id]) {
         seededPositions = true;
         nodePositionsRef.current[node.id] = {
@@ -688,17 +692,21 @@ export const useForceGraph = ({
       };
     });
     const simLinks = links.map(makeSimulationLink);
-    const nodeById = new Map(simNodes.map((node) => [node.id, node]));
+    const nodeById = new Map<string, SimulationNode>();
+    simNodes.forEach((node) => nodeById.set(node.id, node));
     simLinks.forEach((link) => {
-      const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-      const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+      const mutableLink = link as MutableSimulationLink;
+      const sourceId =
+        typeof mutableLink.source === 'string' ? mutableLink.source : mutableLink.source.id;
+      const targetId =
+        typeof mutableLink.target === 'string' ? mutableLink.target : mutableLink.target.id;
       const nextSource = nodeById.get(sourceId);
       const nextTarget = nodeById.get(targetId);
       if (nextSource) {
-        link.source = nextSource;
+        mutableLink.source = nextSource;
       }
       if (nextTarget) {
-        link.target = nextTarget;
+        mutableLink.target = nextTarget;
       }
     });
     const groupLayer = groupLayerRef.current;

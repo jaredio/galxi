@@ -35,12 +35,12 @@ class MemoryStorage implements Storage {
 const STORAGE_KEY = 'galxi-graph-data';
 
 const sampleGraph = () => ({
-  nodes: [{ id: 'node-1', label: 'Node 1', type: 'vm', group: '' }],
+  nodes: [{ id: 'node-1', label: 'Node 1', type: 'vm' as const, group: '' }],
   links: [{ source: 'node-1', target: 'node-1', relation: 'self' }],
   groups: [
     {
       id: 'group-1',
-      type: 'virtualNetwork',
+      type: 'virtualNetwork' as const,
       title: 'Group 1',
       x: 0,
       y: 0,
@@ -89,8 +89,8 @@ describe('persistence helpers', () => {
 
   it('migrates legacy gateway node types to applicationGateway', () => {
     const graph = sampleGraph();
-    graph.nodes[0].type = 'gateway' as unknown as typeof graph.nodes[number]['type'];
-    const payload = { ...graph, version: 1, timestamp: new Date().toISOString() };
+    const payload: any = { ...graph, version: 1, timestamp: new Date().toISOString() };
+    payload.nodes = [{ ...graph.nodes[0], type: 'gateway' }];
     globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     const loaded = loadGraph();
     expect(loaded?.nodes[0].type).toBe('applicationGateway');

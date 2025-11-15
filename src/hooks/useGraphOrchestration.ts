@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
 
-import { makeGroupLinkKey, makeLinkKey } from '../lib/graph-utils';
+import { makeGroupLinkKey } from '../lib/graph-utils';
 import type {
   CanvasGroup,
   GroupLink,
