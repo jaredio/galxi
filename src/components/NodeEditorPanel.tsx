@@ -1,8 +1,8 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent, PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 
-import { CloseIcon, EditIcon, TrashIcon } from './icons';
+import { EditIcon, TrashIcon } from './icons';
 
 import { nodeTypeLabelMap } from '../constants/nodeTypeLabels';
 import { getNodeIcon } from '../constants/nodeIcons';
@@ -12,6 +12,7 @@ import { nodeTypeCategoryLabels, nodeTypeCategoryOrder } from '../constants/node
 import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
 import { ProfileForm } from './ProfileForm';
 import { validateLabel } from '../lib/validation';
+import { FloatingPanel } from './FloatingPanel';
 
 export type NodeFormMode = 'create' | 'edit';
 
@@ -52,34 +53,6 @@ type NodeEditorPanelProps = {
   isExpanded: boolean;
 };
 
-type ResizeHandle =
-  | 'top'
-  | 'bottom'
-  | 'left'
-  | 'right'
-  | 'top-left'
-  | 'top-right'
-  | 'bottom-left'
-  | 'bottom-right';
-
-const resizeHandles: Array<{ key: ResizeHandle; className: string; cursor: string }> = [
-  { key: 'top', className: 'node-editor-resize node-editor-resize--top', cursor: 'ns-resize' },
-  { key: 'bottom', className: 'node-editor-resize node-editor-resize--bottom', cursor: 'ns-resize' },
-  { key: 'left', className: 'node-editor-resize node-editor-resize--left', cursor: 'ew-resize' },
-  { key: 'right', className: 'node-editor-resize node-editor-resize--right', cursor: 'ew-resize' },
-  { key: 'top-left', className: 'node-editor-resize node-editor-resize--top-left', cursor: 'nwse-resize' },
-  { key: 'top-right', className: 'node-editor-resize node-editor-resize--top-right', cursor: 'nesw-resize' },
-  {
-    key: 'bottom-left',
-    className: 'node-editor-resize node-editor-resize--bottom-left',
-    cursor: 'nesw-resize',
-  },
-  {
-    key: 'bottom-right',
-    className: 'node-editor-resize node-editor-resize--bottom-right',
-    cursor: 'nwse-resize',
-  },
-];
 export const NodeEditorPanel = ({
   mode,
   values,
@@ -103,7 +76,6 @@ export const NodeEditorPanel = ({
   onToggleExpand,
   isExpanded,
 }: NodeEditorPanelProps) => {
-  const pointerCleanupRef = useRef<(() => void) | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'connections'>('info');
   const [createStep, setCreateStep] = useState<'basics' | 'details'>('basics');
   const categoryByValue = useMemo(
@@ -129,42 +101,6 @@ export const NodeEditorPanel = ({
     setTypeCategory(nextCategory);
   }, [values.type, resolveCategory]);
 
-  const stopTrackingPointer = useCallback(() => {
-    if (pointerCleanupRef.current) {
-      pointerCleanupRef.current();
-      pointerCleanupRef.current = null;
-    }
-  }, []);
-
-  const trackPointer = useCallback(
-    (pointerId: number, onPointerMove: (event: PointerEvent) => void, onPointerUp?: () => void) => {
-      stopTrackingPointer();
-      const handleMove = (event: PointerEvent) => {
-        if (event.pointerId !== pointerId) {
-          return;
-        }
-        onPointerMove(event);
-      };
-      const handleUp = (event: PointerEvent) => {
-        if (event.pointerId !== pointerId) {
-          return;
-        }
-        window.removeEventListener('pointermove', handleMove);
-        window.removeEventListener('pointerup', handleUp);
-        pointerCleanupRef.current = null;
-        onPointerUp?.();
-      };
-      window.addEventListener('pointermove', handleMove);
-      window.addEventListener('pointerup', handleUp);
-      pointerCleanupRef.current = () => {
-        window.removeEventListener('pointermove', handleMove);
-        window.removeEventListener('pointerup', handleUp);
-      };
-    },
-    [stopTrackingPointer]
-  );
-
-  useEffect(() => stopTrackingPointer, [stopTrackingPointer]);
   useEffect(() => {
     setActiveTab('info');
   }, [mode, nodeType]);
@@ -276,73 +212,6 @@ export const NodeEditorPanel = ({
     ]
   );
 
-  const handleHeaderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.detail > 1) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const { clientX, clientY, pointerId } = event;
-    const baseX = position.x;
-    const baseY = position.y;
-    trackPointer(
-      pointerId,
-      (moveEvent) => {
-        const deltaX = moveEvent.clientX - clientX;
-        const deltaY = moveEvent.clientY - clientY;
-        onMove({
-          x: baseX + deltaX,
-          y: baseY + deltaY,
-        });
-      },
-      undefined
-    );
-  };
-
-  const handleResizePointerDown = (event: ReactPointerEvent<HTMLSpanElement>, handle: ResizeHandle) => {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const { clientX, clientY, pointerId } = event;
-    const base = { x: position.x, y: position.y, width: size.width, height: size.height };
-    const hasLeft = handle.includes('left');
-    const hasRight = handle.includes('right');
-    const hasTop = handle.includes('top');
-    const hasBottom = handle.includes('bottom');
-    trackPointer(pointerId, (moveEvent) => {
-      const deltaX = moveEvent.clientX - clientX;
-      const deltaY = moveEvent.clientY - clientY;
-      let nextX = base.x;
-      let nextY = base.y;
-      let nextWidth = base.width;
-      let nextHeight = base.height;
-
-      if (hasRight) {
-        nextWidth = base.width + deltaX;
-      }
-      if (hasLeft) {
-        nextWidth = base.width - deltaX;
-        nextX = base.x + deltaX;
-      }
-      if (hasBottom) {
-        nextHeight = base.height + deltaY;
-      }
-      if (hasTop) {
-        nextHeight = base.height - deltaY;
-        nextY = base.y + deltaY;
-      }
-
-      onResize({
-        x: nextX,
-        y: nextY,
-        width: nextWidth,
-        height: nextHeight,
-      });
-    });
-  };
-
   const incomingConnections = useMemo(
     () => connections.filter((connection) => connection.direction === 'incoming'),
     [connections]
@@ -355,40 +224,33 @@ export const NodeEditorPanel = ({
   const nodeTypeLabel = useMemo(() => nodeTypeLabelMap[nodeType] ?? nodeType, [nodeType]);
   const totalConnections = connections.length;
   const connectionsTabDisabled = mode === 'create';
-  const panelClassName = `node-editor${mode === 'create' ? ' is-create' : ''}${isExpanded ? ' is-expanded' : ''}`;
-  const panelStyle = {
-    left: position.x,
-    top: position.y,
-    width: size.width,
-    height: size.height,
-  };
+  const panelClassName = `node-editor${mode === 'create' ? ' is-create' : ''}`;
   const headerTitle = mode === 'create' ? 'New Node' : values.label || 'Edit Node';
   const headerSubtitle = mode === 'create' ? 'Create node' : nodeTypeLabel;
+  const headerContent = (
+    <div className="node-editor-title">
+      <span className="node-editor-icon">
+        <img src={nodeIcon} alt="" />
+      </span>
+      <div className="node-editor-title-text">
+        <h2>{headerTitle}</h2>
+        <span className="node-editor-eyebrow">{headerSubtitle}</span>
+      </div>
+    </div>
+  );
 
   return (
-    <aside className={panelClassName} role="dialog" aria-modal="false" tabIndex={-1} style={panelStyle}>
-      <header
-        className="node-editor-header"
-        onPointerDown={handleHeaderPointerDown}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-          onToggleExpand();
-        }}
-      >
-        <div className="node-editor-title">
-          <span className="node-editor-icon">
-            <img src={nodeIcon} alt="" />
-          </span>
-          <div className="node-editor-title-text">
-            <h2>{headerTitle}</h2>
-            <span className="node-editor-eyebrow">{headerSubtitle}</span>
-          </div>
-        </div>
-        <button type="button" className="icon-button icon-button--plain" onClick={onClose} aria-label="Close">
-          <CloseIcon />
-        </button>
-      </header>
-
+    <FloatingPanel
+      className={`${panelClassName}${isExpanded ? ' is-expanded' : ''}`}
+      position={position}
+      size={size}
+      isExpanded={isExpanded}
+      onMove={onMove}
+      onResize={onResize}
+      onToggleExpand={onToggleExpand}
+      onClose={onClose}
+      headerContent={headerContent}
+    >
       <form className="node-editor-form" onSubmit={onSubmit}>
         {!isCreateFlow && (
           <div className="node-editor-tabs" role="tablist">
@@ -555,15 +417,6 @@ export const NodeEditorPanel = ({
           )}
         </footer>
       </form>
-
-      {resizeHandles.map((handle) => (
-        <span
-          key={handle.key}
-          className={handle.className}
-          style={{ cursor: handle.cursor }}
-          onPointerDown={(event) => handleResizePointerDown(event, handle.key)}
-        />
-      ))}
-    </aside>
+    </FloatingPanel>
   );
 };
