@@ -97,7 +97,6 @@ export const nodeIcons: Record<NodeType, string> = {
   logAnalyticsWorkspace: iconLogAnalytics,
   sentinelWorkspace: iconSentinel,
   database: iconStorage,
-  gateway: iconVirtualMachine,
 };
 
 export const defaultNodeIcon = iconVirtualMachine;

@@ -50,7 +50,7 @@ export type NodeType =
   | 'logAnalyticsWorkspace'
   | 'sentinelWorkspace'
   | 'database'
-  | 'gateway';
+  ;
 
 export type GroupType = 'virtualNetwork' | 'subnet' | 'logicalGroup';
 

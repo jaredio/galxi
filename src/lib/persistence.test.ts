@@ -86,4 +86,13 @@ describe('persistence helpers', () => {
     globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     expect(loadGraph()).toBeNull();
   });
+
+  it('migrates legacy gateway node types to applicationGateway', () => {
+    const graph = sampleGraph();
+    graph.nodes[0].type = 'gateway' as unknown as typeof graph.nodes[number]['type'];
+    const payload = { ...graph, version: 1, timestamp: new Date().toISOString() };
+    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    const loaded = loadGraph();
+    expect(loaded?.nodes[0].type).toBe('applicationGateway');
+  });
 });

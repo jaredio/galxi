@@ -10,11 +10,33 @@ import type {
   NetworkLink,
   NetworkNode,
   NodePositionMap,
+  NodeType,
 } from '../types/graph';
 import { logger } from './logger';
 
 const STORAGE_KEY = 'galxi-graph-data';
 const STORAGE_VERSION = 1;
+
+const LEGACY_NODE_TYPE_MAP: Record<string, NodeType> = {
+  gateway: 'applicationGateway',
+};
+
+const migrateLegacyNodeTypes = (nodes: NetworkNode[]) => {
+  const replacements: Record<string, number> = {};
+  const migrated = nodes.map((node) => {
+    const legacyType = LEGACY_NODE_TYPE_MAP[(node as NetworkNode & { type: string }).type];
+    if (!legacyType) {
+      return node;
+    }
+    const legacyKey = (node as NetworkNode & { type: string }).type;
+    replacements[legacyKey] = (replacements[legacyKey] ?? 0) + 1;
+    return { ...node, type: legacyType };
+  });
+  if (Object.keys(replacements).length > 0) {
+    logger.warn('Replaced legacy node types with supported equivalents', { replacements });
+  }
+  return migrated;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -183,8 +205,11 @@ export const loadGraph = (): GraphData | null => {
       return null;
     }
 
+    const normalizedNodes = migrateLegacyNodeTypes(parsed.nodes);
+
     const data: GraphData = {
       ...parsed,
+      nodes: normalizedNodes,
       nodePositions: parsed.nodePositions ?? {},
       groupPositions: parsed.groupPositions ?? {},
     };

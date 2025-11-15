@@ -1932,7 +1932,6 @@ const nodeSchemas: Record<NodeType, ResourceSchema> = {
   logAnalyticsWorkspace: logAnalyticsWorkspaceSchema,
   sentinelWorkspace: sentinelWorkspaceSchema,
   database: storageSchema,
-  gateway: firewallSchema,
 };
 
 const groupSchemas: Record<GroupType, ResourceSchema> = {

@@ -6,18 +6,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGraphPersistence } from './useGraphPersistence';
 import type { CanvasGroup, GroupLink, NetworkLink, NetworkNode, NodePositionMap, GroupPositionMap } from '../types/graph';
 
-const saveGraphMock = vi.fn(() => true);
-const loadGraphMock = vi.fn(() => null);
-const debounceMock = vi.fn(<T extends (...args: any[]) => void>(fn: T) => {
-  return (...args: Parameters<T>) => {
-    fn(...args);
-  };
+const persistenceMocks = vi.hoisted(() => {
+  const saveGraphMock = vi.fn(() => true);
+  const loadGraphMock = vi.fn(() => null);
+  const debounceMock = vi.fn(<T extends (...args: any[]) => void>(fn: T) => {
+    return (...args: Parameters<T>) => {
+      fn(...args);
+    };
+  });
+  return { saveGraphMock, loadGraphMock, debounceMock };
 });
 
 vi.mock('../lib/persistence', () => ({
-  saveGraph: saveGraphMock,
-  loadGraph: loadGraphMock,
-  debounce: debounceMock,
+  saveGraph: persistenceMocks.saveGraphMock,
+  loadGraph: persistenceMocks.loadGraphMock,
+  debounce: persistenceMocks.debounceMock,
 }));
 
 const nodes: NetworkNode[] = [];
@@ -61,7 +64,7 @@ describe('useGraphPersistence', () => {
       );
     });
 
-    expect(saveGraphMock).toHaveBeenCalledTimes(1);
+    expect(persistenceMocks.saveGraphMock).toHaveBeenCalledTimes(1);
 
     act(() => {
       root.render(
@@ -71,7 +74,7 @@ describe('useGraphPersistence', () => {
       );
     });
 
-    expect(saveGraphMock).toHaveBeenCalledTimes(2);
+    expect(persistenceMocks.saveGraphMock).toHaveBeenCalledTimes(2);
 
     act(() => {
       root.unmount();
