@@ -23,6 +23,7 @@ type UseGraphPersistenceOptions = PersistencePayload & {
   nodePositionsRef: MutableRefObject<NodePositionMap>;
   groupPositionsRef: MutableRefObject<GroupPositionMap>;
   replaceGraph: (payload: PersistencePayload) => void;
+  layoutVersion?: number;
   notify?: (message: string) => void;
   onRestore?: (data: GraphData) => void;
 };
@@ -35,6 +36,7 @@ export const useGraphPersistence = ({
   nodePositionsRef,
   groupPositionsRef,
   replaceGraph,
+  layoutVersion = 0,
   notify,
   onRestore,
 }: UseGraphPersistenceOptions) => {
@@ -121,5 +123,5 @@ export const useGraphPersistence = ({
       nodePositions: { ...nodePositionsRef.current },
       groupPositions: { ...groupPositionsRef.current },
     });
-  }, [ready, nodes, links, groups, groupLinks, nodePositionsRef, groupPositionsRef]);
+  }, [ready, nodes, links, groups, groupLinks, nodePositionsRef, groupPositionsRef, layoutVersion]);
 };

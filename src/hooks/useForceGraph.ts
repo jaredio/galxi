@@ -155,6 +155,7 @@ type ForceGraphCallbacks = {
     groupId: string,
     geometry: { x: number; y: number; width: number; height: number }
   ) => void;
+  onLayoutChange: () => void;
 };
 type UseForceGraphArgs = ForceGraphCallbacks & {
   svgRef: MutableRefObject<SVGSVGElement | null>;
@@ -202,6 +203,7 @@ export const useForceGraph = ({
   onGroupDoubleClick,
   onGroupMove,
   onGroupResize,
+  onLayoutChange,
   selectedGroupId,
   hoveredGroupId,
   isActive,
@@ -230,6 +232,7 @@ export const useForceGraph = ({
     onGroupDoubleClick,
     onGroupMove,
     onGroupResize,
+    onLayoutChange,
   });
   type HandlerArgs<K extends keyof ForceGraphCallbacks> = ForceGraphCallbacks[K] extends (
     ...handlerArgs: infer P
@@ -312,6 +315,7 @@ export const useForceGraph = ({
       onGroupDoubleClick,
       onGroupMove,
       onGroupResize,
+      onLayoutChange,
     };
   }, [
     onNodeHover,
@@ -333,6 +337,7 @@ export const useForceGraph = ({
     onGroupDoubleClick,
     onGroupMove,
     onGroupResize,
+    onLayoutChange,
   ]);
   const computeRectEdgeIntersection = (
     centerX: number,
@@ -730,6 +735,7 @@ export const useForceGraph = ({
         const dragState = groupDragStateRef.current;
         if (dragState) {
           invoke('onGroupMove', dragState.id, { x: dragState.x, y: dragState.y });
+          invoke('onLayoutChange');
         }
         groupDragStateRef.current = null;
       });
@@ -777,6 +783,7 @@ export const useForceGraph = ({
         const resizeState = groupResizeStateRef.current;
         if (resizeState) {
           invoke('onGroupResize', resizeState.id, resizeState.next);
+          invoke('onLayoutChange');
         }
         groupResizeStateRef.current = null;
       });
@@ -1210,6 +1217,7 @@ export const useForceGraph = ({
         node.style('cursor', 'grab');
         if (datum) {
           invoke('onNodeDragEnd', datum.id, { x: datum.x ?? 0, y: datum.y ?? 0 });
+          invoke('onLayoutChange');
         }
         schedulePositionsUpdate();
       });

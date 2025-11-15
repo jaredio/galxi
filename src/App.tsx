@@ -35,6 +35,7 @@ import { useContextMenuItems } from './hooks/useContextMenuItems';
 import { useProfileWindows } from './hooks/useProfileWindows';
 import { useDeletionBanner } from './hooks/useDeletionBanner';
 import { useGraphOrchestration } from './hooks/useGraphOrchestration';
+import { useLayoutVersion } from './hooks/useLayoutVersion';
 import {
   linkTouchesNode,
   makeEdgeKey,
@@ -125,6 +126,7 @@ const App = () => {
   const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
   const nodePositionsRef = useRef<NodePositionMap>({});
   const groupPositionsRef = useRef<GroupPositionMap>({});
+  const { layoutVersion, publishLayoutChange } = useLayoutVersion();
 
   const nodes = useGraphStore((state) => state.nodes);
   const links = useGraphStore((state) => state.links);
@@ -432,6 +434,7 @@ const App = () => {
     nodePositionsRef,
     groupPositionsRef,
     replaceGraph,
+     layoutVersion,
     notify: showUtilityToast,
     onRestore: handlePersistenceRestore,
   });
@@ -848,6 +851,7 @@ const App = () => {
     onGroupDoubleClick: handleGroupDoubleClick,
     onGroupMove: handleGroupMove,
     onGroupResize: handleGroupResize,
+    onLayoutChange: publishLayoutChange,
     selectedGroupId,
     hoveredGroupId,
     isActive: isCanvasView,
