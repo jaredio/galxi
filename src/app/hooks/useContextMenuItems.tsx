@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 
-import { EyeIcon, EditIcon, PlusIcon, SettingsIcon, TrashIcon } from '../components/icons';
-import type { ContextMenuItem } from '../components/ContextMenu';
-import { makeEdgeKey, makeGroupLinkKey } from '../lib/graph-utils';
-import type { ContextMenuState, ConnectionFormState } from '../types/appState';
-import type { GroupLink, NetworkLink } from '../types/graph';
+import { EyeIcon, EditIcon, PlusIcon, SettingsIcon, TrashIcon } from '../../components/icons';
+import type { ContextMenuItem } from '../../components/ContextMenu';
+import { makeEdgeKey, makeGroupLinkKey } from '../../lib/graph-utils';
+import type { ContextMenuState, ConnectionFormState } from '../../types/appState';
+import type { GroupLink, NetworkLink } from '../../types/graph';
 
 type UseContextMenuItemsOptions = {
   contextMenu: ContextMenuState | null;
