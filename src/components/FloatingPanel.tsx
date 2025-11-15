@@ -204,12 +204,10 @@ export const FloatingPanel = ({
         }}
       >
         {headerContent}
-        <div className="node-editor-header-actions">
-          {headerActions}
-          <button type="button" className="icon-button icon-button--plain" onClick={onClose} aria-label="Close">
-            <CloseIcon />
-          </button>
-        </div>
+        {headerActions}
+        <button type="button" className="icon-button icon-button--plain" onClick={onClose} aria-label="Close">
+          <CloseIcon />
+        </button>
       </header>
 
       {children}

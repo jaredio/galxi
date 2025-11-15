@@ -1,5 +1,6 @@
 import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { MutableRefObject } from 'react';
+import { createPortal } from 'react-dom';
 
 import { GalxiSidebar } from '../components/GalxiSidebar';
 import { EmptyState } from '../components/EmptyState';
@@ -157,65 +158,26 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
   const connectionSelection = connectionPanel.selection;
   const showConnectionPanel = !nodePanel.form && connectionForm && connectionSelection;
 
-  return (
+  const overlayTarget = typeof document !== 'undefined' ? document.body : null;
+
+  const overlayContent = (
     <>
-      <GalxiSidebar
-        onCreateNode={sidebar.onCreateNode}
-        onCreateGroup={sidebar.onCreateGroup}
-        onStartConnection={sidebar.onStartConnection}
-        onOpenTheme={sidebar.onOpenTheme}
-        onOpenSettings={sidebar.onOpenSettings}
-      />
-
-      <main className="canvas-shell view-fade">
-        <svg
-          ref={canvasRef}
-          className="mindmap-canvas"
-          onContextMenu={onCanvasContextMenu}
-          onMouseMove={onCanvasMouseMove}
+      {contextMenu.state && contextMenu.items.length > 0 && (
+        <ContextMenu
+          x={contextMenu.state.screenX}
+          y={contextMenu.state.screenY}
+          items={contextMenu.items}
+          onRequestClose={contextMenu.onRequestClose}
         />
+      )}
 
-        {emptyState.visible && <EmptyState onCreateNode={emptyState.onCreateNode} />}
-
-        <ZoomControls onZoomIn={zoom.onZoomIn} onZoomOut={zoom.onZoomOut} onReset={zoom.onReset} />
-
-        {contextMenu.state && contextMenu.items.length > 0 && (
-          <ContextMenu
-            x={contextMenu.state.screenX}
-            y={contextMenu.state.screenY}
-            items={contextMenu.items}
-            onRequestClose={contextMenu.onRequestClose}
-          />
-        )}
-
-        {profileWindows.windows.map((window) => {
-          if (window.kind === 'node') {
-            const targetNode = profileWindows.nodes.find((node) => node.id === window.resourceId);
-            if (!targetNode) {
-              return null;
-            }
-            const content = buildNodeProfileContent(targetNode, profileWindows.profileContext);
-            return (
-              <ProfileWindow
-                key={window.id}
-                {...content}
-                position={window.position}
-                zIndex={window.zIndex}
-                startEditNonce={window.editNonce}
-                onMove={(position) => profileWindows.onMove(window.id, position)}
-                onClose={() => profileWindows.onClose(window.id)}
-                onFocus={() => profileWindows.onFocus(window.id)}
-                onFieldChange={(fieldKey, value) =>
-                  profileWindows.onFieldChange('node', window.resourceId, fieldKey, value)
-                }
-              />
-            );
-          }
-          const targetGroup = profileWindows.groups.find((group) => group.id === window.resourceId);
-          if (!targetGroup) {
+      {profileWindows.windows.map((window) => {
+        if (window.kind === 'node') {
+          const targetNode = profileWindows.nodes.find((node) => node.id === window.resourceId);
+          if (!targetNode) {
             return null;
           }
-          const content = buildGroupProfileContent(targetGroup, profileWindows.profileContext);
+          const content = buildNodeProfileContent(targetNode, profileWindows.profileContext);
           return (
             <ProfileWindow
               key={window.id}
@@ -227,12 +189,32 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
               onClose={() => profileWindows.onClose(window.id)}
               onFocus={() => profileWindows.onFocus(window.id)}
               onFieldChange={(fieldKey, value) =>
-                profileWindows.onFieldChange('group', window.resourceId, fieldKey, value)
+                profileWindows.onFieldChange('node', window.resourceId, fieldKey, value)
               }
             />
           );
-        })}
-      </main>
+        }
+        const targetGroup = profileWindows.groups.find((group) => group.id === window.resourceId);
+        if (!targetGroup) {
+          return null;
+        }
+        const content = buildGroupProfileContent(targetGroup, profileWindows.profileContext);
+        return (
+          <ProfileWindow
+            key={window.id}
+            {...content}
+            position={window.position}
+            zIndex={window.zIndex}
+            startEditNonce={window.editNonce}
+            onMove={(position) => profileWindows.onMove(window.id, position)}
+            onClose={() => profileWindows.onClose(window.id)}
+            onFocus={() => profileWindows.onFocus(window.id)}
+            onFieldChange={(fieldKey, value) =>
+              profileWindows.onFieldChange('group', window.resourceId, fieldKey, value)
+            }
+          />
+        );
+      })}
 
       {nodePanel.form && (
         <NodeEditorPanel
@@ -338,6 +320,33 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
           </div>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <>
+      <GalxiSidebar
+        onCreateNode={sidebar.onCreateNode}
+        onCreateGroup={sidebar.onCreateGroup}
+        onStartConnection={sidebar.onStartConnection}
+        onOpenTheme={sidebar.onOpenTheme}
+        onOpenSettings={sidebar.onOpenSettings}
+      />
+
+      <main className="canvas-shell view-fade">
+        <svg
+          ref={canvasRef}
+          className="mindmap-canvas"
+          onContextMenu={onCanvasContextMenu}
+          onMouseMove={onCanvasMouseMove}
+        />
+
+        {emptyState.visible && <EmptyState onCreateNode={emptyState.onCreateNode} />}
+
+        <ZoomControls onZoomIn={zoom.onZoomIn} onZoomOut={zoom.onZoomOut} onReset={zoom.onReset} />
+      </main>
+
+      {overlayTarget ? createPortal(overlayContent, overlayTarget) : overlayContent}
     </>
   );
 };

@@ -166,7 +166,12 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      const isDuplicateShortcut = (event.key === 'd' || event.key === 'D') && event.ctrlKey;
+      const isDuplicateShortcut =
+        (event.key === 'd' || event.key === 'D') &&
+        event.shiftKey &&
+        !event.altKey &&
+        ((event.ctrlKey && !event.metaKey) || (event.metaKey && !event.ctrlKey));
+
       if (isDuplicateShortcut && activeNodeId) {
         event.preventDefault();
         onDuplicateActiveNode();
