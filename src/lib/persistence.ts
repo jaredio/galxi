@@ -15,7 +15,7 @@ import type {
 import { logger } from './logger';
 
 const STORAGE_KEY = 'galxi-graph-data';
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 const LEGACY_NODE_TYPE_MAP: Record<string, NodeType> = {
   gateway: 'applicationGateway',
@@ -215,12 +215,18 @@ export const loadGraph = (): GraphData | null => {
     };
 
     // Validate version
-    if (data.version !== STORAGE_VERSION) {
-      logger.warn('Graph data version mismatch, ignoring saved data', {
+    if (data.version > STORAGE_VERSION) {
+      logger.warn('Graph data version is newer than supported, ignoring saved data', {
         savedVersion: data.version,
         currentVersion: STORAGE_VERSION,
       });
       return null;
+    }
+    if (data.version < STORAGE_VERSION) {
+      logger.info('Upgrading graph data from older version', {
+        savedVersion: data.version,
+        currentVersion: STORAGE_VERSION,
+      });
     }
 
     logger.info('Graph data loaded from localStorage', {
@@ -232,6 +238,7 @@ export const loadGraph = (): GraphData | null => {
 
     return {
       ...data,
+      version: STORAGE_VERSION,
       nodePositions: data.nodePositions ?? {},
       groupPositions: data.groupPositions ?? {},
     };
