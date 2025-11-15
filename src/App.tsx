@@ -55,13 +55,8 @@ import {
   mergeProfileWithSchema,
 } from './schemas/resources';
 import { applyParentAssignments, groupArea, pointWithinGroup } from './lib/groupParenting';
-import {
-  sanitizeInput,
-  validateGroupTitle,
-  validateLabel,
-  validateProfileField,
-  validateRelation,
-} from './lib/validation';
+import { sanitizeInput, validateGroupTitle, validateLabel, validateRelation } from './lib/validation';
+import { sanitizeProfileFieldValue } from './lib/profileField';
 import type {
   CanvasGroup,
   GroupLink,
@@ -238,6 +233,10 @@ const App = () => {
 
   const handleProfileFieldChange = useCallback(
     (kind: ProfileWindowState['kind'], resourceId: string, fieldKey: string, value: string) => {
+      const nextValue = sanitizeProfileFieldValue(value);
+      if (nextValue === null) {
+        return;
+      }
       if (kind === 'node') {
         setNodes((prev) =>
           prev.map((node) => {
@@ -253,7 +252,7 @@ const App = () => {
               ...node,
               profile: {
                 ...profile,
-                [fieldKey]: value,
+                [fieldKey]: nextValue,
               },
             };
           })
@@ -275,7 +274,7 @@ const App = () => {
             ...group,
             profile: {
               ...profile,
-              [fieldKey]: value,
+              [fieldKey]: nextValue,
             },
           };
         })
@@ -561,11 +560,10 @@ const App = () => {
   );
 
   const handleNodeProfileFieldChange = useCallback((fieldKey: string, value: string) => {
-    const result = validateProfileField(value);
-    if (!result.valid) {
+    const nextValue = sanitizeProfileFieldValue(value);
+    if (nextValue === null) {
       return;
     }
-    const nextValue = result.value ?? '';
     setNodeProfileDraft((prev) => {
       if (prev[fieldKey] === nextValue) {
         return prev;
@@ -1000,11 +998,10 @@ const App = () => {
   }, []);
 
   const handleGroupProfileFieldChange = useCallback((fieldKey: string, value: string) => {
-    const result = validateProfileField(value);
-    if (!result.valid) {
+    const nextValue = sanitizeProfileFieldValue(value);
+    if (nextValue === null) {
       return;
     }
-    const nextValue = result.value ?? '';
     setGroupProfileDraft((prev) => {
       if (prev[fieldKey] === nextValue) {
         return prev;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { validateGroupTitle, validateLabel, validateProfileField, validateRelation } from './validation';
+import { sanitizeProfileFieldValue } from './profileField';
 
 describe('validation helpers', () => {
   it('trims and validates labels', () => {
@@ -20,6 +21,11 @@ describe('validation helpers', () => {
   it('sanitizes profile fields', () => {
     const sanitized = validateProfileField('<script>alert(1)</script>');
     expect(sanitized.value).toBe('scriptalert(1)/script');
+  });
+
+  it('exposes sanitized profile values via helper', () => {
+    expect(sanitizeProfileFieldValue('<div>name</div>')).toBe('divname/div');
+    expect(sanitizeProfileFieldValue('x'.repeat(600))).toBeNull();
   });
 
   it('validates group titles', () => {
