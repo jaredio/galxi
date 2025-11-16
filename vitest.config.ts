@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 
 export default defineConfig({
   test: {
@@ -7,5 +7,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
     },
+    exclude: [
+      ...configDefaults.exclude,
+      'playwright/**',
+    ],
   },
 });

@@ -1,0 +1,112 @@
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3.25rem;
+  background-color: var(--background);
+  border-bottom: 1px solid var(--border);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  pointer-events: none;
+}
+
+.inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  pointer-events: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--textPrimary);
+}
+
+.brandLogo {
+  width: 22px;
+  height: 22px;
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.brandName {
+  font-weight: 600;
+}
+
+.navControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+}
+
+.tabButton {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--textSecondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.5rem;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.tabButton:hover {
+  color: var(--textPrimary);
+  background-color: var(--hover);
+  border-color: var(--border);
+}
+
+.tabButtonActive {
+  color: var(--accent);
+  background-color: var(--hover);
+  border: 1px solid var(--border);
+}
+
+.actionGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-self: end;
+}
+
+.actionButton {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--textPrimary);
+  border-radius: 0.5rem;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.actionButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.actionButtonPrimary {
+  background-color: var(--accent);
+  color: var(--background);
+  border-color: var(--accent);
+}
+
+.actionButtonPrimary:hover:not(:disabled) {
+  background-color: var(--accentHover);
+  border-color: var(--accentHover);
+  color: var(--background);
+}

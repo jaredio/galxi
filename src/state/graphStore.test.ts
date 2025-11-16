@@ -49,7 +49,7 @@ describe('graph store', () => {
           label: 'Node 1',
           type: 'vm' as const,
           group: '',
-          profile: { 'overview.status': 'Running' },
+          profile: { 'compute.powerState': 'Running' },
         },
       ],
       links: [],
@@ -58,8 +58,8 @@ describe('graph store', () => {
     };
     useGraphStore.getState().replaceGraph(payload);
     const profile = useGraphStore.getState().nodes[0].profile;
-    expect(profile?.['overview.status']).toBe('Running');
-    expect(profile?.['overview.size']).toBeDefined();
+    expect(profile?.['compute.powerState']).toBe('Running');
+    expect(profile?.['storage.osDiskStorageType']).toBeDefined();
   });
 
   it('replaceGraph merges group profiles with latest schema defaults', () => {

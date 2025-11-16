@@ -1,3 +1,5 @@
+import styles from './ZoomControls.module.css';
+
 type ZoomControlsProps = {
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -5,14 +7,14 @@ type ZoomControlsProps = {
 };
 
 export const ZoomControls = ({ onZoomIn, onZoomOut, onReset }: ZoomControlsProps) => (
-  <div className="zoom-controls" aria-label="Canvas zoom controls">
-    <button type="button" className="zoom-button" onClick={onZoomOut}>
+  <div className={styles.controls} aria-label="Canvas zoom controls">
+    <button type="button" className={styles.button} onClick={onZoomOut}>
       -
     </button>
-    <button type="button" className="zoom-button" onClick={onReset}>
+    <button type="button" className={styles.button} onClick={onReset}>
       Reset
     </button>
-    <button type="button" className="zoom-button" onClick={onZoomIn}>
+    <button type="button" className={styles.button} onClick={onZoomIn}>
       +
     </button>
   </div>

@@ -164,6 +164,7 @@ export const useCanvasViewModel = ({
     notification.utilityToast,
     panelLayout,
     profileContext,
+    profileWindowList,
     onProfileFieldChange,
     moveProfileWindow,
     closeProfileWindowById,

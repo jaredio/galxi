@@ -350,6 +350,9 @@ export const usePanelState = ({
       setGroupLinks((prev) =>
         prev.filter((link) => link.sourceGroupId !== groupId && link.targetGroupId !== groupId)
       );
+      setNodes((prev) =>
+        prev.map((node) => (node.group === groupId ? { ...node, group: '' } : node))
+      );
       setConnectionDraft((current) => {
         if (current?.kind === 'group' && current.sourceGroupId === groupId) {
           return null;
@@ -376,6 +379,7 @@ export const usePanelState = ({
       setGroups,
       setHoveredGroupId,
       setHoveredGroupLinkKey,
+      setNodes,
       setSelectedGroupId,
     ]
   );
@@ -447,11 +451,12 @@ export const usePanelState = ({
       const label = labelResult.value;
       const group = sanitizeInput(nodeFormValues.group, 100);
 
+      const schema = getNodeProfileSchema(nodeFormValues.type);
+      const profile = mergeProfileWithSchema(schema, nodeProfileDraft);
+
       if (nodeForm.mode === 'create') {
         const newId = createNodeId();
         nodePositionsRef.current[newId] = { ...nodeForm.position };
-        const schema = getNodeProfileSchema(nodeFormValues.type);
-        const profile = mergeProfileWithSchema(schema, nodeProfileDraft);
         setNodes((prev) => [
           ...prev,
           {
@@ -475,10 +480,7 @@ export const usePanelState = ({
                   label,
                   type: nodeFormValues.type,
                   group,
-                  profile:
-                    node.type === nodeFormValues.type
-                      ? mergeProfileWithSchema(getNodeProfileSchema(nodeFormValues.type), node.profile)
-                      : createDefaultNodeProfile(nodeFormValues.type),
+                  profile,
                 }
               : node
           )

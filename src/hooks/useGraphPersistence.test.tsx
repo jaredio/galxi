@@ -1,6 +1,5 @@
-import { act } from 'react-dom/test-utils';
+import { StrictMode, act, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { StrictMode, useRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGraphPersistence } from './useGraphPersistence';

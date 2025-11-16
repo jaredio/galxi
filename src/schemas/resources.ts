@@ -26,50 +26,98 @@ const makeSections = (sections: ResourceSectionSchema[]): ResourceSectionSchema[
     fields: section.fields.map((field) => ({ editable: true, ...field })),
   }));
 
-const vmSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.location', label: 'Region' }],
-  sections: makeSections([
+type SectionDefinition = {
+  id: string;
+  title: string;
+  fields: Array<{ id: string; label: string; defaultValue?: string }>;
+};
+
+type SchemaDefinition = {
+  sections: SectionDefinition[];
+  statusField?: string;
+  metaFields?: Array<{ id: string; label: string }>;
+};
+
+const baseMetadataSection: SectionDefinition = {
+  id: 'arm',
+  title: 'Azure Resource Metadata',
+  fields: [
+    { id: 'name', label: 'Resource Name' },
+    { id: 'resourceType', label: 'Resource Type' },
+    { id: 'subscriptionId', label: 'Subscription ID' },
+    { id: 'resourceGroup', label: 'Resource Group' },
+    { id: 'location', label: 'Location' },
+    { id: 'tags', label: 'Tags' },
+    { id: 'id', label: 'Resource ID' },
+    { id: 'provisioningState', label: 'Provisioning State', defaultValue: 'Succeeded' },
+    { id: 'notes', label: 'Notes' },
+  ],
+};
+
+const hydrateSections = (definitions: SectionDefinition[]): ResourceSectionSchema[] =>
+  definitions.map((section) => ({
+    id: section.id,
+    title: section.title,
+    fields: section.fields.map((field) => ({
+      id: field.id,
+      label: field.label,
+      defaultValue: field.defaultValue ?? '',
+    })),
+  }));
+
+const buildResourceSchema = (definition: SchemaDefinition): ResourceSchema => ({
+  statusField: definition.statusField,
+  metaFields: definition.metaFields,
+  sections: makeSections(hydrateSections([baseMetadataSection, ...definition.sections])),
+});
+
+const vmSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'compute.powerState',
+  metaFields: [
+    { id: 'compute.vmSize', label: 'VM Size' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'compute',
+      title: 'Compute Configuration',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'size', label: 'Size', defaultValue: '' },
-        { id: 'os', label: 'Operating System', defaultValue: '' },
-        { id: 'location', label: 'Location', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'network',
-      title: 'Network',
-      fields: [
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-        { id: 'virtualNetwork', label: 'Virtual Network', defaultValue: '' },
-        { id: 'privateIp', label: 'Private IP', defaultValue: '' },
-        { id: 'publicIp', label: 'Public IP', defaultValue: '' },
+        { id: 'vmSize', label: 'VM Size' },
+        { id: 'osType', label: 'OS Type' },
+        { id: 'computeGeneration', label: 'Compute Generation' },
+        { id: 'availabilitySetId', label: 'Availability Set ID' },
+        { id: 'availabilityZone', label: 'Availability Zone' },
+        { id: 'adminUsername', label: 'Admin Username' },
+        { id: 'identityType', label: 'Identity Type' },
+        { id: 'powerState', label: 'Power State', defaultValue: 'Unknown' },
+        { id: 'bootDiagnosticsEnabled', label: 'Boot Diagnostics Enabled' },
       ],
     },
     {
       id: 'storage',
-      title: 'Storage',
+      title: 'OS & Data Disks',
       fields: [
-        { id: 'osDisk', label: 'OS Disk', defaultValue: '' },
-        { id: 'dataDisks', label: 'Data Disks', defaultValue: '' },
-        { id: 'storageType', label: 'Storage Type', defaultValue: '' },
+        { id: 'osDiskStorageType', label: 'OS Disk Storage Type' },
+        { id: 'osDiskSizeGb', label: 'OS Disk Size (GB)' },
+        { id: 'dataDiskCount', label: 'Data Disk Count' },
+        { id: 'dataDiskSizeGb', label: 'Data Disk Size (GB)' },
+        { id: 'dataDiskStorageType', label: 'Data Disk Storage Type' },
       ],
     },
     {
-      id: 'performance',
-      title: 'Performance',
+      id: 'networking',
+      title: 'Networking',
       fields: [
-        { id: 'cpu', label: 'CPU', defaultValue: '' },
-        { id: 'memory', label: 'Memory', defaultValue: '' },
-        { id: 'network', label: 'Network', defaultValue: '' },
+        { id: 'nicIds', label: 'NIC IDs' },
+        { id: 'primaryNicId', label: 'Primary NIC ID' },
+        { id: 'privateIpAddress', label: 'Private IP Address' },
+        { id: 'publicIpAddress', label: 'Public IP Address' },
+        { id: 'virtualNetwork', label: 'Virtual Network' },
+        { id: 'subnet', label: 'Subnet' },
       ],
     },
-  ]),
-};
+  ],
+});
 
 const firewallSchema: ResourceSchema = {
   statusField: 'overview.status',
@@ -106,1295 +154,636 @@ const firewallSchema: ResourceSchema = {
   ]),
 };
 
-const storageSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const storageSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.location', label: 'Region' },
-    { id: 'overview.sku', label: 'SKU' },
+    { id: 'storageAccount.sku', label: 'SKU' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'storageAccount',
+      title: 'Storage Account Configuration',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'tier', label: 'Access Tier', defaultValue: '' },
-        { id: 'location', label: 'Location', defaultValue: '' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'kind', label: 'Kind (StorageV2, BlobStorage, etc.)' },
+        { id: 'accessTier', label: 'Access Tier (Hot/Cool)' },
+        { id: 'supportsHttpsTrafficOnly', label: 'HTTPS Traffic Only Enabled' },
       ],
     },
-    {
-      id: 'capacity',
-      title: 'Capacity',
-      fields: [
-        { id: 'usedSpace', label: 'Used Space', defaultValue: '' },
-        { id: 'totalObjects', label: 'Total Objects', defaultValue: '' },
-        { id: 'throughput', label: 'Throughput', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'connections',
-      title: 'Connections',
-      fields: [
-        { id: 'linkedVms', label: 'Linked VMs', defaultValue: '' },
-        { id: 'pipelines', label: 'Analytics Pipelines', defaultValue: '' },
-        { id: 'encryption', label: 'Encryption', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const azureFilesSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const azureFilesSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.accountName', label: 'Storage Account' },
+    { id: 'fileShare.shareQuotaGb', label: 'Quota (GB)' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'fileShare',
+      title: 'Azure Files Share',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'accountName', label: 'Storage Account', defaultValue: '' },
-        { id: 'protocols', label: 'Protocols (SMB/NFS)', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
+        { id: 'shareQuotaGb', label: 'Share Quota (GB)' },
+        { id: 'protocolsEnabled', label: 'Protocols Enabled (SMB/NFS)' },
       ],
     },
-    {
-      id: 'shares',
-      title: 'Shares',
-      fields: [
-        { id: 'shareCount', label: 'Total Shares', defaultValue: '' },
-        { id: 'defaultShare', label: 'Default Share', defaultValue: '' },
-        { id: 'quotaGiB', label: 'Allocated Quota (GiB)', defaultValue: '' },
-        { id: 'backupPolicy', label: 'Backup Policy', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      fields: [
-        { id: 'encryption', label: 'Encryption', defaultValue: '' },
-        { id: 'identity', label: 'Managed Identity', defaultValue: '' },
-        { id: 'networkRules', label: 'Network Rules', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const dataLakeSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const dataLakeSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.accountTier', label: 'Account Tier' },
+    { id: 'dataLake.accountTier', label: 'Account Tier' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'dataLake',
+      title: 'Data Lake Storage Gen2',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'accountKind', label: 'Account Kind', defaultValue: '' },
-        { id: 'accountTier', label: 'Account Tier', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
+        { id: 'hierarchicalNamespace', label: 'Hierarchical Namespace Enabled' },
+        { id: 'filesystemCount', label: 'Filesystem Count' },
       ],
     },
-    {
-      id: 'namespaces',
-      title: 'Namespaces',
-      fields: [
-        { id: 'filesystemCount', label: 'File Systems', defaultValue: '' },
-        { id: 'defaultFilesystem', label: 'Default File System', defaultValue: '' },
-        { id: 'hierarchicalNamespace', label: 'Hierarchical Namespace', defaultValue: '' },
-        { id: 'primaryEndpoint', label: 'Primary Endpoint', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security & Governance',
-      fields: [
-        { id: 'encryption', label: 'Encryption State', defaultValue: '' },
-        { id: 'networkAccess', label: 'Network Access', defaultValue: '' },
-        { id: 'firewallRules', label: 'Firewall Rules', defaultValue: '' },
-        { id: 'managedIdentities', label: 'Managed Identities', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'analytics',
-      title: 'Analytics Integration',
-      fields: [
-        { id: 'synapseLinks', label: 'Synapse Links', defaultValue: '' },
-        { id: 'lakehouseConnections', label: 'Lakehouse Connections', defaultValue: '' },
-        { id: 'ingestionPipelines', label: 'Ingestion Pipelines', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const storageQueueSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const storageQueueSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.accountName', label: 'Storage Account' },
+    { id: 'queue.queueName', label: 'Queue Name' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'queue',
+      title: 'Storage Queue',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'queueName', label: 'Queue Name', defaultValue: '' },
-        { id: 'accountName', label: 'Storage Account', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'capacity',
-      title: 'Capacity & Throughput',
-      fields: [
-        { id: 'messageCount', label: 'Approx Messages', defaultValue: '' },
-        { id: 'oldestMessageAge', label: 'Oldest Message Age', defaultValue: '' },
-        { id: 'ingressRate', label: 'Ingress Rate (msg/s)', defaultValue: '' },
-        { id: 'egressRate', label: 'Egress Rate (msg/s)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'endpoints',
-      title: 'Endpoints & Security',
-      fields: [
-        { id: 'primaryEndpoint', label: 'Primary Endpoint', defaultValue: '' },
-        { id: 'authorization', label: 'Authorization Mode', defaultValue: '' },
-        { id: 'encryption', label: 'Encryption', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const azureSqlDatabaseSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'compute.computeTier', label: 'Compute Tier' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'serverName', label: 'Logical Server', defaultValue: '' },
-        { id: 'serviceObjective', label: 'Service Objective', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'compute',
-      title: 'Compute & Storage',
-      fields: [
-        { id: 'computeTier', label: 'Compute Tier', defaultValue: '' },
-        { id: 'vcores', label: 'vCores', defaultValue: '' },
-        { id: 'maxStorage', label: 'Max Storage (GB)', defaultValue: '' },
-        { id: 'backupStorage', label: 'Backup Storage (GB)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'resiliency',
-      title: 'Resiliency',
-      fields: [
-        { id: 'ha', label: 'High Availability Mode', defaultValue: '' },
-        { id: 'geoReplication', label: 'Geo Replication', defaultValue: '' },
-        { id: 'backupRetention', label: 'Backup Retention', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'connectivity',
-      title: 'Connectivity',
-      fields: [
-        { id: 'connectionString', label: 'Connection String', defaultValue: '' },
-        { id: 'failoverGroup', label: 'Failover Group', defaultValue: '' },
-        { id: 'firewallRules', label: 'Firewall Rules', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const managedSqlInstanceSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.licenseType', label: 'License Type' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'instanceName', label: 'Instance Name', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'licenseType', label: 'License Type', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'compute',
-      title: 'Compute & Storage',
-      fields: [
-        { id: 'vcores', label: 'vCores', defaultValue: '' },
-        { id: 'hardwareGeneration', label: 'Hardware Gen', defaultValue: '' },
-        { id: 'storageSize', label: 'Storage Size (GB)', defaultValue: '' },
-        { id: 'tempdbSize', label: 'tempdb Size', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'networking',
-      title: 'Networking',
-      fields: [
-        { id: 'virtualNetwork', label: 'Virtual Network', defaultValue: '' },
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-        { id: 'privateEndpoint', label: 'Private Endpoint', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'maintenance',
-      title: 'Maintenance',
-      fields: [
-        { id: 'serviceTier', label: 'Service Tier', defaultValue: '' },
-        { id: 'backupRetention', label: 'Backup Retention', defaultValue: '' },
-        { id: 'latestPatch', label: 'Latest Patch', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const relationalMySqlSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'compute.computeTier', label: 'Compute Tier' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'serverName', label: 'Server Name', defaultValue: '' },
-        { id: 'version', label: 'Engine Version', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'compute',
-      title: 'Compute & Storage',
-      fields: [
-        { id: 'computeTier', label: 'Compute Tier', defaultValue: '' },
-        { id: 'vcores', label: 'vCores', defaultValue: '' },
-        { id: 'storage', label: 'Storage (GB)', defaultValue: '' },
-        { id: 'iops', label: 'IOPS', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'availability',
-      title: 'Availability',
-      fields: [
-        { id: 'haMode', label: 'High Availability Mode', defaultValue: '' },
-        { id: 'backupRetention', label: 'Backup Retention', defaultValue: '' },
-        { id: 'geoRedundantBackup', label: 'Geo-Redundant Backup', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'networking',
-      title: 'Networking',
-      fields: [
-        { id: 'endpoint', label: 'Connection Endpoint', defaultValue: '' },
-        { id: 'firewallRules', label: 'Firewall Rules', defaultValue: '' },
-        { id: 'privateAccess', label: 'Private Access', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const azureDatabaseForMySqlSchema: ResourceSchema = relationalMySqlSchema;
-
-const azureDatabaseForMariaDbSchema: ResourceSchema = {
-  ...relationalMySqlSchema,
-  sections: relationalMySqlSchema.sections.map((section) => {
-    if (section.id !== 'overview') {
-      return section;
-    }
-    return {
-      ...section,
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'serverName', label: 'Server Name', defaultValue: '' },
-        { id: 'version', label: 'MariaDB Version', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    };
-  }),
-};
-
-const azureDatabaseForPostgreSqlSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'compute.computeTier', label: 'Compute Tier' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'serverName', label: 'Server Name', defaultValue: '' },
-        { id: 'version', label: 'PostgreSQL Version', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'compute',
-      title: 'Compute & Storage',
-      fields: [
-        { id: 'computeTier', label: 'Compute Tier', defaultValue: '' },
-        { id: 'vcores', label: 'vCores', defaultValue: '' },
-        { id: 'storage', label: 'Storage (GB)', defaultValue: '' },
-        { id: 'maxConnections', label: 'Max Connections', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'availability',
-      title: 'Availability',
-      fields: [
-        { id: 'haMode', label: 'High Availability Mode', defaultValue: '' },
-        { id: 'backupRetention', label: 'Backup Retention', defaultValue: '' },
-        { id: 'maintenanceWindow', label: 'Maintenance Window', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'networking',
-      title: 'Networking',
-      fields: [
-        { id: 'endpoint', label: 'Connection Endpoint', defaultValue: '' },
-        { id: 'privateEndpoint', label: 'Private Endpoint', defaultValue: '' },
-        { id: 'firewallRules', label: 'Firewall Rules', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const azureCosmosDbSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Primary Region' },
-    { id: 'consistency.model', label: 'Consistency' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'api', label: 'API (Core, Mongo, Gremlin, etc.)', defaultValue: '' },
-        { id: 'accountName', label: 'Account Name', defaultValue: '' },
-        { id: 'region', label: 'Primary Region', defaultValue: '' },
+        { id: 'queueName', label: 'Queue Name' },
+        { id: 'accountName', label: 'Storage Account' },
+        { id: 'messageCount', label: 'Approx Messages' },
+        { id: 'maxDeliveryCount', label: 'Max Delivery Count' },
       ],
     },
     {
       id: 'throughput',
-      title: 'Throughput',
+      title: 'Throughput & Security',
       fields: [
-        { id: 'provisionedRUs', label: 'Provisioned RUs', defaultValue: '' },
-        { id: 'autopilot', label: 'Autoscale Max RUs', defaultValue: '' },
-        { id: 'databases', label: 'Database Count', defaultValue: '' },
+        { id: 'ingressRate', label: 'Ingress Rate (msg/s)' },
+        { id: 'egressRate', label: 'Egress Rate (msg/s)' },
+        { id: 'authorization', label: 'Authorization Mode' },
+        { id: 'encryption', label: 'Encryption' },
       ],
     },
-    {
-      id: 'consistency',
-      title: 'Consistency & Replication',
-      fields: [
-        { id: 'model', label: 'Consistency Level', defaultValue: '' },
-        { id: 'regions', label: 'Replicated Regions', defaultValue: '' },
-        { id: 'multiWrite', label: 'Multi-Write', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      fields: [
-        { id: 'keys', label: 'Key Rotation State', defaultValue: '' },
-        { id: 'privateEndpoints', label: 'Private Endpoints', defaultValue: '' },
-        { id: 'roleAssignments', label: 'Role Assignments', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const oracleDatabaseSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.shape', label: 'Shape' },
   ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'dbName', label: 'Database Name', defaultValue: '' },
-        { id: 'workloadType', label: 'Workload Type', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'configuration',
-      title: 'Configuration',
-      fields: [
-        { id: 'shape', label: 'Shape', defaultValue: '' },
-        { id: 'cpuCoreCount', label: 'CPU Cores', defaultValue: '' },
-        { id: 'memory', label: 'Memory (GB)', defaultValue: '' },
-        { id: 'storage', label: 'Storage (TB)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'availability',
-      title: 'Availability & Protection',
-      fields: [
-        { id: 'ha', label: 'High Availability', defaultValue: '' },
-        { id: 'backupWindow', label: 'Backup Window', defaultValue: '' },
-        { id: 'dataGuard', label: 'Data Guard', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'connectivity',
-      title: 'Connectivity',
-      fields: [
-        { id: 'listenerEndpoint', label: 'Listener Endpoint', defaultValue: '' },
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-        { id: 'firewallRules', label: 'Firewall Rules', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+});
 
-const apiManagementSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const azureSqlDatabaseSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'database.status',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.tier', label: 'Tier' },
+    { id: 'database.serverName', label: 'SQL Server' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'database',
+      title: 'Azure SQL Database',
       fields: [
+        { id: 'serverName', label: 'Logical Server Name' },
+        { id: 'tier', label: 'Tier (DTU/vCore)' },
+        { id: 'computeSize', label: 'Compute Size' },
+        { id: 'maxSizeGb', label: 'Max Size (GB)' },
+        { id: 'collation', label: 'Collation' },
         { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'name', label: 'Service Name', defaultValue: '' },
-        { id: 'tier', label: 'Tier', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
       ],
     },
-    {
-      id: 'gateways',
-      title: 'Gateways',
-      fields: [
-        { id: 'primaryRegion', label: 'Primary Region', defaultValue: '' },
-        { id: 'additionalRegions', label: 'Additional Regions', defaultValue: '' },
-        { id: 'customDomains', label: 'Custom Domains', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security & Policies',
-      fields: [
-        { id: 'policyCount', label: 'Policy Count', defaultValue: '' },
-        { id: 'certificates', label: 'Certificates', defaultValue: '' },
-        { id: 'authServers', label: 'Authorization Servers', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'analytics',
-      title: 'Analytics',
-      fields: [
-        { id: 'requestVolume', label: 'Request Volume (avg/day)', defaultValue: '' },
-        { id: 'successRate', label: 'Success Rate', defaultValue: '' },
-        { id: 'latency', label: 'Avg Latency', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const dataFactorySchema: ResourceSchema = {
-  statusField: 'overview.status',
+const managedSqlInstanceSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.version', label: 'Version' },
+    { id: 'managedInstance.vCores', label: 'vCores' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'managedInstance',
+      title: 'SQL Managed Instance',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'gitMode', label: 'Git Mode', defaultValue: '' },
-        { id: 'integrationRuntime', label: 'Default Integration Runtime', defaultValue: '' },
+        { id: 'vCores', label: 'vCores' },
+        { id: 'storageGb', label: 'Storage (GB)' },
+        { id: 'licenseType', label: 'License Type' },
+        { id: 'subnetId', label: 'Subnet Resource ID' },
       ],
     },
-    {
-      id: 'pipelines',
-      title: 'Pipelines & Triggers',
-      fields: [
-        { id: 'pipelineCount', label: 'Pipelines', defaultValue: '' },
-        { id: 'triggerCount', label: 'Triggers', defaultValue: '' },
-        { id: 'lastRun', label: 'Last Successful Run', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'integrationRuntimes',
-      title: 'Integration Runtimes',
-      fields: [
-        { id: 'azureRuntimes', label: 'Azure Runtimes', defaultValue: '' },
-        { id: 'selfHostedRuntimes', label: 'Self-Hosted Runtimes', defaultValue: '' },
-        { id: 'linkedIRs', label: 'Linked IRs', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'connections',
-      title: 'Connections',
-      fields: [
-        { id: 'linkedServices', label: 'Linked Services', defaultValue: '' },
-        { id: 'datasets', label: 'Datasets', defaultValue: '' },
-        { id: 'managedVirtualNetwork', label: 'Managed VNet', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const eventGridSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.topicType', label: 'Topic Type' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'topicType', label: 'Topic Type', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'endpoint', label: 'Endpoint', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'subscriptions',
-      title: 'Event Subscriptions',
-      fields: [
-        { id: 'subscriptionCount', label: 'Subscriptions', defaultValue: '' },
-        { id: 'deadLettering', label: 'Dead-Lettering', defaultValue: '' },
-        { id: 'filters', label: 'Advanced Filters', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'delivery',
-      title: 'Delivery',
-      fields: [
-        { id: 'successRate', label: 'Delivery Success Rate', defaultValue: '' },
-        { id: 'retryPolicy', label: 'Retry Policy', defaultValue: '' },
-        { id: 'lastEventTime', label: 'Last Event Time', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+const buildFlexibleServerSchema = (engineName: string, versionLabel: string): ResourceSchema =>
+  buildResourceSchema({
+    statusField: 'arm.provisioningState',
+    metaFields: [
+      { id: 'flexibleServer.version', label: versionLabel },
+      { id: 'arm.location', label: 'Region' },
+    ],
+    sections: [
+      {
+        id: 'flexibleServer',
+        title: `${engineName} Flexible Server`,
+        fields: [
+          { id: 'version', label: versionLabel },
+          { id: 'vCores', label: 'vCores' },
+          { id: 'storageGb', label: 'Storage (GB)' },
+          { id: 'highAvailability', label: 'High Availability' },
+          { id: 'backupRetentionDays', label: 'Backup Retention (days)' },
+        ],
+      },
+    ],
+  });
 
-const eventHubSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'throughput.throughputUnits', label: 'Throughput Units' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'namespace', label: 'Namespace', defaultValue: '' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'throughput',
-      title: 'Throughput & Retention',
-      fields: [
-        { id: 'throughputUnits', label: 'Throughput Units', defaultValue: '' },
-        { id: 'partitionCount', label: 'Partition Count', defaultValue: '' },
-        { id: 'retentionHours', label: 'Retention (hours)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      fields: [
-        { id: 'encryption', label: 'Encryption', defaultValue: '' },
-        { id: 'networkRules', label: 'Network Rules', defaultValue: '' },
-        { id: 'sharedAccessPolicies', label: 'Shared Access Policies', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+const azureDatabaseForMySqlSchema: ResourceSchema = buildFlexibleServerSchema(
+  'MySQL',
+  'MySQL Version'
+);
 
-const logicAppSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.plan', label: 'Plan' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'workflowName', label: 'Workflow Name', defaultValue: '' },
-        { id: 'plan', label: 'Plan', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'workflow',
-      title: 'Workflow',
-      fields: [
-        { id: 'triggerType', label: 'Trigger Type', defaultValue: '' },
-        { id: 'connectorCount', label: 'Connector Count', defaultValue: '' },
-        { id: 'actionCount', label: 'Action Count', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'monitoring',
-      title: 'Monitoring',
-      fields: [
-        { id: 'runHistory', label: 'Recent Run Status', defaultValue: '' },
-        { id: 'failures24h', label: 'Failures (24h)', defaultValue: '' },
-        { id: 'integrationAccount', label: 'Integration Account', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+const azureDatabaseForMariaDbSchema: ResourceSchema = buildFlexibleServerSchema(
+  'MariaDB',
+  'MariaDB Version'
+);
 
-const serviceBusSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.sku', label: 'SKU' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'namespace', label: 'Namespace', defaultValue: '' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'messaging',
-      title: 'Queues & Topics',
-      fields: [
-        { id: 'queueCount', label: 'Queue Count', defaultValue: '' },
-        { id: 'topicCount', label: 'Topic Count', defaultValue: '' },
-        { id: 'maxSize', label: 'Max Size (GB)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      fields: [
-        { id: 'networkRules', label: 'Network Rules', defaultValue: '' },
-        { id: 'sharedAccessPolicies', label: 'Shared Access Policies', defaultValue: '' },
-        { id: 'privateEndpoints', label: 'Private Endpoints', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+const azureDatabaseForPostgreSqlSchema: ResourceSchema = buildFlexibleServerSchema(
+  'PostgreSQL',
+  'PostgreSQL Version'
+);
 
-const automationAccountSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const azureCosmosDbSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.runAsAccount', label: 'Run As Account' },
+    { id: 'cosmos.apiKind', label: 'API Kind' },
+    { id: 'arm.location', label: 'Primary Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'cosmos',
+      title: 'Azure Cosmos DB',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'accountName', label: 'Account Name', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'runAsAccount', label: 'Run As Account', defaultValue: '' },
+        { id: 'apiKind', label: 'API Kind (SQL/Mongo/etc.)' },
+        { id: 'consistencyLevel', label: 'Consistency Level' },
+        { id: 'automaticFailover', label: 'Automatic Failover Enabled' },
+        { id: 'writeRegions', label: 'Write Regions' },
+        { id: 'readRegions', label: 'Read Regions' },
       ],
     },
-    {
-      id: 'runbooks',
-      title: 'Runbooks & Workers',
-      fields: [
-        { id: 'runbookCount', label: 'Runbook Count', defaultValue: '' },
-        { id: 'hybridWorkerGroups', label: 'Hybrid Worker Groups', defaultValue: '' },
-        { id: 'updateDeployments', label: 'Update Deployments', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'jobs',
-      title: 'Jobs & Schedules',
-      fields: [
-        { id: 'scheduledJobs', label: 'Scheduled Jobs', defaultValue: '' },
-        { id: 'jobs24h', label: 'Jobs (24h)', defaultValue: '' },
-        { id: 'lastJobStatus', label: 'Last Job Status', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'integrations',
-      title: 'Integrations',
-      fields: [
-        { id: 'logAnalyticsWorkspace', label: 'Log Analytics Workspace', defaultValue: '' },
-        { id: 'linkedKeyVault', label: 'Linked Key Vault', defaultValue: '' },
-        { id: 'managedIdentity', label: 'Managed Identity', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const azureMonitorSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const oracleDatabaseSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'signals.defaultScope', label: 'Default Scope' },
+    { id: 'oracle.workloadType', label: 'Workload Type' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'oracle',
+      title: 'Oracle Database',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'defaultScope', label: 'Default Scope', defaultValue: '' },
-        { id: 'dataCollectionEndpoint', label: 'Data Collection Endpoint', defaultValue: '' },
+        { id: 'dbName', label: 'Database Name' },
+        { id: 'workloadType', label: 'Workload Type' },
+        { id: 'shape', label: 'Shape' },
+        { id: 'cpuCoreCount', label: 'CPU Cores' },
+        { id: 'memoryGb', label: 'Memory (GB)' },
+        { id: 'storageTb', label: 'Storage (TB)' },
+        { id: 'highAvailability', label: 'High Availability' },
+        { id: 'backupWindow', label: 'Backup Window' },
+        { id: 'dataGuard', label: 'Data Guard Enabled' },
+        { id: 'listenerEndpoint', label: 'Listener Endpoint' },
+        { id: 'subnetId', label: 'Subnet ID' },
+        { id: 'firewallRules', label: 'Firewall Rules' },
       ],
     },
-    {
-      id: 'signals',
-      title: 'Signals & Alerts',
-      fields: [
-        { id: 'metricAlerts', label: 'Metric Alerts', defaultValue: '' },
-        { id: 'logAlerts', label: 'Log Alerts', defaultValue: '' },
-        { id: 'notificationGroups', label: 'Notification Groups', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'insights',
-      title: 'Insights',
-      fields: [
-        { id: 'appInsights', label: 'Application Insights', defaultValue: '' },
-        { id: 'vmInsights', label: 'VM Insights', defaultValue: '' },
-        { id: 'containerInsights', label: 'Container Insights', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'dataCollection',
-      title: 'Data Collection',
-      fields: [
-        { id: 'dataCollectionRules', label: 'Data Collection Rules', defaultValue: '' },
-        { id: 'monitoredResources', label: 'Monitored Resources', defaultValue: '' },
-        { id: 'logAnalyticsWorkspace', label: 'Target Workspace', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const logAnalyticsWorkspaceSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const apiManagementSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.workspaceId', label: 'Workspace ID' },
+    { id: 'apiManagement.skuName', label: 'SKU' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'apiManagement',
+      title: 'API Management',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'workspaceName', label: 'Workspace Name', defaultValue: '' },
-        { id: 'workspaceId', label: 'Workspace ID', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
+        { id: 'skuName', label: 'SKU Name' },
+        { id: 'gatewayUrl', label: 'Gateway URL' },
+        { id: 'publisherEmail', label: 'Publisher Email' },
+        { id: 'publicIpIds', label: 'Public IP Resource IDs' },
       ],
     },
-    {
-      id: 'ingestion',
-      title: 'Ingestion & Retention',
-      fields: [
-        { id: 'dailyVolume', label: 'Daily Volume (GB)', defaultValue: '' },
-        { id: 'retentionDays', label: 'Retention (days)', defaultValue: '' },
-        { id: 'dataSources', label: 'Data Sources', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'solutions',
-      title: 'Solutions & Insights',
-      fields: [
-        { id: 'insights', label: 'Insights Enabled', defaultValue: '' },
-        { id: 'workbooks', label: 'Workbooks', defaultValue: '' },
-        { id: 'savedSearches', label: 'Saved Searches', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      fields: [
-        { id: 'linkedSentinel', label: 'Microsoft Sentinel', defaultValue: '' },
-        { id: 'customerManagedKey', label: 'Customer-Managed Key', defaultValue: '' },
-        { id: 'privateLinks', label: 'Private Links', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const sentinelWorkspaceSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.workspaceName', label: 'Workspace' },
+const dataFactorySchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Region' }],
+  sections: [
+    {
+      id: 'dataFactory',
+      title: 'Data Factory',
+      fields: [
+        { id: 'repoConfiguration', label: 'Repo Configuration' },
+        { id: 'diagnosticEnabled', label: 'Diagnostics Enabled' },
+        { id: 'linkedResourceCount', label: 'Linked Resource Count' },
+      ],
+    },
   ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'workspaceName', label: 'Workspace Name', defaultValue: '' },
-        { id: 'serviceTier', label: 'Service Tier', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'detections',
-      title: 'Detections',
-      fields: [
-        { id: 'analyticRules', label: 'Analytic Rules', defaultValue: '' },
-        { id: 'automationRules', label: 'Automation Rules', defaultValue: '' },
-        { id: 'playbooks', label: 'Playbooks', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'operations',
-      title: 'Operations',
-      fields: [
-        { id: 'incidents24h', label: 'Incidents (24h)', defaultValue: '' },
-        { id: 'activeInvestigations', label: 'Active Investigations', defaultValue: '' },
-        { id: 'huntingQueries', label: 'Hunting Queries', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'connectors',
-      title: 'Data Connectors',
-      fields: [
-        { id: 'connectedSources', label: 'Connected Sources', defaultValue: '' },
-        { id: 'dataConnectors', label: 'Data Connectors', defaultValue: '' },
-        { id: 'logAnalyticsWorkspace', label: 'Log Analytics Workspace', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+});
 
-const diskSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const eventGridSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'configuration.tier', label: 'Performance Tier' },
+    { id: 'eventGrid.inputSchema', label: 'Input Schema' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'eventGrid',
+      title: 'Event Grid Topic',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'size', label: 'Provisioned Size (GiB)', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
+        { id: 'endpoint', label: 'Endpoint' },
+        { id: 'inputSchema', label: 'Input Schema' },
+        { id: 'publicNetworkAccess', label: 'Public Network Access' },
       ],
     },
-    {
-      id: 'configuration',
-      title: 'Configuration',
-      fields: [
-        { id: 'type', label: 'Disk Type', defaultValue: '' },
-        { id: 'tier', label: 'Performance Tier', defaultValue: '' },
-        { id: 'encryption', label: 'Encryption', defaultValue: '' },
-        { id: 'replication', label: 'Replication', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'attachments',
-      title: 'Attachments',
-      fields: [
-        { id: 'attachedVm', label: 'Attached VM', defaultValue: '' },
-        { id: 'lun', label: 'LUN', defaultValue: '' },
-        { id: 'iops', label: 'IOPS Limit', defaultValue: '' },
-        { id: 'throughput', label: 'Throughput Limit (MB/s)', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const functionAppSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const eventHubSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'settings.plan', label: 'App Service Plan' },
+    { id: 'eventHub.skuTier', label: 'SKU Tier' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'eventHub',
+      title: 'Event Hubs Namespace',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'runtime', label: 'Runtime Stack', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'hostname', label: 'Default Hostname', defaultValue: '' },
+        { id: 'skuTier', label: 'SKU Tier' },
+        { id: 'throughputUnits', label: 'Throughput Units' },
+        { id: 'capacity', label: 'Capacity' },
       ],
     },
-    {
-      id: 'settings',
-      title: 'Plan & Settings',
-      fields: [
-        { id: 'plan', label: 'App Service Plan', defaultValue: '' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'dailyQuota', label: 'Daily Execution Quota', defaultValue: '' },
-        { id: 'alwaysOn', label: 'Always On', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'endpoints',
-      title: 'Endpoints',
-      fields: [
-        { id: 'publicUrl', label: 'Public URL', defaultValue: '' },
-        { id: 'deploymentSlot', label: 'Deployment Slot', defaultValue: '' },
-        { id: 'apiDefinition', label: 'OpenAPI Definition', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const appServiceSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const logicAppSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'logicApp.state',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'plan.sku', label: 'SKU' },
+    { id: 'logicApp.state', label: 'State' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'logicApp',
+      title: 'Logic App',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'stack', label: 'Runtime Stack', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'hostname', label: 'Default Hostname', defaultValue: '' },
+        { id: 'state', label: 'State (Enabled/Disabled)' },
+        { id: 'endpointUrl', label: 'Endpoint URL' },
+        { id: 'integrationAccountId', label: 'Integration Account ID' },
       ],
     },
-    {
-      id: 'plan',
-      title: 'App Service Plan',
-      fields: [
-        { id: 'name', label: 'Plan Name', defaultValue: '' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'capacity', label: 'Instance Capacity', defaultValue: '' },
-        { id: 'zoneRedundant', label: 'Zone Redundant', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'deployment',
-      title: 'Deployment',
-      fields: [
-        { id: 'slot', label: 'Deployment Slot', defaultValue: '' },
-        { id: 'latestBuild', label: 'Last Deployment', defaultValue: '' },
-        { id: 'repo', label: 'Source', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const vmScaleSetSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const serviceBusSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.instances', label: 'Instances' },
+    { id: 'serviceBus.sku', label: 'SKU' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'serviceBus',
+      title: 'Service Bus Namespace',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'orchestration', label: 'Orchestration Mode', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'instances', label: 'Instances', defaultValue: '' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'queueCount', label: 'Queue Count' },
+        { id: 'topicCount', label: 'Topic Count' },
+      ],
+    },
+  ],
+});
+
+const automationAccountSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'automation.runbookCount', label: 'Runbook Count' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'automation',
+      title: 'Automation Account',
+      fields: [
+        { id: 'runbookCount', label: 'Runbook Count' },
+        { id: 'hybridWorkers', label: 'Hybrid Workers' },
+      ],
+    },
+  ],
+});
+
+const azureMonitorSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Region' }],
+  sections: [
+    {
+      id: 'azureMonitor',
+      title: 'Azure Monitor',
+      fields: [
+        { id: 'metricsEnabled', label: 'Metrics Enabled' },
+        { id: 'logCategoriesEnabled', label: 'Log Categories Enabled' },
+        { id: 'destinationIds', label: 'Destination Resource IDs' },
+      ],
+    },
+  ],
+});
+
+const logAnalyticsWorkspaceSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'logAnalytics.sku', label: 'SKU' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'logAnalytics',
+      title: 'Log Analytics Workspace',
+      fields: [
+        { id: 'sku', label: 'SKU' },
+        { id: 'retentionInDays', label: 'Retention (days)' },
+        { id: 'dailyQuotaGb', label: 'Daily Quota (GB)' },
+      ],
+    },
+  ],
+});
+
+const sentinelWorkspaceSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'sentinel.enabled', label: 'Enabled' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'sentinel',
+      title: 'Microsoft Sentinel',
+      fields: [
+        { id: 'enabled', label: 'Enabled' },
+        { id: 'dataConnectorCount', label: 'Data Connector Count' },
+        { id: 'analyticsRulesCount', label: 'Analytics Rules Count' },
+      ],
+    },
+  ],
+});
+
+const diskSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'managedDisk.diskSizeGb', label: 'Disk Size (GB)' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'managedDisk',
+      title: 'Managed Disk',
+      fields: [
+        { id: 'diskSizeGb', label: 'Disk Size (GB)' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'encryptionType', label: 'Encryption Type' },
+      ],
+    },
+  ],
+});
+
+const functionAppSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'runtime.state',
+  metaFields: [
+    { id: 'runtime.runtimeStack', label: 'Runtime Stack' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'runtime',
+      title: 'Function App Runtime',
+      fields: [
+        { id: 'state', label: 'State', defaultValue: 'Stopped' },
+        { id: 'runtimeStack', label: 'Runtime Stack' },
+        { id: 'functionVersion', label: 'Function Version' },
+        { id: 'appServicePlanId', label: 'App Service Plan ID' },
+        { id: 'storageAccountId', label: 'Storage Account ID' },
+        { id: 'defaultHostname', label: 'Default Hostname' },
+        { id: 'alwaysOn', label: 'Always On' },
+      ],
+    },
+  ],
+});
+
+const appServiceSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'runtime.state',
+  metaFields: [
+    { id: 'runtime.kind', label: 'Kind' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'runtime',
+      title: 'Runtime',
+      fields: [
+        { id: 'state', label: 'State', defaultValue: 'Stopped' },
+        { id: 'kind', label: 'Kind' },
+        { id: 'runtimeStack', label: 'Runtime Stack' },
+        { id: 'appServicePlanId', label: 'App Service Plan ID' },
+        { id: 'defaultHostname', label: 'Default Hostname' },
+        { id: 'httpsOnly', label: 'HTTPS Only' },
+        { id: 'dailyUsageQuota', label: 'Daily Usage Quota' },
       ],
     },
     {
-      id: 'scaling',
-      title: 'Scaling',
+      id: 'siteConfig',
+      title: 'Site Configuration',
       fields: [
-        { id: 'capacity', label: 'Capacity', defaultValue: '' },
-        { id: 'autoscale', label: 'Autoscale Profile', defaultValue: '' },
-        { id: 'min', label: 'Min Instances', defaultValue: '' },
-        { id: 'max', label: 'Max Instances', defaultValue: '' },
+        { id: 'linuxFxVersion', label: 'Linux FX Version' },
+        { id: 'windowsFxVersion', label: 'Windows FX Version' },
+        { id: 'alwaysOn', label: 'Always On' },
+        { id: 'ftpsState', label: 'FTPS State' },
       ],
     },
     {
-      id: 'compute',
-      title: 'Compute Profile',
+      id: 'appSettings',
+      title: 'App Settings',
+      fields: [{ id: 'settings', label: 'App Settings (key=value JSON)' }],
+    },
+  ],
+});
+
+const vmScaleSetSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'scale.sku', label: 'SKU' },
+    { id: 'scale.capacity', label: 'Capacity' },
+  ],
+  sections: [
+    {
+      id: 'scale',
+      title: 'Scale Settings',
       fields: [
-        { id: 'vmSize', label: 'VM Size', defaultValue: '' },
-        { id: 'osType', label: 'OS Type', defaultValue: '' },
-        { id: 'image', label: 'Image Reference', defaultValue: '' },
-        { id: 'upgradePolicy', label: 'Upgrade Policy', defaultValue: '' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'capacity', label: 'Capacity' },
+        { id: 'upgradePolicy', label: 'Upgrade Policy' },
+        { id: 'orchestrationMode', label: 'Orchestration Mode' },
+        { id: 'zones', label: 'Availability Zones' },
       ],
     },
     {
       id: 'networking',
       title: 'Networking',
       fields: [
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-        { id: 'loadBalancer', label: 'Load Balancer', defaultValue: '' },
-        { id: 'healthProbe', label: 'Health Probe', defaultValue: '' },
+        { id: 'virtualNetworkId', label: 'Virtual Network ID' },
+        { id: 'subnetId', label: 'Subnet ID' },
+        {
+          id: 'loadBalancerBackendPoolIds',
+          label: 'Load Balancer Backend Pools',
+        },
+        { id: 'healthProbeId', label: 'Health Probe ID' },
       ],
     },
-  ]),
-};
+  ],
+});
 
-const loadBalancerSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const loadBalancerSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
     { id: 'configuration.sku', label: 'SKU' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'type', label: 'Type', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'frontendIps', label: 'Frontends', defaultValue: '' },
-      ],
-    },
+  sections: [
     {
       id: 'configuration',
-      title: 'Configuration',
+      title: 'Load Balancer Configuration',
       fields: [
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'tier', label: 'Tier', defaultValue: '' },
-        { id: 'zones', label: 'Availability Zones', defaultValue: '' },
-        { id: 'idleTimeout', label: 'Idle Timeout (minutes)', defaultValue: '' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'frontendIps', label: 'Frontend IPs' },
+        { id: 'backendPoolIds', label: 'Backend Pool IDs' },
+        { id: 'healthProbes', label: 'Health Probes' },
+        { id: 'loadBalancingRules', label: 'Load Balancing Rules' },
       ],
     },
-    {
-      id: 'endpoints',
-      title: 'Endpoints',
-      fields: [
-        { id: 'frontendIpConfig', label: 'Frontend IP Config', defaultValue: '' },
-        { id: 'backendPool', label: 'Backend Pool', defaultValue: '' },
-        { id: 'probe', label: 'Health Probe', defaultValue: '' },
-        { id: 'rule', label: 'Load Balancing Rule', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const publicIpSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const publicIpSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'configuration.sku', label: 'SKU' },
+    { id: 'ip.ipAddress', label: 'IP Address' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'ip',
+      title: 'Public IP',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'allocation', label: 'Allocation Method', defaultValue: '' },
-        { id: 'version', label: 'IP Version', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
+        { id: 'ipAddress', label: 'IP Address' },
+        { id: 'allocationMethod', label: 'Allocation Method' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'dnsLabel', label: 'DNS Label' },
       ],
     },
-    {
-      id: 'configuration',
-      title: 'Configuration',
-      fields: [
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'tier', label: 'Tier', defaultValue: '' },
-        { id: 'dns', label: 'DNS Label', defaultValue: '' },
-        { id: 'idleTimeout', label: 'Idle Timeout (minutes)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'association',
-      title: 'Association',
-      fields: [
-        { id: 'resource', label: 'Attached Resource', defaultValue: '' },
-        { id: 'resourceType', label: 'Resource Type', defaultValue: '' },
-        { id: 'ipConfiguration', label: 'IP Configuration', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const natGatewaySchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
+const natGatewaySchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Region' }],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'gateway',
+      title: 'NAT Gateway',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'publicIps', label: 'Public IPs Attached', defaultValue: '' },
-        { id: 'idleTimeout', label: 'Idle Timeout (minutes)', defaultValue: '' },
+        { id: 'publicIpIds', label: 'Public IP IDs' },
+        { id: 'idleTimeoutMinutes', label: 'Idle Timeout (Minutes)' },
       ],
     },
-    {
-      id: 'configuration',
-      title: 'Configuration',
-      fields: [
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'zones', label: 'Availability Zones', defaultValue: '' },
-        { id: 'subnets', label: 'Subnets', defaultValue: '' },
-        { id: 'outboundIps', label: 'Outbound IP Addresses', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const networkInterfaceSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'macAddress', label: 'MAC Address', defaultValue: '' },
-        { id: 'acceleratedNetworking', label: 'Accelerated Networking', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'ipConfiguration',
-      title: 'IP Configuration',
-      fields: [
-        { id: 'privateIp', label: 'Private IP', defaultValue: '' },
-        { id: 'allocation', label: 'Private IP Allocation', defaultValue: '' },
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-        { id: 'publicIp', label: 'Public IP', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'security',
-      title: 'Security',
-      fields: [
-        { id: 'nsg', label: 'Network Security Group', defaultValue: '' },
-        { id: 'asg', label: 'Application Security Group', defaultValue: '' },
-        { id: 'dnsServers', label: 'DNS Servers', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const bastionSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const networkInterfaceSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'network.vnet', label: 'Virtual Network' },
+    { id: 'nic.privateIpAddress', label: 'Private IP Address' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'nic',
+      title: 'Network Interface',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'tier', label: 'Tier', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'concurrentSessions', label: 'Concurrent Sessions', defaultValue: '' },
+        { id: 'privateIpAddress', label: 'Private IP Address' },
+        { id: 'publicIpAddressId', label: 'Public IP Resource ID' },
+        { id: 'subnetId', label: 'Subnet ID' },
+        { id: 'networkSecurityGroupId', label: 'Network Security Group ID' },
+        { id: 'ipConfigurations', label: 'IP Configurations' },
       ],
     },
-    {
-      id: 'network',
-      title: 'Network',
-      fields: [
-        { id: 'vnet', label: 'Virtual Network', defaultValue: '' },
-        { id: 'subnet', label: 'Bastion Subnet', defaultValue: '' },
-        { id: 'publicIp', label: 'Public IP', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'access',
-      title: 'Access',
-      fields: [
-        { id: 'protocols', label: 'Enabled Protocols', defaultValue: '' },
-        { id: 'ipWhitelist', label: 'IP Whitelist', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const applicationGatewaySchema: ResourceSchema = {
-  statusField: 'overview.status',
+const bastionSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'configuration.sku', label: 'SKU' },
+    { id: 'bastion.vnetId', label: 'Virtual Network ID' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'bastion',
+      title: 'Azure Bastion',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'tier', label: 'Tier', defaultValue: '' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'capacity', label: 'Capacity', defaultValue: '' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'scaleUnits', label: 'Scale Units' },
+        { id: 'vnetId', label: 'Virtual Network ID' },
+        { id: 'publicIpAddressId', label: 'Public IP Resource ID' },
       ],
     },
+  ],
+});
+
+const applicationGatewaySchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'gateway.tier', label: 'Tier' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
     {
-      id: 'configuration',
-      title: 'Configuration',
+      id: 'gateway',
+      title: 'Application Gateway',
       fields: [
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'wafMode', label: 'WAF Mode', defaultValue: '' },
-        { id: 'zones', label: 'Availability Zones', defaultValue: '' },
+        { id: 'tier', label: 'Tier' },
+        { id: 'capacity', label: 'Capacity' },
+        { id: 'frontendIpConfigs', label: 'Frontend IP Configurations' },
+        { id: 'backendPools', label: 'Backend Pools' },
+        { id: 'routingRules', label: 'Routing Rules' },
+        { id: 'firewallMode', label: 'Firewall Mode' },
       ],
     },
-    {
-      id: 'listeners',
-      title: 'Listeners',
-      fields: [
-        { id: 'frontendIp', label: 'Frontend IP', defaultValue: '' },
-        { id: 'listener', label: 'Listener Name', defaultValue: '' },
-        { id: 'listenerType', label: 'Listener Type', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
 const expressRouteCircuitSchema: ResourceSchema = {
   statusField: 'overview.status',
@@ -1434,363 +823,269 @@ const expressRouteCircuitSchema: ResourceSchema = {
   ]),
 };
 
-const kubernetesClusterSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const kubernetesClusterSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.version', label: 'Kubernetes Version' },
+    { id: 'controlPlane.kubernetesVersion', label: 'Kubernetes Version' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'version', label: 'Kubernetes Version', defaultValue: '' },
-        { id: 'nodeCount', label: 'Node Count', defaultValue: '' },
-      ],
-    },
+  sections: [
     {
       id: 'controlPlane',
       title: 'Control Plane',
       fields: [
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'availabilityZones', label: 'Availability Zones', defaultValue: '' },
-        { id: 'rbac', label: 'RBAC Enabled', defaultValue: '' },
+        { id: 'kubernetesVersion', label: 'Kubernetes Version' },
+        { id: 'networkPlugin', label: 'Network Plugin' },
+        { id: 'networkPolicy', label: 'Network Policy' },
+        { id: 'privateCluster', label: 'Private Cluster Enabled' },
+        { id: 'identity', label: 'Identity Type' },
       ],
     },
     {
       id: 'nodePools',
       title: 'Node Pools',
       fields: [
-        { id: 'defaultPool', label: 'Default Node Pool', defaultValue: '' },
-        { id: 'vmSize', label: 'VM Size', defaultValue: '' },
-        { id: 'autoScale', label: 'Auto Scale', defaultValue: '' },
+        { id: 'systemPoolVmSize', label: 'System Pool VM Size' },
+        { id: 'systemPoolCount', label: 'System Pool Node Count' },
+        { id: 'userPoolCount', label: 'User Pool Count' },
+        { id: 'mode', label: 'Node Pool Mode' },
       ],
     },
-  ]),
-};
-
-const containerInstanceSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.resourceGroup', label: 'Resource Group' },
   ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'image', label: 'Container Image', defaultValue: '' },
-        { id: 'cpu', label: 'vCPU', defaultValue: '' },
-        { id: 'memory', label: 'Memory (GiB)', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'network',
-      title: 'Network',
-      fields: [
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-        { id: 'publicIp', label: 'Public IP', defaultValue: '' },
-        { id: 'ports', label: 'Exposed Ports', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+});
 
-const batchAccountSchema: ResourceSchema = {
-  statusField: 'overview.status',
+const containerInstanceSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'configuration.state',
   metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.poolQuota', label: 'Pool Quota' },
+    { id: 'configuration.fqdn', label: 'FQDN' },
+    { id: 'arm.location', label: 'Region' },
   ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'accountEndpoint', label: 'Account Endpoint', defaultValue: '' },
-        { id: 'autoStorage', label: 'Auto Storage', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'quotas',
-      title: 'Quotas',
-      fields: [
-        { id: 'poolQuota', label: 'Pool Quota', defaultValue: '' },
-        { id: 'coreQuota', label: 'Core Quota', defaultValue: '' },
-        { id: 'jobQuota', label: 'Job Quota', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const virtualNetworkGatewaySchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'configuration.gatewayType', label: 'Gateway Type' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'gatewayType', label: 'Gateway Type', defaultValue: '' },
-        { id: 'vpnType', label: 'VPN Type', defaultValue: '' },
-      ],
-    },
+  sections: [
     {
       id: 'configuration',
-      title: 'Configuration',
+      title: 'Container Group Configuration',
       fields: [
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'activeActive', label: 'Active-Active', defaultValue: '' },
-        { id: 'enableBgp', label: 'BGP Enabled', defaultValue: '' },
+        { id: 'state', label: 'State', defaultValue: 'Stopped' },
+        { id: 'osType', label: 'OS Type' },
+        { id: 'cpuCores', label: 'CPU Cores' },
+        { id: 'memoryGb', label: 'Memory (GB)' },
+        { id: 'ipAddressType', label: 'IP Address Type' },
+        { id: 'fqdn', label: 'FQDN' },
+        { id: 'restartPolicy', label: 'Restart Policy' },
+        { id: 'imageName', label: 'Image Name' },
       ],
     },
-    {
-      id: 'connections',
-      title: 'Connections',
-      fields: [
-        { id: 'vpnConnections', label: 'VPN Connections', defaultValue: '' },
-        { id: 'expressRouteConnections', label: 'ExpressRoute Connections', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const localNetworkGatewaySchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
+const batchAccountSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'account.poolCount', label: 'Pool Count' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'account',
+      title: 'Batch Account',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'gatewayIp', label: 'Gateway IP Address', defaultValue: '' },
-        { id: 'addressSpace', label: 'Address Space', defaultValue: '' },
+        { id: 'poolCount', label: 'Pool Count' },
+        { id: 'activeJobs', label: 'Active Jobs' },
+        { id: 'autoScaleEnabled', label: 'Auto Scale Enabled' },
+        { id: 'privateLinkEnabled', label: 'Private Link Enabled' },
       ],
     },
-    {
-      id: 'connections',
-      title: 'Connections',
-      fields: [
-        { id: 'sharedKey', label: 'Shared Key', defaultValue: '' },
-        { id: 'routingWeight', label: 'Routing Weight', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const onPremisesNetworkGatewaySchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.location', label: 'Location' }],
-  sections: makeSections([
+const virtualNetworkGatewaySchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'gateway.gatewayType', label: 'Gateway Type' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'gateway',
+      title: 'Virtual Network Gateway',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'deviceVendor', label: 'Device Vendor', defaultValue: '' },
-        { id: 'deviceModel', label: 'Device Model', defaultValue: '' },
-        { id: 'gatewayIp', label: 'Gateway IP Address', defaultValue: '' },
+        { id: 'gatewayType', label: 'Gateway Type' },
+        { id: 'vpnType', label: 'VPN Type' },
+        { id: 'enableBgp', label: 'BGP Enabled' },
+        { id: 'ipConfigurations', label: 'IP Configurations' },
       ],
     },
-    {
-      id: 'networks',
-      title: 'Local Networks',
-      fields: [
-        { id: 'addressPrefixes', label: 'Address Prefixes', defaultValue: '' },
-        { id: 'connectionStatus', label: 'Connection Status', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const networkSecurityGroupSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
+const localNetworkGatewaySchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Region' }],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'gateway',
+      title: 'Local Network Gateway',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'associatedSubnets', label: 'Associated Subnets', defaultValue: '' },
-        { id: 'associatedNics', label: 'Associated NICs', defaultValue: '' },
+        { id: 'gatewayIpAddress', label: 'Gateway IP Address' },
+        { id: 'addressPrefixes', label: 'Address Prefixes' },
       ],
     },
+  ],
+});
+
+const onPremisesNetworkGatewaySchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Location' }],
+  sections: [
+    {
+      id: 'gateway',
+      title: 'On-Premises Network Gateway',
+      fields: [
+        { id: 'gatewayIpAddress', label: 'Gateway IP Address' },
+        { id: 'addressPrefixes', label: 'Address Prefixes' },
+        { id: 'bgpAsn', label: 'BGP ASN' },
+      ],
+    },
+  ],
+});
+
+const networkSecurityGroupSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'associations.attachedSubnets', label: 'Attached Subnets' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
     {
       id: 'rules',
       title: 'Security Rules',
       fields: [
-        { id: 'inboundRules', label: 'Inbound Rules', defaultValue: '' },
-        { id: 'outboundRules', label: 'Outbound Rules', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const applicationSecurityGroupSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'memberCount', label: 'Members', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'membership',
-      title: 'Membership',
-      fields: [
-        { id: 'associatedNics', label: 'Associated NICs', defaultValue: '' },
-        { id: 'associatedServices', label: 'Associated Services', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const keyVaultSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [
-    { id: 'overview.region', label: 'Region' },
-    { id: 'overview.sku', label: 'SKU' },
-  ],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'sku', label: 'SKU', defaultValue: '' },
-        { id: 'softDelete', label: 'Soft Delete', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'secrets',
-      title: 'Secrets',
-      fields: [
-        { id: 'secretCount', label: 'Secret Count', defaultValue: '' },
-        { id: 'keyCount', label: 'Key Count', defaultValue: '' },
-        { id: 'certificateCount', label: 'Certificate Count', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-
-const ddosProtectionSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'planType', label: 'Plan Type', defaultValue: '' },
+        { id: 'securityRules', label: 'Security Rules' },
+        { id: 'defaultRules', label: 'Default Rules' },
       ],
     },
     {
       id: 'associations',
       title: 'Associations',
       fields: [
-        { id: 'virtualNetworks', label: 'Protected vNets', defaultValue: '' },
-        { id: 'publicIps', label: 'Protected Public IPs', defaultValue: '' },
+        { id: 'attachedSubnets', label: 'Attached Subnets' },
+        { id: 'attachedNics', label: 'Attached NICs' },
       ],
     },
-  ]),
-};
+  ],
+});
 
-const webApplicationFirewallSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
+const applicationSecurityGroupSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Region' }],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'policyMode', label: 'Policy Mode', defaultValue: '' },
-      ],
+      id: 'membership',
+      title: 'Application Security Group',
+      fields: [{ id: 'memberNics', label: 'Member NICs' }],
     },
-    {
-      id: 'rules',
-      title: 'Rules',
-      fields: [
-        { id: 'managedRuleSet', label: 'Managed Rule Set', defaultValue: '' },
-        { id: 'customRules', label: 'Custom Rules', defaultValue: '' },
-      ],
-    },
-  ]),
-};
-const privateEndpointSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
-    {
-      id: 'overview',
-      title: 'Overview',
-      fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'targetResource', label: 'Target Resource', defaultValue: '' },
-        { id: 'subnet', label: 'Subnet', defaultValue: '' },
-      ],
-    },
-    {
-      id: 'networking',
-      title: 'Networking',
-      fields: [
-        { id: 'privateIp', label: 'Private IP', defaultValue: '' },
-        { id: 'customDns', label: 'Custom DNS Zones', defaultValue: '' },
-      ],
-    },
-  ]),
-};
+  ],
+});
 
-const routeTableSchema: ResourceSchema = {
-  statusField: 'overview.status',
-  metaFields: [{ id: 'overview.region', label: 'Region' }],
-  sections: makeSections([
+const keyVaultSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'settings.sku', label: 'SKU' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
     {
-      id: 'overview',
-      title: 'Overview',
+      id: 'settings',
+      title: 'Key Vault Settings',
       fields: [
-        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
-        { id: 'region', label: 'Region', defaultValue: '' },
-        { id: 'associatedSubnets', label: 'Associated Subnets', defaultValue: '' },
+        { id: 'tenantId', label: 'Tenant ID' },
+        { id: 'sku', label: 'SKU' },
+        { id: 'softDeleteEnabled', label: 'Soft Delete Enabled' },
+        { id: 'publicNetworkAccess', label: 'Public Network Access' },
       ],
     },
+  ],
+});
+
+const ddosProtectionSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'plan.planType', label: 'Plan Type' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'plan',
+      title: 'DDoS Protection Plan',
+      fields: [
+        { id: 'planId', label: 'Plan Resource ID' },
+        { id: 'planType', label: 'Plan Type' },
+        { id: 'protectionMode', label: 'Protection Mode' },
+      ],
+    },
+    {
+      id: 'coverage',
+      title: 'Coverage',
+      fields: [
+        { id: 'protectedVirtualNetworks', label: 'Protected Virtual Networks' },
+        { id: 'protectedPublicIpIds', label: 'Protected Public IPs' },
+      ],
+    },
+  ],
+});
+
+const webApplicationFirewallSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'policy.mode', label: 'Mode' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'policy',
+      title: 'Web Application Firewall',
+      fields: [
+        { id: 'mode', label: 'Mode' },
+        { id: 'ruleSetVersion', label: 'Rule Set Version' },
+        { id: 'customRules', label: 'Custom Rules' },
+      ],
+    },
+  ],
+});
+const privateEndpointSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [
+    { id: 'endpoint.privateIpAddress', label: 'Private IP Address' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'endpoint',
+      title: 'Private Endpoint',
+      fields: [
+        { id: 'privateIpAddress', label: 'Private IP Address' },
+        { id: 'subnetId', label: 'Subnet ID' },
+        { id: 'targetResourceId', label: 'Target Resource ID' },
+        { id: 'networkInterfaceId', label: 'Network Interface ID' },
+      ],
+    },
+  ],
+});
+
+const routeTableSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'arm.provisioningState',
+  metaFields: [{ id: 'arm.location', label: 'Region' }],
+  sections: [
     {
       id: 'routes',
-      title: 'Routes',
+      title: 'Route Table',
       fields: [
-        { id: 'routeCount', label: 'Route Count', defaultValue: '' },
-        { id: 'propagateGatewayRoutes', label: 'Propagate Gateway Routes', defaultValue: '' },
+        { id: 'routes', label: 'Routes' },
+        { id: 'attachedSubnets', label: 'Attached Subnets' },
       ],
     },
-  ]),
-};
+  ],
+});
 
 const virtualNetworkSchema: ResourceSchema = {
   statusField: 'overview.status',

@@ -1,0 +1,626 @@
+Azure Resource Profile Specifications (for Galxi Node Schemas)
+Accurate, API-aligned fields to enable future Azure integration
+Version 1.0 – Covers Compute, Networking, Storage, Databases, Integration, Monitoring & Security.
+GLOBAL BASE FIELDS (APPLY TO ALL RESOURCES)
+
+Every Azure resource shares these ARM-level properties.
+They must exist on every profile:
+
+Field	Description
+name	Azure resource name ("vm-prod-01")
+resourceType	ARM type ("Microsoft.Compute/virtualMachines")
+subscriptionId	Azure Subscription GUID
+resourceGroup	The resource group it belongs to
+location	Region (eastus, westus2, etc.)
+tags	Key-value metadata
+id	Full ARM ID (optional for now, required later)
+provisioningState	Succeeded / Failed / Updating
+notes	Free-text notes
+
+
+1. COMPUTE RESOURCES
+Virtual Machine
+
+ARM type: Microsoft.Compute/virtualMachines
+
+Profile Fields
+
+vmSize
+
+osType (Windows / Linux)
+
+osDisk:
+
+storageType (Standard_LRS, Premium_LRS, UltraSSD)
+
+diskSizeGB
+
+dataDisks:
+
+count
+
+each: diskSizeGB, storageType
+
+networkInterfaces:
+
+nicIds
+
+primaryNicId
+
+privateIPAddress
+
+publicIPAddress
+
+vnet
+
+subnet
+
+adminUsername
+
+computeGeneration (Gen1 / Gen2)
+
+availabilitySetId OR availabilityZone
+
+identityType (SystemAssigned / UserAssigned)
+
+status (powerState)
+
+bootDiagnosticsEnabled
+
+VM Scale Set
+
+ARM type: Microsoft.Compute/virtualMachineScaleSets
+
+Profile Fields
+
+sku (Standard_D2s_v3, etc)
+
+capacity (instance count)
+
+upgradePolicy (Manual / Automatic)
+
+orchestrationMode (Uniform / Flexible)
+
+vnet / subnet
+
+loadBalancerBackendPoolIds
+
+healthProbeId
+
+zones
+
+App Service
+
+ARM type: Microsoft.Web/sites
+
+Profile Fields
+
+kind (app, api, container)
+
+appServicePlanId
+
+runtimeStack
+
+defaultHostname
+
+httpsOnly
+
+dailyUsageQuota
+
+siteConfig:
+
+linuxFxVersion / windowsFxVersion
+
+alwaysOn
+
+ftpsState
+
+appSettings (key/value pairs)
+
+Function App
+
+ARM type: Microsoft.Web/sites (kind=functionapp)
+
+Profile Fields
+
+runtimeStack
+
+functionVersion
+
+appServicePlanId
+
+storageAccountId
+
+defaultHostname
+
+alwaysOn
+
+Container Instance (ACI)
+
+ARM type: Microsoft.ContainerInstance/containerGroups
+
+Profile Fields
+
+osType
+
+cpuCores
+
+memoryGB
+
+ipAddressType
+
+fqdn
+
+restartPolicy
+
+imageName
+
+Batch Account
+
+ARM type: Microsoft.Batch/batchAccounts
+
+Profile Fields
+
+poolCount
+
+activeJobs
+
+autoScaleEnabled
+
+privateLinkEnabled
+
+Kubernetes Cluster (AKS)
+
+ARM type: Microsoft.ContainerService/managedClusters
+
+Profile Fields
+
+kubernetesVersion
+
+nodePools:
+
+name, nodeCount, vmSize, mode
+
+networkPlugin (kubenet / azure)
+
+networkPolicy
+
+apiServerAccessProfile: privateCluster
+
+identity (SystemAssigned/UserAssigned)
+
+2. NETWORKING RESOURCES
+Load Balancer
+
+ARM type: Microsoft.Network/loadBalancers
+
+Profile Fields
+
+sku (Basic / Standard)
+
+frontendIPs
+
+backendPoolIds
+
+healthProbes
+
+loadBalancingRules
+
+Application Gateway
+
+ARM type: Microsoft.Network/applicationGateways
+
+Profile Fields
+
+tier (Standard_v2, WAF_v2)
+
+capacity
+
+frontendIPConfigs
+
+backendPools
+
+routingRules
+
+firewallMode
+
+Public IP
+
+ARM type: Microsoft.Network/publicIPAddresses
+
+Profile Fields
+
+ipAddress
+
+allocationMethod (Static/Dynamic)
+
+sku (Basic/Standard)
+
+dnsLabel
+
+NAT Gateway
+
+ARM type: Microsoft.Network/natGateways
+
+Profile Fields
+
+publicIpIds
+
+idleTimeout
+
+Virtual Network Gateway
+
+ARM type: Microsoft.Network/virtualNetworkGateways
+
+Profile Fields
+
+gatewayType (Vpn/ExpressRoute)
+
+vpnType (RouteBased/PolicyBased)
+
+enableBgp
+
+ipConfigurations
+
+Local Network Gateway
+
+ARM type: Microsoft.Network/localNetworkGateways
+
+Profile Fields
+
+gatewayIpAddress
+
+addressPrefixes
+
+ExpressRoute Circuit
+
+ARM type: Microsoft.Network/expressRouteCircuits
+
+Profile Fields
+
+serviceProviderName
+
+bandwidthInMbps
+
+peeringLocation
+
+sku
+
+Private Endpoint
+
+ARM type: Microsoft.Network/privateEndpoints
+
+Profile Fields
+
+privateIPAddress
+
+subnetId
+
+targetResourceId
+
+networkInterfaceId
+
+Route Table
+
+ARM type: Microsoft.Network/routeTables
+
+Profile Fields
+
+routes (list)
+
+attachedSubnets
+
+Network Interface (NIC)
+
+ARM type: Microsoft.Network/networkInterfaces
+
+Profile Fields
+
+privateIPAddress
+
+publicIPAddressId
+
+subnetId
+
+nsgId
+
+ipConfigurations
+
+3. SECURITY RESOURCES
+Firewall
+
+ARM type: Microsoft.Network/azureFirewalls
+
+Profile Fields
+
+skuTier (Standard / Premium)
+
+publicIpIds
+
+applicationRules
+
+networkRules
+
+natRules
+
+Network Security Group (NSG)
+
+ARM type: Microsoft.Network/networkSecurityGroups
+
+Profile Fields
+
+securityRules
+
+defaultRules
+
+attachedSubnets
+
+attachedNICs
+
+Application Security Group
+
+ARM type: Microsoft.Network/applicationSecurityGroups
+
+Profile Fields
+
+memberNICs
+
+Key Vault
+
+ARM type: Microsoft.KeyVault/vaults
+
+Profile Fields
+
+tenantId
+
+sku
+
+softDeleteEnabled
+
+publicNetworkAccess
+
+Web Application Firewall (WAF)
+
+(Part of App Gateway or Front Door)
+
+Profile Fields
+
+mode (Detection / Prevention)
+
+ruleSetVersion
+
+customRules
+
+4. STORAGE RESOURCES
+Storage Account
+
+ARM type: Microsoft.Storage/storageAccounts
+
+Profile Fields
+
+sku
+
+kind (StorageV2 etc)
+
+accessTier (Hot/Cool)
+
+supportsHttpsTrafficOnly
+
+Azure Files
+
+ARM type: Microsoft.Storage/storageAccounts/fileServices/shares
+
+Profile Fields
+
+shareQuotaGB
+
+protocolsEnabled
+
+Data Lake Storage (Gen2)
+
+ARM type: Microsoft.Storage/storageAccounts
+
+Profile Fields
+
+hierarchicalNamespace (true/false)
+
+filesystemCount
+
+Managed Disk
+
+ARM type: Microsoft.Compute/disks
+
+Profile Fields
+
+diskSizeGB
+
+sku
+
+encryptionType
+
+5. DATABASE RESOURCES
+Azure SQL Database
+
+ARM type: Microsoft.Sql/servers/databases
+
+Profile Fields
+
+serverName
+
+tier (Basic/Standard/Premium/DTU/vCore etc)
+
+computeSize
+
+maxSizeGB
+
+collation
+
+status
+
+SQL Managed Instance
+
+ARM type: Microsoft.Sql/managedInstances
+
+Profile Fields
+
+vCores
+
+storageGB
+
+licenseType
+
+subnetId
+
+MySQL, PostgreSQL, MariaDB (Flexible Server)
+
+ARM type: Microsoft.DBforMySQL/flexibleServers etc.
+
+Profile Fields
+
+version
+
+vCores
+
+storageGB
+
+highAvailability
+
+backupRetentionDays
+
+Cosmos DB
+
+ARM type: Microsoft.DocumentDB/databaseAccounts
+
+Profile Fields
+
+apiKind (SQL / Gremlin / Mongo / Cassandra / Table)
+
+consistencyLevel
+
+automaticFailover
+
+writeRegions
+
+readRegions
+
+6. INTEGRATION SERVICES
+API Management
+
+ARM type: Microsoft.ApiManagement/service
+
+Profile Fields
+
+skuName
+
+gatewayUrl
+
+publisherEmail
+
+publicIPIds
+
+Data Factory
+
+ARM type: Microsoft.DataFactory/factories
+
+Profile Fields
+
+repoConfiguration
+
+diagnosticEnabled
+
+linkedResourceCount
+
+Event Grid Topic
+
+ARM type: Microsoft.EventGrid/topics
+
+Profile Fields
+
+endpoint
+
+inputSchema
+
+publicNetworkAccess
+
+Event Hubs
+
+ARM type: Microsoft.EventHub/namespaces
+
+Profile Fields
+
+skuTier
+
+throughputUnits
+
+capacity
+
+Logic App
+
+ARM type: Microsoft.Logic/workflows
+
+Profile Fields
+
+state (Enabled/Disabled)
+
+endpointUrl
+
+integrationAccountId
+
+Service Bus Namespace
+
+ARM type: Microsoft.ServiceBus/namespaces
+
+Profile Fields
+
+sku
+
+queueCount
+
+topicCount
+
+7. MONITORING RESOURCES
+Automation Account
+
+ARM type: Microsoft.Automation/automationAccounts
+
+Profile Fields
+
+runbookCount
+
+hybridWorkers
+
+Azure Monitor
+
+(Not a direct ARM resource—linked via Diagnostic Settings)
+
+Profile Fields
+
+metricsEnabled
+
+logCategoriesEnabled
+
+destinationIds
+
+Log Analytics Workspace
+
+ARM type: Microsoft.OperationalInsights/workspaces
+
+Profile Fields
+
+sku
+
+retentionInDays
+
+dailyQuotaGB
+
+Microsoft Sentinel
+
+ARM type: extension of Log Analytics**
+
+Profile Fields
+
+enabled
+
+dataConnectorCount
+
+analyticsRulesCount
