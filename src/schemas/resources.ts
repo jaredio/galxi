@@ -340,6 +340,30 @@ const azureCosmosDbSchema: ResourceSchema = buildResourceSchema({
   ],
 });
 
+const genericDatabaseSchema: ResourceSchema = buildResourceSchema({
+  statusField: 'database.status',
+  metaFields: [
+    { id: 'database.engine', label: 'Engine' },
+    { id: 'arm.location', label: 'Region' },
+  ],
+  sections: [
+    {
+      id: 'database',
+      title: 'Database',
+      fields: [
+        { id: 'engine', label: 'Engine' },
+        { id: 'version', label: 'Version' },
+        { id: 'host', label: 'Host/Endpoint' },
+        { id: 'port', label: 'Port' },
+        { id: 'status', label: 'Status', defaultValue: 'Unknown' },
+        { id: 'storageGb', label: 'Storage (GB)' },
+        { id: 'availability', label: 'High Availability' },
+        { id: 'backup', label: 'Backup Window' },
+      ],
+    },
+  ],
+});
+
 const oracleDatabaseSchema: ResourceSchema = buildResourceSchema({
   statusField: 'arm.provisioningState',
   metaFields: [
@@ -1226,7 +1250,7 @@ const nodeSchemas: Record<NodeType, ResourceSchema> = {
   azureMonitor: azureMonitorSchema,
   logAnalyticsWorkspace: logAnalyticsWorkspaceSchema,
   sentinelWorkspace: sentinelWorkspaceSchema,
-  database: storageSchema,
+  database: genericDatabaseSchema,
 };
 
 const groupSchemas: Record<GroupType, ResourceSchema> = {

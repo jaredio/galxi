@@ -11,6 +11,7 @@ import type {
 } from '../types/graph';
 import { debounce, loadGraph, saveGraph, type GraphData } from '../lib/persistence';
 import { logger } from '../lib/logger';
+import type { Theme } from '../constants/theme';
 
 type PersistencePayload = {
   nodes: NetworkNode[];
@@ -26,6 +27,9 @@ type UseGraphPersistenceOptions = PersistencePayload & {
   layoutVersion?: number;
   notify?: (message: string) => void;
   onRestore?: (data: GraphData) => void;
+  workspaceId?: string;
+  onThemeRestore?: (theme: Theme) => void;
+  theme?: Theme;
 };
 
 export const useGraphPersistence = ({
@@ -39,6 +43,9 @@ export const useGraphPersistence = ({
   layoutVersion = 0,
   notify,
   onRestore,
+  workspaceId,
+  onThemeRestore,
+  theme,
 }: UseGraphPersistenceOptions) => {
   const [ready, setReady] = useState(false);
   const autosaveCallbackRef = useRef<
@@ -65,8 +72,11 @@ export const useGraphPersistence = ({
       nodePositionsRef.current = data.nodePositions ?? {};
       groupPositionsRef.current = data.groupPositions ?? {};
       onRestore?.(data);
+      if (data.theme) {
+        onThemeRestore?.(data.theme);
+      }
     },
-    [groupPositionsRef, nodePositionsRef, onRestore, replaceGraph]
+    [groupPositionsRef, nodePositionsRef, onRestore, onThemeRestore, replaceGraph]
   );
 
   useEffect(() => {
@@ -74,7 +84,7 @@ export const useGraphPersistence = ({
       setReady(true);
       return;
     }
-    const restored = loadGraph();
+    const restored = loadGraph(workspaceId);
     if (restored) {
       logger.info('Restored graph session from persistence', {
         nodes: restored.nodes.length,
@@ -83,16 +93,21 @@ export const useGraphPersistence = ({
         restoredAt: restored.timestamp,
       });
       handleRestore(restored);
+      setReady(true);
+      return;
     }
+    replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
+    nodePositionsRef.current = {};
+    groupPositionsRef.current = {};
     setReady(true);
-  }, [handleRestore]);
+  }, [groupPositionsRef, handleRestore, nodePositionsRef, replaceGraph, workspaceId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
     autosaveCallbackRef.current = debounce((payload) => {
-      const success = saveGraph(payload);
+      const success = saveGraph({ ...payload, theme }, workspaceId);
       if (!success) {
         if (!autosaveErrorRef.current) {
           autosaveErrorRef.current = true;
@@ -109,7 +124,7 @@ export const useGraphPersistence = ({
     return () => {
       autosaveCallbackRef.current = null;
     };
-  }, [notify]);
+  }, [notify, theme, workspaceId]);
 
   useEffect(() => {
     if (!ready || !autosaveCallbackRef.current) {

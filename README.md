@@ -23,6 +23,10 @@ Galxi is a visual topology designer for cloud and network architects. It lets yo
 - `npm run test:watch` - run Vitest in watch mode.
 - `npm run test:e2e` - headless Playwright smoke test (ensure `npx playwright install` has been run once).
 
+## Workspaces
+
+Galxi now opens with a workspace chooser so you can create or import separate topology sessions. New workspaces save to browser storage under distinct keys. You can import a JSON export from another session via the “Import JSON” button on the welcome screen.
+
 ## Testing
 
 Unit tests are powered by **Vitest + jsdom**. Run `npm run test` (or `npm run test:watch`) to exercise the suites covering persistence, validation, group parenting, and the Zustand store. Coverage is generated via V8 instrumentation and can be configured in `vitest.config.ts`.

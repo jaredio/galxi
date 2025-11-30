@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 
 import type { CanvasViewModel } from '../CanvasView';
 import type { TabId } from '../../constants/tabs';
-import { applyTheme, baseTheme } from '../../constants/theme';
+import { applyTheme, baseTheme, type Theme } from '../../constants/theme';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useGraphPersistence } from '../../hooks/useGraphPersistence';
 import { useLayoutVersion } from '../../hooks/useLayoutVersion';
@@ -34,6 +34,9 @@ import { useDashboardModel } from './useDashboardModel';
 import { useCanvasHighlighter } from './useCanvasHighlighter';
 import { useContextMenuItems } from './useContextMenuItems';
 import { useCanvasViewModel } from './useCanvasViewModel';
+import { clearThemeForWorkspace, loadThemeForWorkspace, saveThemeForWorkspace } from '../../lib/themePersistence';
+import { clearGraph, STORAGE_VERSION } from '../../lib/persistence';
+import type { GraphData } from '../../lib/persistence';
 
 const NODE_GROUP_PRIORITY_SCORE: Record<GroupType, number> = {
   subnet: 3,
@@ -80,10 +83,18 @@ const useCallbackProxy = <Fn extends (...args: never[]) => void>(fallback?: Fn) 
   return { proxy, attach };
 };
 
-export const useAppController = () => {
+type UseAppControllerOptions = {
+  workspaceId?: string;
+};
+
+export const useAppController = (options?: UseAppControllerOptions) => {
+  const workspaceId = options?.workspaceId;
   const nodePositionsRef = useRef<NodePositionMap>({});
   const groupPositionsRef = useRef<GroupPositionMap>({});
   const { layoutVersion, publishLayoutChange } = useLayoutVersion();
+  const [theme, setTheme] = useState<Theme>(baseTheme);
+  const [themePanelOpen, setThemePanelOpen] = useState(false);
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
 
   const {
     nodes,
@@ -134,8 +145,17 @@ export const useAppController = () => {
   );
 
   useEffect(() => {
-    applyTheme(baseTheme);
-  }, []);
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const storedTheme = loadThemeForWorkspace(workspaceId);
+    if (storedTheme) {
+      setTheme(storedTheme);
+    } else {
+      setTheme(baseTheme);
+    }
+  }, [workspaceId]);
 
   const handleProfileFieldChange = useCallback(
     (kind: ProfileWindowState['kind'], resourceId: string, fieldKey: string, value: string) => {
@@ -353,6 +373,14 @@ export const useAppController = () => {
     attachShowUtilityToast(showUtilityToastActual);
   }, [attachShowUtilityToast, showUtilityToastActual]);
 
+  const handleThemeRestore = useCallback(
+    (restoredTheme: Theme) => {
+      setTheme(restoredTheme);
+      saveThemeForWorkspace(restoredTheme, workspaceId);
+    },
+    [workspaceId]
+  );
+
   useGraphPersistence({
     nodes,
     links,
@@ -363,6 +391,9 @@ export const useAppController = () => {
     replaceGraph,
     layoutVersion,
     notify: showUtilityToastActual,
+    workspaceId,
+    theme,
+    onThemeRestore: handleThemeRestore,
   });
 
   const updateGroupById = useCallback(
@@ -481,6 +512,8 @@ export const useAppController = () => {
     openGroupDraft,
     showUtilityToast: showUtilityToastProxy,
     setWelcomeDismissed,
+    openThemePanel: () => setThemePanelOpen(true),
+    openSettingsPanel: () => setSettingsPanelOpen(true),
   });
 
   const dashboardViewModel = useDashboardModel({
@@ -654,12 +687,70 @@ export const useAppController = () => {
     handleGroupDelete,
   });
 
+  const setAndPersistTheme = useCallback(
+    (next: Theme) => {
+      setTheme(next);
+      saveThemeForWorkspace(next, workspaceId);
+    },
+    [workspaceId]
+  );
+
+  const resetTheme = useCallback(() => {
+    setTheme(baseTheme);
+    saveThemeForWorkspace(baseTheme, workspaceId);
+  }, [workspaceId]);
+
+  const clearTheme = useCallback(() => {
+    clearThemeForWorkspace(workspaceId);
+    setTheme(baseTheme);
+  }, [workspaceId]);
+
+  const exportWorkspace = useCallback(() => {
+    const exportPayload: GraphData & { theme?: Theme } = {
+      version: STORAGE_VERSION,
+      timestamp: new Date().toISOString(),
+      nodes,
+      links,
+      groups,
+      groupLinks,
+      nodePositions: { ...nodePositionsRef.current },
+      groupPositions: { ...groupPositionsRef.current },
+      theme,
+    };
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `galxi-workspace-${workspaceId ?? 'export'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [groups, groupLinks, links, nodes, theme, workspaceId]);
+
+  const resetWorkspace = useCallback(() => {
+    replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
+    nodePositionsRef.current = {};
+    groupPositionsRef.current = {};
+    clearGraph(workspaceId);
+    clearThemeForWorkspace(workspaceId);
+    setTheme(baseTheme);
+  }, [replaceGraph, workspaceId]);
+
   return {
     activeTab,
     setActiveTab,
     isCanvasView,
     canvasViewModel,
     dashboardViewModel,
+    theme,
+    setTheme: setAndPersistTheme,
+    resetTheme,
+    clearTheme,
+    workspaceId,
+    themePanelOpen,
+    settingsPanelOpen,
+    closeThemePanel: () => setThemePanelOpen(false),
+    closeSettingsPanel: () => setSettingsPanelOpen(false),
+    exportWorkspace,
+    resetWorkspace,
   };
 };
-

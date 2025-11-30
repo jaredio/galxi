@@ -10,6 +10,7 @@ export type Theme = {
   nodeFill: string;
   nodeBorder: string;
   nodeGlow: string;
+  iconAccent: string;
 };
 
 export const baseTheme: Theme = {
@@ -23,7 +24,8 @@ export const baseTheme: Theme = {
   textSecondary: '#9CA3AF',
   nodeFill: '#1C1F26',
   nodeBorder: '#2B2F36',
-  nodeGlow: 'rgba(62,207,142,0.4)',
+  nodeGlow: '#3ECF8E',
+  iconAccent: '#3ECF8E',
 };
 
 export const applyTheme = (theme: Theme) => {

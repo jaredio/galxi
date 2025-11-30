@@ -46,3 +46,6 @@ audit*.md
 !auditbuddy.md
 modularize.md
 claudit.md
+NODE_MAPPING.md
+INVENTORY.md
+FRONTEND_REDESIGN_BRIEF.md

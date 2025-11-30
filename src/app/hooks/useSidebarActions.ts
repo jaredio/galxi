@@ -12,6 +12,8 @@ type UseSidebarActionsArgs = {
   openGroupDraft: (groupType: GroupType, position: { x: number; y: number }) => void;
   showUtilityToast: (message: string) => void;
   setWelcomeDismissed: Dispatch<SetStateAction<boolean>>;
+  openThemePanel: () => void;
+  openSettingsPanel: () => void;
 };
 
 export const useSidebarActions = ({
@@ -21,6 +23,8 @@ export const useSidebarActions = ({
   openGroupDraft,
   showUtilityToast,
   setWelcomeDismissed,
+  openThemePanel,
+  openSettingsPanel,
 }: UseSidebarActionsArgs) => {
   const handleSidebarCreateNode = useCallback(() => {
     const position = getGraphCenterPosition();
@@ -43,12 +47,12 @@ export const useSidebarActions = ({
   }, [contextMenu, openCreateNodeForm]);
 
   const handleThemeUtilities = useCallback(() => {
-    showUtilityToast('Theme controls coming soon.');
-  }, [showUtilityToast]);
+    openThemePanel();
+  }, [openThemePanel]);
 
   const handleSettingsUtilities = useCallback(() => {
-    showUtilityToast('Settings panel coming soon.');
-  }, [showUtilityToast]);
+    openSettingsPanel();
+  }, [openSettingsPanel]);
 
   const handleEmptyStateCreate = useCallback(() => {
     handleSidebarCreateNode();

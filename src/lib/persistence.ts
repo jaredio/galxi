@@ -12,10 +12,14 @@ import type {
   NodePositionMap,
   NodeType,
 } from '../types/graph';
+import type { Theme } from '../constants/theme';
 import { logger } from './logger';
 
-const STORAGE_KEY = 'galxi-graph-data';
-const STORAGE_VERSION = 2;
+const STORAGE_KEY_PREFIX = 'galxi-graph-data';
+export const STORAGE_VERSION = 2;
+
+const makeStorageKey = (workspaceId?: string) =>
+  workspaceId ? `${STORAGE_KEY_PREFIX}:${workspaceId}` : STORAGE_KEY_PREFIX;
 
 const LEGACY_NODE_TYPE_MAP: Record<string, NodeType> = {
   gateway: 'applicationGateway',
@@ -104,6 +108,26 @@ const isGroupLink = (value: unknown): value is GroupLink => {
   );
 };
 
+const isTheme = (value: unknown): value is Theme => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.accent === 'string' &&
+    typeof value.accentHover === 'string' &&
+    typeof value.background === 'string' &&
+    typeof value.surface === 'string' &&
+    typeof value.hover === 'string' &&
+    typeof value.edge === 'string' &&
+    typeof value.textPrimary === 'string' &&
+    typeof value.textSecondary === 'string' &&
+    typeof value.nodeFill === 'string' &&
+    typeof value.nodeBorder === 'string' &&
+    typeof value.nodeGlow === 'string' &&
+    typeof value.iconAccent === 'string'
+  );
+};
+
 const isGraphDataPayload = (value: unknown): value is GraphData => {
   if (!isRecord(value)) {
     return false;
@@ -133,6 +157,9 @@ const isGraphDataPayload = (value: unknown): value is GraphData => {
   if (!isNodePositionMap(value.groupPositions ?? {})) {
     return false;
   }
+  if (value.theme && !isTheme(value.theme)) {
+    return false;
+  }
   return true;
 };
 
@@ -145,19 +172,24 @@ export type GraphData = {
   groupLinks: GroupLink[];
   nodePositions: NodePositionMap;
   groupPositions: GroupPositionMap;
+  theme?: Theme;
 };
 
 /**
  * Saves graph data to localStorage
  */
-export const saveGraph = (data: {
-  nodes: NetworkNode[];
-  links: NetworkLink[];
-  groups: CanvasGroup[];
-  groupLinks: GroupLink[];
-  nodePositions: NodePositionMap;
-  groupPositions: GroupPositionMap;
-}): boolean => {
+export const saveGraph = (
+  data: {
+    nodes: NetworkNode[];
+    links: NetworkLink[];
+    groups: CanvasGroup[];
+    groupLinks: GroupLink[];
+    nodePositions: NodePositionMap;
+    groupPositions: GroupPositionMap;
+    theme?: Theme;
+  },
+  workspaceId?: string
+): boolean => {
   try {
     const graphData: GraphData = {
       version: STORAGE_VERSION,
@@ -166,7 +198,7 @@ export const saveGraph = (data: {
     };
 
     const serialized = JSON.stringify(graphData);
-    localStorage.setItem(STORAGE_KEY, serialized);
+    localStorage.setItem(makeStorageKey(workspaceId), serialized);
 
     logger.debug('Graph data saved to localStorage', {
       nodeCount: data.nodes.length,
@@ -189,9 +221,9 @@ export const saveGraph = (data: {
 /**
  * Loads graph data from localStorage
  */
-export const loadGraph = (): GraphData | null => {
+export const loadGraph = (workspaceId?: string): GraphData | null => {
   try {
-    const serialized = localStorage.getItem(STORAGE_KEY);
+    const serialized = localStorage.getItem(makeStorageKey(workspaceId));
 
     if (!serialized) {
       logger.debug('No saved graph data found');
@@ -241,6 +273,7 @@ export const loadGraph = (): GraphData | null => {
       version: STORAGE_VERSION,
       nodePositions: data.nodePositions ?? {},
       groupPositions: data.groupPositions ?? {},
+      theme: data.theme,
     };
   } catch (error) {
     logger.error('Failed to load graph data', error as Error);
@@ -251,9 +284,9 @@ export const loadGraph = (): GraphData | null => {
 /**
  * Clears saved graph data
  */
-export const clearGraph = (): boolean => {
+export const clearGraph = (workspaceId?: string): boolean => {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(makeStorageKey(workspaceId));
     logger.info('Graph data cleared from localStorage');
     return true;
   } catch (error) {
@@ -265,9 +298,9 @@ export const clearGraph = (): boolean => {
 /**
  * Checks if there is saved graph data
  */
-export const hasSavedGraph = (): boolean => {
+export const hasSavedGraph = (workspaceId?: string): boolean => {
   try {
-    return localStorage.getItem(STORAGE_KEY) !== null;
+    return localStorage.getItem(makeStorageKey(workspaceId)) !== null;
   } catch {
     return false;
   }

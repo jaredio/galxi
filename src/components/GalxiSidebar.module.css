@@ -136,7 +136,7 @@
 
 .command:hover .icon,
 .command:focus-visible .icon {
-  color: var(--accent);
+  color: var(--iconAccent, var(--accent));
   transform: scale(1.05);
 }
 
