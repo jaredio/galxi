@@ -11,7 +11,7 @@ type GalxiSidebarProps = {
   onOpenSettings: () => void;
 };
 
-const brandLogo = new URL('../../icons/galxi_green (2).png', import.meta.url).href;
+const brandLogo = new URL('../../icons/galxi_green.png', import.meta.url).href;
 
 export const GalxiSidebar = ({
   onCreateNode,
