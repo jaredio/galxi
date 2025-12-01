@@ -15,6 +15,12 @@
   --galxi-glow: rgba(0, 0, 0, 0.45);
   --galxi-chip-bg: rgba(20, 22, 27, 0.78);
   --galxi-chip-border: rgba(60, 65, 75, 0.55);
+  --panel-bg: radial-gradient(circle at 0 0, #141a1f 0, #0e1115 40%, #07090b 100%);
+  --panel-border: rgba(160, 190, 204, 0.22);
+  --panel-border-subtle: rgba(160, 190, 204, 0.1);
+  --panel-header-bg: rgba(6, 9, 12, 0.96);
+  --panel-footer-bg: rgba(7, 10, 13, 0.96);
+  --panel-radius: 14px;
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-hover: var(--hover);

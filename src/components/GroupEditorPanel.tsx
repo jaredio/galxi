@@ -76,6 +76,12 @@ export const GroupEditorPanel = ({
   );
 
   useEffect(() => {
+    if (!filteredGroupOptions.some((option) => option.value === values.type) && filteredGroupOptions[0]) {
+      onTypeChange(filteredGroupOptions[0].value);
+    }
+  }, [filteredGroupOptions, onTypeChange, values.type]);
+
+  useEffect(() => {
     setGroupCategory(resolveCategory(values.type));
   }, [values.type, resolveCategory]);
   useEffect(() => {
@@ -83,6 +89,11 @@ export const GroupEditorPanel = ({
       setCreateStep('basics');
     }
   }, [mode, values.type]);
+
+  const selectedGroupOption = useMemo(
+    () => groupTypeOptions.find((option) => option.value === values.type) ?? groupTypeOptions[0],
+    [values.type]
+  );
 
   const renderBasicsSection = useCallback(
     (eyebrow: string, placeholder: string, autoFocus = false) => (
@@ -107,7 +118,7 @@ export const GroupEditorPanel = ({
             </p>
           )}
         </div>
-        <div className="wizard-divider" />
+        <div className="node-editor-divider" />
         <div className="type-picker type-picker--premium">
           <div className="type-picker-head">
             <div>
@@ -116,14 +127,14 @@ export const GroupEditorPanel = ({
             </div>
           </div>
           {availableCategories.length > 1 && (
-            <div className="type-category-row" role="tablist" aria-label="Group type categories">
+            <div className="node-editor-category-tabs" role="tablist" aria-label="Group type categories">
               {availableCategories.map((category) => (
                 <button
                   key={category}
                   type="button"
                   role="tab"
                   aria-selected={groupCategory === category}
-                  className={`type-category${groupCategory === category ? ' selected' : ''}`}
+                  className={`node-editor-category-tab${groupCategory === category ? ' is-active' : ''}`}
                   onClick={() => setGroupCategory(category)}
                 >
                   {groupTypeCategoryLabels[category]}
@@ -131,27 +142,45 @@ export const GroupEditorPanel = ({
               ))}
             </div>
           )}
-          <div key={groupCategory} className="type-card-grid type-card-grid--animated">
-            {filteredGroupOptions.map((option) => {
-              const selected = option.value === values.type;
-              return (
-                <button
-                  type="button"
-                  key={option.value}
-                  className={`type-card${selected ? ' selected' : ''}`}
-                  onClick={() => onTypeChange(option.value)}
-                  aria-pressed={selected}
-                >
-                  <div className="type-card-icon" aria-hidden="true">
-                    <img src={getGroupIcon(option.value)} alt="" />
-                  </div>
-                  <div className="type-card-body">
-                    <span className="type-card-title">{option.label}</span>
-                    <span className="type-card-description">{option.description}</span>
-                  </div>
-                </button>
-              );
-            })}
+          <div key={groupCategory} className="node-editor-type-layout">
+            <div className="node-editor-type-list" role="listbox" aria-label="Group types">
+              {filteredGroupOptions.length === 0 ? (
+                <p className="type-card-empty">Nothing in this catalog yet.</p>
+              ) : (
+                filteredGroupOptions.map((option) => {
+                  const active = option.value === values.type;
+                  return (
+                    <button
+                      type="button"
+                      key={option.value}
+                      className={`node-editor-type-row${active ? ' is-active' : ''}`}
+                      onClick={() => onTypeChange(option.value)}
+                      aria-pressed={active}
+                    >
+                      <img src={getGroupIcon(option.value)} alt="" aria-hidden="true" />
+                      <span>{option.label}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="node-editor-type-preview">
+              <div className="node-editor-type-preview-header">
+                <p className="node-editor-type-preview-title">
+                  <img src={getGroupIcon(selectedGroupOption?.value ?? values.type)} alt="" aria-hidden="true" />
+                  {selectedGroupOption?.label ?? groupTypeLabelMap[values.type]}
+                </p>
+                <span className="node-editor-type-category">
+                  Category: {groupTypeCategoryLabels[selectedGroupOption?.category ?? groupCategory]}
+                </span>
+              </div>
+              <p className="node-editor-type-preview-desc">
+                {selectedGroupOption?.description ?? 'Select a group type to view details.'}
+              </p>
+              <p className="node-editor-type-preview-footnote">
+                Persists into the next step. You can adjust scope details after creation.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -164,6 +193,7 @@ export const GroupEditorPanel = ({
       groupTypeLabelMap,
       onTitleChange,
       onTypeChange,
+      selectedGroupOption,
       setGroupCategory,
       titleError,
       titleValidation.valid,
@@ -235,24 +265,31 @@ export const GroupEditorPanel = ({
         </div>
 
         <footer className="node-editor-footer">
+          {mode === 'edit' && onDelete ? (
+            <button type="button" className="danger-link" onClick={onDelete}>
+              Delete group
+            </button>
+          ) : (
+            <span />
+          )}
           <div className="node-editor-footer-actions">
-            <button type="button" className="btn" onClick={onClose}>
+            <button type="button" className="btn-ghost" onClick={onClose}>
               Cancel
             </button>
             {isCreateFlow ? (
               showDetailsStep ? (
                 <>
-                  <button type="button" className="btn" onClick={() => setCreateStep('basics')}>
+                  <button type="button" className="btn-ghost" onClick={() => setCreateStep('basics')}>
                     Back
                   </button>
-                  <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
+                  <button type="submit" className="btn-primary" disabled={submitDisabled}>
                     {saveButtonLabel}
                   </button>
                 </>
               ) : (
                 <button
                   type="button"
-                  className="btn btn-accent"
+                  className="btn-primary"
                   onClick={() => setCreateStep('details')}
                   disabled={!canProceedToDetails}
                 >
@@ -260,16 +297,11 @@ export const GroupEditorPanel = ({
                 </button>
               )
             ) : (
-              <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
+              <button type="submit" className="btn-primary" disabled={submitDisabled}>
                 {saveButtonLabel}
               </button>
             )}
           </div>
-          {mode === 'edit' && onDelete && (
-            <button type="button" className="danger-link" onClick={onDelete}>
-              <TrashIcon /> Delete group
-            </button>
-          )}
         </footer>
       </form>
     </FloatingPanel>

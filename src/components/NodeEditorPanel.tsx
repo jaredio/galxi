@@ -122,6 +122,17 @@ export const NodeEditorPanel = ({
     [nodeTypeOptions, typeCategory]
   );
 
+  useEffect(() => {
+    if (!filteredNodeTypeOptions.some((option) => option.value === values.type) && filteredNodeTypeOptions[0]) {
+      onTypeChange(filteredNodeTypeOptions[0].value);
+    }
+  }, [filteredNodeTypeOptions, onTypeChange, values.type]);
+
+  const selectedTypeOption = useMemo(
+    () => nodeTypeOptions.find((option) => option.value === values.type) ?? nodeTypeOptions[0],
+    [nodeTypeOptions, values.type]
+  );
+
   const renderBasicsSection = useCallback(
     (eyebrow: string, placeholder: string, autoFocus = false) => (
       <section className="wizard-section">
@@ -145,7 +156,7 @@ export const NodeEditorPanel = ({
             </p>
           )}
         </div>
-        <div className="wizard-divider" />
+        <div className="node-editor-divider" />
         <div className="type-picker type-picker--premium">
           <div className="type-picker-head">
             <div>
@@ -153,45 +164,59 @@ export const NodeEditorPanel = ({
               <span className="type-picker-value">{nodeTypeLabelMap[values.type]}</span>
             </div>
           </div>
-          <div className="type-category-row" role="tablist" aria-label="Node type categories">
+          <div className="node-editor-category-tabs" role="tablist" aria-label="Node type categories">
             {availableCategories.map((category) => (
               <button
                 key={category}
                 type="button"
                 role="tab"
                 aria-selected={typeCategory === category}
-                className={`type-category${typeCategory === category ? ' selected' : ''}`}
+                className={`node-editor-category-tab${typeCategory === category ? ' is-active' : ''}`}
                 onClick={() => setTypeCategory(category)}
               >
                 {nodeTypeCategoryLabels[category]}
               </button>
             ))}
           </div>
-          <div key={typeCategory} className="type-card-grid type-card-grid--animated">
-            {filteredNodeTypeOptions.length === 0 ? (
-              <p className="type-card-empty">Nothing in this catalog yet.</p>
-            ) : (
-              filteredNodeTypeOptions.map((option) => {
-                const selected = option.value === values.type;
-                return (
-                  <button
-                    type="button"
-                    key={option.value}
-                    className={`type-card${selected ? ' selected' : ''}`}
-                    onClick={() => onTypeChange(option.value)}
-                    aria-pressed={selected}
-                  >
-                    <div className="type-card-icon" aria-hidden="true">
-                      <img src={getNodeIcon(option.value)} alt="" />
-                    </div>
-                    <div className="type-card-body">
-                      <span className="type-card-title">{option.label}</span>
-                      <span className="type-card-description">{option.description}</span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
+          <div key={typeCategory} className="node-editor-type-layout">
+            <div className="node-editor-type-list" role="listbox" aria-label="Node types">
+              {filteredNodeTypeOptions.length === 0 ? (
+                <p className="type-card-empty">Nothing in this catalog yet.</p>
+              ) : (
+                filteredNodeTypeOptions.map((option) => {
+                  const active = option.value === values.type;
+                  return (
+                    <button
+                      type="button"
+                      key={option.value}
+                      className={`node-editor-type-row${active ? ' is-active' : ''}`}
+                      onClick={() => onTypeChange(option.value)}
+                      aria-pressed={active}
+                    >
+                      <img src={getNodeIcon(option.value)} alt="" aria-hidden="true" />
+                      <span>{option.label}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="node-editor-type-preview">
+              <div className="node-editor-type-preview-header">
+                <p className="node-editor-type-preview-title">
+                  <img src={getNodeIcon(selectedTypeOption?.value ?? values.type)} alt="" aria-hidden="true" />
+                  {selectedTypeOption?.label ?? nodeTypeLabelMap[values.type]}
+                </p>
+                <span className="node-editor-type-category">
+                  Category: {nodeTypeCategoryLabels[selectedTypeOption?.category ?? typeCategory]}
+                </span>
+              </div>
+              <p className="node-editor-type-preview-desc">
+                {selectedTypeOption?.description ?? 'Select a resource type to view details.'}
+              </p>
+              <p className="node-editor-type-preview-footnote">
+                Carries into the next step. Refine owners, placement, and connections after creation.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -205,6 +230,7 @@ export const NodeEditorPanel = ({
       nodeTypeLabelMap,
       onLabelChange,
       onTypeChange,
+      selectedTypeOption,
       setTypeCategory,
       typeCategory,
       values.label,
@@ -278,13 +304,13 @@ export const NodeEditorPanel = ({
         )}
 
         <div className="node-editor-body">
-          {activeTab === 'info' && (
-            <div className="node-editor-section-stack">
-              {isCreateFlow ? (
-                showDetailsStep ? (
-                  <ProfileForm
-                    sections={profileSections}
-                    values={profileDraft}
+        {activeTab === 'info' && (
+          <div className="node-editor-section-stack">
+            {isCreateFlow ? (
+              showDetailsStep ? (
+                <ProfileForm
+                  sections={profileSections}
+                  values={profileDraft}
                     onChange={onProfileFieldChange}
                     hint="All profile fields are optional. Populate only what you have on hand."
                   />
@@ -380,24 +406,31 @@ export const NodeEditorPanel = ({
         </div>
 
         <footer className="node-editor-footer">
+          {mode === 'edit' ? (
+            <button type="button" className="danger-link" onClick={onDeleteNode}>
+              Delete node
+            </button>
+          ) : (
+            <span />
+          )}
           <div className="node-editor-footer-actions">
-            <button type="button" className="btn" onClick={onClose}>
+            <button type="button" className="btn-ghost" onClick={onClose}>
               Cancel
             </button>
             {isCreateFlow ? (
               showDetailsStep ? (
                 <>
-                  <button type="button" className="btn" onClick={() => setCreateStep('basics')}>
+                  <button type="button" className="btn-ghost" onClick={() => setCreateStep('basics')}>
                     Back
                   </button>
-                  <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
+                  <button type="submit" className="btn-primary" disabled={submitDisabled}>
                     Create Node
                   </button>
                 </>
               ) : (
                 <button
                   type="button"
-                  className="btn btn-accent"
+                  className="btn-primary"
                   onClick={() => setCreateStep('details')}
                   disabled={!canProceedToDetails}
                 >
@@ -405,16 +438,11 @@ export const NodeEditorPanel = ({
                 </button>
               )
             ) : (
-              <button type="submit" className="btn btn-accent" disabled={submitDisabled}>
+              <button type="submit" className="btn-primary" disabled={submitDisabled}>
                 Save Changes
               </button>
             )}
           </div>
-          {mode === 'edit' && (
-            <button type="button" className="danger-link" onClick={onDeleteNode}>
-              <TrashIcon /> Delete node
-            </button>
-          )}
         </footer>
       </form>
     </FloatingPanel>
