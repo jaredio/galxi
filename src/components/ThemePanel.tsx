@@ -56,17 +56,8 @@ export const ThemePanel = ({
         <PaletteIcon />
       </div>
       <div className="node-editor-title-text">
-        <p className="node-editor-kicker">Theme</p>
-        <h2>Customize palette</h2>
+        <h2>Theme</h2>
       </div>
-    </div>
-  );
-
-  const headerActions = (
-    <div className="profile-actions">
-      <button type="button" className="profile-button" onClick={onReset}>
-        Reset
-      </button>
     </div>
   );
 
@@ -80,13 +71,15 @@ export const ThemePanel = ({
       onToggleExpand={() => {}}
       onClose={onClose}
       headerContent={headerContent}
-      headerActions={headerActions}
       showResizeHandles={true}
     >
-      <div className="theme-panel-body">
-        <p className="theme-panel-subtitle">
-          Tune accents, surfaces, labels, and icon tint to match your project.
-        </p>
+      <div className="theme-panel-body" style={{ flex: 1, overflow: 'auto' }}>
+        <div className="theme-panel-subtitle-row">
+          <p className="theme-panel-subtitle">Tune accents, surfaces, labels, and icon tint.</p>
+          <button type="button" className="profile-button" onClick={onReset}>
+            Reset
+          </button>
+        </div>
         <div className="theme-grid">
           {fields.map((field) => (
             <label key={field.key} className="theme-field">

@@ -26,8 +26,7 @@ export const SettingsPanel = ({
         <SettingsIcon />
       </div>
       <div className="node-editor-title-text">
-        <p className="node-editor-kicker">Settings</p>
-        <h2>Workspace controls</h2>
+        <h2>Settings</h2>
       </div>
     </div>
   );
@@ -45,7 +44,7 @@ export const SettingsPanel = ({
       headerActions={null}
       showResizeHandles={true}
     >
-      <div className="settings-panel-body">
+      <div className="settings-panel-body" style={{ flex: 1, overflow: 'auto' }}>
         <div className="settings-grid">
           <button type="button" className="settings-tile" onClick={onExport}>
             <div>

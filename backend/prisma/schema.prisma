@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String    @id @default(cuid())
+  name      String
+  ownerId   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  nodes     Node[]
+  groups    Group[]
+  links     Link[]
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+}
+
+model Node {
+  id          String   @id @default(cuid())
+  workspaceId String
+  type        String
+  label       String
+  x           Float    @default(0)
+  y           Float    @default(0)
+  profile     Json?
+  groupId     String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  group     Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  outgoing  Link[]    @relation("SourceLinks")
+  incoming  Link[]    @relation("TargetLinks")
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  workspaceId String
+  type        String
+  title       String
+  x           Float    @default(0)
+  y           Float    @default(0)
+  width       Float    @default(320)
+  height      Float    @default(240)
+  profile     Json?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  nodes     Node[]
+}
+
+model Link {
+  id          String @id @default(cuid())
+  workspaceId String
+  sourceId    String
+  targetId    String
+  relation    String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  source    Node      @relation("SourceLinks", fields: [sourceId], references: [id], onDelete: Cascade)
+  target    Node      @relation("TargetLinks", fields: [targetId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id         String      @id @default(cuid())
+  name       String
+  createdAt  DateTime    @default(now())
+  workspaces Workspace[]
+}

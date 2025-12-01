@@ -9,9 +9,10 @@ import type {
   NetworkNode,
   NodePositionMap,
 } from '../types/graph';
-import { debounce, loadGraph, saveGraph, type GraphData } from '../lib/persistence';
+import { debounce, type GraphData } from '../lib/persistence';
 import { logger } from '../lib/logger';
 import type { Theme } from '../constants/theme';
+import { getWorkspace, saveWorkspace } from '../lib/api';
 
 type PersistencePayload = {
   nodes: NetworkNode[];
@@ -80,26 +81,49 @@ export const useGraphPersistence = ({
   );
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      setReady(true);
-      return;
-    }
-    const restored = loadGraph(workspaceId);
-    if (restored) {
-      logger.info('Restored graph session from persistence', {
-        nodes: restored.nodes.length,
-        links: restored.links.length,
-        groups: restored.groups.length,
-        restoredAt: restored.timestamp,
-      });
-      handleRestore(restored);
-      setReady(true);
-      return;
-    }
-    replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
-    nodePositionsRef.current = {};
-    groupPositionsRef.current = {};
-    setReady(true);
+    let cancelled = false;
+    const restoreFromBackend = async () => {
+      if (!workspaceId) {
+        replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
+        nodePositionsRef.current = {};
+        groupPositionsRef.current = {};
+        setReady(true);
+        return;
+      }
+      try {
+        const data = await getWorkspace(workspaceId);
+        if (cancelled) return;
+        const restored: GraphData = {
+          version: 1,
+          nodes: data.nodes as NetworkNode[],
+          links: data.links as NetworkLink[],
+          groups: data.groups as CanvasGroup[],
+          groupLinks: [],
+          nodePositions: {},
+          groupPositions: {},
+          timestamp: Date.now(),
+        };
+        logger.info('Restored graph from backend', {
+          nodes: restored.nodes.length,
+          links: restored.links.length,
+          groups: restored.groups.length,
+        });
+        handleRestore(restored);
+      } catch (err) {
+        logger.error('Failed to load workspace from backend', err as Error);
+        replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
+        nodePositionsRef.current = {};
+        groupPositionsRef.current = {};
+      } finally {
+        if (!cancelled) {
+          setReady(true);
+        }
+      }
+    };
+    restoreFromBackend();
+    return () => {
+      cancelled = true;
+    };
   }, [groupPositionsRef, handleRestore, nodePositionsRef, replaceGraph, workspaceId]);
 
   useEffect(() => {
@@ -107,18 +131,26 @@ export const useGraphPersistence = ({
       return;
     }
     autosaveCallbackRef.current = debounce((payload) => {
-      const success = saveGraph({ ...payload, theme }, workspaceId);
-      if (!success) {
-        if (!autosaveErrorRef.current) {
-          autosaveErrorRef.current = true;
-          notify?.('Autosave failed. Check console logs.');
-        }
-        return;
-      }
-      if (autosaveErrorRef.current) {
-        autosaveErrorRef.current = false;
-        notify?.('Autosave recovered.');
-      }
+      if (!workspaceId) return;
+      saveWorkspace(workspaceId, {
+        nodes: payload.nodes,
+        groups: payload.groups,
+        links: payload.links,
+        name: undefined,
+      })
+        .then(() => {
+          if (autosaveErrorRef.current) {
+            autosaveErrorRef.current = false;
+            notify?.('Autosave recovered.');
+          }
+        })
+        .catch((err) => {
+          logger.error('Autosave failed', err as Error);
+          if (!autosaveErrorRef.current) {
+            autosaveErrorRef.current = true;
+            notify?.('Autosave failed. Check console logs.');
+          }
+        });
     }, 1200);
 
     return () => {

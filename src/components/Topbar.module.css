@@ -19,6 +19,7 @@
   align-items: center;
   width: 100%;
   pointer-events: auto;
+  gap: 1rem;
 }
 
 .brand {
@@ -52,61 +53,120 @@
 }
 
 .tabButton {
-  background: transparent;
-  border: 1px solid transparent;
+  background: #111418;
+  border: 1px solid rgba(62, 207, 142, 0.14);
   color: var(--textSecondary);
-  font-size: 0.9rem;
-  font-weight: 500;
-  padding: 0.4rem 0.85rem;
-  border-radius: 0.5rem;
-  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 0.42rem 0.9rem;
+  border-radius: 8px;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease,
+    transform 0.16s ease;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2);
 }
 
 .tabButton:hover {
   color: var(--textPrimary);
-  background-color: var(--hover);
-  border-color: var(--border);
+  background: rgba(62, 207, 142, 0.08);
+  border-color: rgba(62, 207, 142, 0.45);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  transform: translateY(-1px);
 }
 
 .tabButtonActive {
   color: var(--accent);
-  background-color: var(--hover);
-  border: 1px solid var(--border);
+  background: rgba(62, 207, 142, 0.12);
+  border: 1px solid rgba(62, 207, 142, 0.45);
 }
 
 .actionGroup {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
   justify-self: end;
+  justify-content: flex-end;
 }
 
-.actionButton {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+.triggerGroup {
+  position: relative;
+}
+
+.trigger {
+  background: #111418;
+  border: 1px solid rgba(62, 207, 142, 0.16);
   color: var(--textPrimary);
-  border-radius: 0.5rem;
-  padding: 0.45rem 1.1rem;
-  font-size: 0.9rem;
-  font-weight: 500;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2);
 }
 
-.actionButton:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+.trigger:hover,
+.trigger:focus-visible,
+.triggerActive {
+  border-color: rgba(62, 207, 142, 0.45);
+  background: rgba(62, 207, 142, 0.08);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  transform: translateY(-1px);
 }
 
-.actionButtonPrimary {
-  background-color: var(--accent);
-  color: var(--background);
-  border-color: var(--accent);
+.trigger:focus-visible {
+  outline: none;
 }
 
-.actionButtonPrimary:hover:not(:disabled) {
-  background-color: var(--accentHover);
-  border-color: var(--accentHover);
-  color: var(--background);
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: #111418;
+  border: 1px solid rgba(62, 207, 142, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  z-index: 25;
+}
+
+.dropdownItem {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--textPrimary);
+  font-size: 0.92rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dropdownItem:hover {
+  background: rgba(62, 207, 142, 0.08);
+  border: 1px solid rgba(62, 207, 142, 0.12);
+}
+
+.dropdownItemDanger:hover {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff6b6b;
+}
+
+.dropdownItemMuted {
+  padding: 0.55rem 0.65rem;
+  color: var(--textSecondary);
+  font-size: 0.9rem;
+}
+
+.dropdownDivider,
+.navDivider {
+  height: 1px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.22);
+  margin: 0.35rem 0;
 }

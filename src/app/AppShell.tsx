@@ -1,15 +1,11 @@
-﻿import { Suspense, lazy, useState } from 'react';
+import { useState } from 'react';
 
 import { CanvasView } from './CanvasView';
 import { useAppController } from './hooks/useAppController';
 import { Topbar } from '../components/Topbar';
 import { ThemePanel } from '../components/ThemePanel';
 import { SettingsPanel } from '../components/SettingsPanel';
-
-const DashboardView = lazy(async () => {
-  const module = await import('./DashboardView');
-  return { default: module.DashboardView };
-});
+import { DashboardView } from './DashboardView';
 
 type AppShellProps = {
   workspaceId?: string;
@@ -53,9 +49,7 @@ export const AppShell = ({ workspaceId }: AppShellProps) => {
         {isCanvasView ? (
           <CanvasView model={canvasViewModel} />
         ) : (
-          <Suspense fallback={<div className="view-loading">Loading dashboard…</div>}>
-            <DashboardView model={dashboardViewModel} />
-          </Suspense>
+          <DashboardView model={dashboardViewModel} />
         )}
       </div>
 

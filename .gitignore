@@ -37,15 +37,4 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
-AUDIT_REPORT.md
-nul
-docs/galxi-sidebar-design.md
-audit.md
-audit2.md
-audit*.md
-!auditbuddy.md
-modularize.md
-claudit.md
-NODE_MAPPING.md
-INVENTORY.md
-FRONTEND_REDESIGN_BRIEF.md
+
