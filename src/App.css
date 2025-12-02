@@ -61,7 +61,7 @@
 
 .tab-button {
   background: rgba(16, 18, 24, 0.85);
-  border: 1px solid rgba(62, 207, 142, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--textSecondary);
   font-size: 0.9rem;
   font-weight: 500;
@@ -74,15 +74,15 @@
 
 .tab-button:hover {
   color: var(--textPrimary);
-  background-color: rgba(62, 207, 142, 0.08);
-  border-color: rgba(62, 207, 142, 0.32);
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
 .tab-button.active {
   color: var(--accent);
-  background-color: rgba(62, 207, 142, 0.12);
-  border-color: rgba(62, 207, 142, 0.45);
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .action-group {
@@ -105,21 +105,21 @@
 }
 
 .action-button:hover {
-  border-color: rgba(62, 207, 142, 0.45);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--textPrimary);
-  background-color: rgba(62, 207, 142, 0.12);
+  background-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
 .action-button.primary {
-  background: linear-gradient(120deg, #3ecf8e, #23b777);
+  background: linear-gradient(120deg, #2b2f36, #4b5563);
   color: #04110c;
-  border-color: rgba(62, 207, 142, 0.7);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .action-button.primary:hover {
   background: linear-gradient(120deg, #3bd78f, #1fa66c);
-  border-color: rgba(62, 207, 142, 0.9);
+  border-color: rgba(255, 255, 255, 0.12);
   color: #04110c;
   transform: translateY(-1px);
 }
@@ -204,7 +204,7 @@
 
 .canvas-group__frame {
   fill: rgba(18, 20, 26, 0.32);
-  stroke: rgba(62, 207, 142, 0.25);
+  stroke: rgba(255, 255, 255, 0.12);
   stroke-width: 1.5px;
   filter: none;
   transition: stroke 0.25s ease, filter 0.25s ease;
@@ -228,11 +228,11 @@
 }
 
 .canvas-group--virtual-network .canvas-group__frame {
-  stroke: rgba(62, 207, 142, 0.35);
+  stroke: rgba(255, 255, 255, 0.12);
 }
 
 .canvas-group--virtual-network .canvas-group__title {
-  fill: #3ecf8e;
+  fill: #2b2f36;
 }
 
 .canvas-group--subnet .canvas-group__frame {
@@ -256,7 +256,7 @@
 }
 
 .canvas-group--selected .canvas-group__frame {
-  stroke: #3ecf8e;
+  stroke: #2b2f36;
   filter: none;
 }
 
@@ -265,7 +265,7 @@
 }
 
 .canvas-group__handle {
-  fill: rgba(62, 207, 142, 0.85);
+  fill: rgba(255, 255, 255, 0.12);
   opacity: 0;
   pointer-events: none;
   rx: 4px;
@@ -369,7 +369,7 @@
   font-size: 0.85rem;
   border-radius: 12px;
   background: rgba(15, 17, 23, 0.92);
-  border: 1px solid rgba(62, 207, 142, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--textPrimary);
   z-index: 32;
   animation: utility-toast-fade-in 0.24s ease;
@@ -466,7 +466,7 @@
 }
 
 .node-editor.is-create {
-  border-color: rgba(62, 207, 142, 0.32);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .node-editor.is-expanded {
@@ -474,7 +474,7 @@
 }
 
 .node-editor:focus-within {
-  border-color: rgba(62, 207, 142, 0.4);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .profile-window {
@@ -561,8 +561,8 @@
   padding: 0.2rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(62, 207, 142, 0.35);
-  background: rgba(62, 207, 142, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--accent);
 }
 
@@ -601,7 +601,7 @@
 
 .profile-button {
   border-radius: 0.65rem;
-  border: 1px solid rgba(62, 207, 142, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(18, 20, 26, 0.86);
   color: var(--textPrimary);
   font-size: 0.82rem;
@@ -617,9 +617,9 @@
 }
 
 .profile-button:hover {
-  border-color: rgba(62, 207, 142, 0.45);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--textPrimary);
-  background: rgba(62, 207, 142, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
@@ -665,7 +665,7 @@
 .profile-tab:hover,
 .profile-tab.is-active {
   color: var(--textPrimary);
-  background: rgba(62, 207, 142, 0.08);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .profile-body {
@@ -782,7 +782,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--accent);
-  border: 1px solid rgba(62, 207, 142, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   padding: 0.05rem 0.45rem;
 }
@@ -853,7 +853,7 @@
 
 .node-editor-header .icon-button--plain {
   border-radius: 8px;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: #111418;
   color: rgba(248, 250, 252, 0.9);
   width: 28px;
@@ -866,9 +866,9 @@
 }
 
 .node-editor-header .icon-button--plain:hover {
-  border-color: rgba(62, 207, 142, 0.45);
-  background: rgba(62, 207, 142, 0.08);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
@@ -886,7 +886,7 @@
   height: 32px;
   border-radius: 0.9rem;
   background: rgba(20, 22, 27, 0.9);
-  border: 1px solid rgba(62, 207, 142, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
 }
@@ -898,7 +898,7 @@
 
 .connection-editor .node-editor-icon {
   background: rgba(20, 22, 27, 0.9);
-  border-color: rgba(62, 207, 142, 0.35);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .connection-editor .node-editor-icon svg {
@@ -946,14 +946,14 @@
 
 .connection-node-chip:hover:not(:disabled),
 .connection-node-chip:focus-visible {
-  border-color: rgba(62, 207, 142, 0.4);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--textPrimary);
-  background: rgba(62, 207, 142, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
 .connection-node-chip:focus-visible {
-  outline: 2px solid rgba(62, 207, 142, 0.45);
+  outline: 2px solid rgba(255, 255, 255, 0.12);
   outline-offset: 2px;
 }
 
@@ -975,7 +975,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(62, 207, 142, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--accent);
   font-size: 0.78rem;
 }
@@ -1050,7 +1050,7 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: #111418;
   color: var(--textSecondary);
   cursor: pointer;
@@ -1066,9 +1066,9 @@
 
 .icon-button:hover {
   color: var(--textPrimary);
-  border-color: rgba(62, 207, 142, 0.45);
-  background-color: rgba(62, 207, 142, 0.08);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  background-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
@@ -1134,7 +1134,7 @@
   padding: 0.06rem 0.4rem;
   border-radius: 999px;
   font-size: 0.7rem;
-  background: rgba(62, 207, 142, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--accent);
 }
 
@@ -1238,7 +1238,7 @@
 }
 
 .type-category {
-  border: 1px solid rgba(62, 207, 142, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-left: 3px solid transparent;
   background: rgba(18, 20, 26, 0.9);
   color: rgba(226, 232, 240, 0.75);
@@ -1251,15 +1251,15 @@
 }
 
 .type-category:hover {
-  background: rgba(62, 207, 142, 0.12);
-  border-color: rgba(62, 207, 142, 0.26);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--textPrimary);
   transform: translateY(-1px);
 }
 
 .type-category.selected {
-  border-left-color: #3ecf8e;
-  background: rgba(62, 207, 142, 0.1);
+  border-left-color: #2b2f36;
+  background: rgba(255, 255, 255, 0.12);
   color: #f8fafc;
 }
 
@@ -1288,7 +1288,7 @@
   bottom: -6px;
   width: 0;
   height: 2px;
-  background: linear-gradient(90deg, #3ecf8e, #7be0c0);
+  background: linear-gradient(90deg, #2b2f36, #9ca3af);
   transition: width 140ms ease-out;
   opacity: 0;
 }
@@ -1442,7 +1442,7 @@
 }
 
 .type-card {
-  border: 1px solid rgba(62, 207, 142, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.75rem;
   padding: 1.05rem;
   background: rgba(12, 14, 18, 0.92);
@@ -1456,14 +1456,14 @@
 }
 
 .type-card:hover {
-  border-color: rgba(62, 207, 142, 0.45);
-  background: rgba(62, 207, 142, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   transform: translateY(-2px);
 }
 
 .type-card.selected {
-  border-color: rgba(62, 207, 142, 0.75);
-  background: rgba(62, 207, 142, 0.16);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   box-shadow: none;
 }
 
@@ -1549,7 +1549,7 @@
 
 .wizard-field-row input {
   flex: 0 0 160px;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.65rem;
   background: rgba(18, 20, 26, 0.86);
   padding: 0.65rem 0.8rem;
@@ -1560,7 +1560,7 @@
 
 .wizard-field-row input:focus {
   outline: none;
-  border-color: rgba(62, 207, 142, 0.55);
+  border-color: rgba(255, 255, 255, 0.12);
   background: rgba(24, 26, 32, 0.94);
 }
 
@@ -1621,7 +1621,7 @@
 
 .wizard-input-grid input {
   margin-top: 0.45rem;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.65rem;
   background: rgba(18, 20, 26, 0.86);
   padding: 0.65rem 0.9rem;
@@ -1632,7 +1632,7 @@
 
 .wizard-input-grid input:focus {
   outline: none;
-  border-color: rgba(62, 207, 142, 0.55);
+  border-color: rgba(255, 255, 255, 0.12);
   background: rgba(24, 26, 32, 0.94);
 }
 
@@ -1715,7 +1715,7 @@
 .node-editor-section select,
 .connection-details input {
   background-color: rgba(18, 20, 26, 0.82);
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.65rem;
   padding: 0.6rem 0.85rem;
   color: var(--textPrimary);
@@ -1727,7 +1727,7 @@
 .node-editor-section select:focus,
 .connection-details input:focus {
   outline: none;
-  border-color: rgba(62, 207, 142, 0.55);
+  border-color: rgba(255, 255, 255, 0.12);
   background-color: rgba(24, 26, 32, 0.92);
 }
 
@@ -1739,7 +1739,7 @@
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   color: #6b7280;
-  border-bottom: 1px solid rgba(62, 207, 142, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   padding-bottom: 0.35rem;
   margin-bottom: 0.5rem;
 }
@@ -1780,13 +1780,13 @@
   padding: 0.5rem 0.6rem;
   background: rgba(20, 22, 27, 0.6);
   border-radius: 0.6rem;
-  border: 1px solid rgba(62, 207, 142, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .connection-item:hover {
-  background: rgba(62, 207, 142, 0.12);
-  border-color: rgba(62, 207, 142, 0.32);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .connection-details {
@@ -1835,7 +1835,7 @@
   font-weight: 700;
   padding: 0.7rem 1rem;
   cursor: pointer;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: #111418;
   color: rgba(248, 250, 252, 0.92);
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease,
@@ -1845,21 +1845,21 @@
 
 .btn:hover {
   color: var(--textPrimary);
-  border-color: rgba(62, 207, 142, 0.45);
-  background: rgba(62, 207, 142, 0.08);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
 .btn-accent {
-  background: linear-gradient(120deg, #3ecf8e, #1fa86f);
+  background: linear-gradient(120deg, #2b2f36, #6b7280);
   color: #04110c;
-  border-color: rgba(62, 207, 142, 0.75);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .btn-accent:hover {
   background: linear-gradient(120deg, #44e69c, #1a9d67);
-  border-color: rgba(62, 207, 142, 0.95);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .btn:disabled,
@@ -1874,7 +1874,7 @@
 .btn-primary {
   padding: 10px 16px;
   border-radius: 8px;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: #111418;
   color: #e7eef5;
   font-size: 13px;
@@ -1886,10 +1886,10 @@
 }
 
 .btn-primary:hover {
-  border-color: rgba(62, 207, 142, 0.45);
-  background: rgba(62, 207, 142, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   color: #f2f6fb;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
@@ -1906,7 +1906,7 @@
 .btn-ghost {
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: #111418;
   color: rgba(220, 232, 244, 0.85);
   font-size: 13px;
@@ -1918,10 +1918,10 @@
 }
 
 .btn-ghost:hover {
-  background: rgba(62, 207, 142, 0.08);
-  border-color: rgba(62, 207, 142, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
   color: rgba(231, 238, 245, 0.95);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
@@ -2133,7 +2133,7 @@ button {
 
 .dashboard-panel {
   background: rgba(15, 17, 20, 0.78);
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.85rem;
   padding: 1.75rem;
   box-shadow: none;
@@ -2142,7 +2142,7 @@ button {
 }
 
 .dashboard-panel:hover {
-  border-color: rgba(70, 255, 170, 0.22);
+  border-color: rgba(209, 213, 219, 0.16);
 }
 
 .dashboard-panel-header {
@@ -2182,7 +2182,7 @@ button {
 
 .dashboard-summary-panel .dashboard-panel-header {
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(70, 255, 170, 0.08);
+  border-bottom: 1px solid rgba(209, 213, 219, 0.16);
 }
 
 .dashboard-summary-cards {
@@ -2193,7 +2193,7 @@ button {
 
 .dashboard-summary-card {
   background: rgba(17, 19, 24, 0.82);
-  border: 1px solid rgba(70, 255, 170, 0.06);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.9rem;
   padding: 1.25rem 1.35rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
@@ -2211,7 +2211,7 @@ button {
   margin: 0.35rem 0 0;
   font-size: 2.35rem;
   font-weight: 700;
-  color: #33ff99;
+  color: #d1d5db;
 }
 
 .dashboard-card-subtitle {
@@ -2283,7 +2283,7 @@ button {
 
 .dashboard-health-card,
 .dashboard-groups-card {
-  border: 1px solid rgba(70, 255, 170, 0.06);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.85rem;
   padding: 1.25rem 1.4rem;
   background: rgba(15, 17, 22, 0.78);
@@ -2318,7 +2318,7 @@ button {
 }
 
 .dashboard-health-segment--active {
-  background: #00d084;
+  background: #d1d5db;
 }
 
 .dashboard-health-segment--inactive {
@@ -2348,7 +2348,7 @@ button {
 }
 
 .legend-dot--active {
-  background: #00d084;
+  background: #d1d5db;
 }
 
 .legend-dot--inactive {
@@ -2367,7 +2367,7 @@ button {
 }
 
 .dashboard-category-chip {
-  border: 1px solid rgba(70, 255, 170, 0.2);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.8rem;
   padding: 0.45rem 0.85rem;
   min-width: 120px;
@@ -2461,7 +2461,7 @@ button {
 }
 
 .dashboard-metric-table {
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.85rem;
   padding: 1.25rem 1.4rem;
   background: rgba(15, 17, 22, 0.78);
@@ -2577,7 +2577,7 @@ button {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border: 1px solid rgba(70, 255, 170, 0.07);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.8rem;
   background: rgba(18, 20, 26, 0.85);
   color: var(--textPrimary);
@@ -2587,7 +2587,7 @@ button {
 }
 
 .dashboard-tree-main:hover {
-  border-color: rgba(70, 255, 170, 0.35);
+  border-color: rgba(209, 213, 219, 0.16);
   color: var(--accent);
 }
 
@@ -2641,7 +2641,7 @@ button {
   width: 34px;
   height: 34px;
   border-radius: 0.65rem;
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   background: rgba(12, 14, 18, 0.9);
   color: var(--textSecondary);
   cursor: pointer;
@@ -2652,7 +2652,7 @@ button {
 }
 
 .dashboard-tree-focus:hover {
-  border-color: rgba(70, 255, 170, 0.35);
+  border-color: rgba(209, 213, 219, 0.16);
   color: var(--accent);
 }
 
@@ -2680,7 +2680,7 @@ button {
 
 .dashboard-pill--success {
   border-color: rgba(0, 208, 132, 0.35);
-  color: #00d084;
+  color: #d1d5db;
 }
 
 .dashboard-pill--warning {
@@ -2722,7 +2722,7 @@ button {
   gap: 1rem;
   margin: 1rem 0 0.75rem;
   padding: 0.85rem 1rem;
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.75rem;
   background: rgba(13, 15, 19, 0.75);
 }
@@ -2750,8 +2750,8 @@ button {
 }
 
 .dashboard-tag {
-  border: 1px solid rgba(70, 255, 170, 0.25);
-  color: #a7f3d0;
+  border: 1px solid rgba(209, 213, 219, 0.16);
+  color: #d1d5db;
   border-radius: 999px;
   padding: 0.15rem 0.65rem;
   font-size: 0.75rem;
@@ -2777,7 +2777,7 @@ button {
   border-radius: 999px;
   border: 1px solid rgba(51, 255, 153, 0.45);
   background: rgba(51, 255, 153, 0.08);
-  color: #33ff99;
+  color: #d1d5db;
   padding: 0.4rem 1rem;
   font-size: 0.85rem;
   cursor: pointer;
@@ -2785,9 +2785,9 @@ button {
 }
 
 .dashboard-focus-action:hover {
-  background: #33ff99;
+  background: #d1d5db;
   color: #0b0d11;
-  border-color: #33ff99;
+  border-color: #d1d5db;
 }
 
 .dashboard-insight-grid {
@@ -2798,7 +2798,7 @@ button {
 }
 
 .dashboard-insight-card {
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.85rem;
   padding: 1.15rem 1.35rem;
   background: rgba(18, 20, 26, 0.82);
@@ -2818,7 +2818,7 @@ button {
 }
 
 .dashboard-profile-card {
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.85rem;
   padding: 1rem 1.25rem;
   background: rgba(10, 12, 16, 0.82);
@@ -2885,7 +2885,7 @@ button {
 }
 
 .dashboard-field-card {
-  border: 1px solid rgba(70, 255, 170, 0.08);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.75rem;
   padding: 0.85rem;
   background: rgba(8, 10, 14, 0.85);
@@ -3039,7 +3039,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 20% 20%, rgba(62, 207, 142, 0.08), transparent 28%),
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.12), transparent 28%),
     radial-gradient(circle at 80% 30%, rgba(59, 130, 246, 0.08), transparent 32%),
     #0c0f14;
   padding: 2rem;
@@ -3047,7 +3047,7 @@ button {
 
 .workspace-card {
   width: min(560px, 100%);
-  border: 1px solid rgba(70, 255, 170, 0.14);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 1rem;
   background: rgba(12, 14, 18, 0.94);
   padding: 1.6rem 1.8rem;
@@ -3100,7 +3100,7 @@ button {
   width: 100%;
   padding: 0.6rem 0.8rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(70, 255, 170, 0.18);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   background: rgba(12, 14, 18, 0.9);
   color: var(--textPrimary);
   font-size: 0.95rem;
@@ -3109,7 +3109,7 @@ button {
 
 .workspace-text-input:focus {
   outline: none;
-  border-color: rgba(62, 207, 142, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
   background: rgba(16, 18, 24, 0.95);
 }
 
@@ -3126,24 +3126,24 @@ button {
 }
 
 .workspace-cta {
-  background: #3ecf8e;
+  background: #2b2f36;
   color: #0c0f14;
-  border-color: rgba(62, 207, 142, 0.7);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .workspace-cta:hover {
   background: #35bf82;
-  border-color: rgba(62, 207, 142, 0.9);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .workspace-ghost {
   background: rgba(14, 16, 22, 0.9);
   color: var(--textPrimary);
-  border-color: rgba(70, 255, 170, 0.2);
+  border-color: rgba(209, 213, 219, 0.16);
 }
 
 .workspace-ghost:hover {
-  border-color: rgba(70, 255, 170, 0.45);
+  border-color: rgba(209, 213, 219, 0.16);
   background: rgba(18, 22, 28, 0.95);
 }
 
@@ -3161,7 +3161,7 @@ button {
 .workspace-item {
   width: 100%;
   text-align: left;
-  border: 1px solid rgba(70, 255, 170, 0.14);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 0.8rem;
   background: rgba(14, 16, 22, 0.85);
   color: var(--textPrimary);
@@ -3171,7 +3171,7 @@ button {
 }
 
 .workspace-item:hover {
-  border-color: rgba(70, 255, 170, 0.35);
+  border-color: rgba(209, 213, 219, 0.16);
   transform: translateY(-1px);
 }
 
@@ -3228,7 +3228,7 @@ button {
 .overlay-card {
   width: min(800px, 100%);
   background: rgba(12, 14, 18, 0.96);
-  border: 1px solid rgba(70, 255, 170, 0.16);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   border-radius: 1.1rem;
   padding: 1.6rem;
   color: var(--textPrimary);
@@ -3268,9 +3268,9 @@ button {
 
 .overlay-button {
   border-radius: 0.65rem;
-  border: 1px solid rgba(70, 255, 170, 0.35);
-  background: rgba(62, 207, 142, 0.12);
-  color: #3ecf8e;
+  border: 1px solid rgba(209, 213, 219, 0.16);
+  background: rgba(255, 255, 255, 0.12);
+  color: #2b2f36;
   padding: 0.5rem 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -3279,7 +3279,7 @@ button {
 .overlay-button.ghost {
   background: rgba(14, 16, 22, 0.9);
   color: var(--textPrimary);
-  border-color: rgba(70, 255, 170, 0.2);
+  border-color: rgba(209, 213, 219, 0.16);
 }
 
 .theme-grid {
@@ -3293,7 +3293,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.9rem;
   padding: 0.8rem;
   background: rgba(14, 16, 22, 0.9);
@@ -3317,21 +3317,21 @@ button {
 .theme-input input[type='color'] {
   width: 48px;
   height: 40px;
-  border: 1px solid rgba(62, 207, 142, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.6rem;
   background: transparent;
   padding: 0.2rem;
 }
 
 .theme-field:hover {
-  border-color: rgba(62, 207, 142, 0.32);
-  background: rgba(62, 207, 142, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 .theme-input input[type='text'] {
   flex: 1;
   border-radius: 0.6rem;
-  border: 1px solid rgba(70, 255, 170, 0.16);
+  border: 1px solid rgba(209, 213, 219, 0.16);
   background: rgba(10, 12, 16, 0.9);
   color: var(--textPrimary);
   padding: 0.5rem 0.6rem;
@@ -3346,7 +3346,7 @@ button {
 
 .settings-tile {
   border-radius: 0.9rem;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(14, 16, 22, 0.9);
   color: var(--textPrimary);
   padding: 1rem 1.1rem;
@@ -3395,7 +3395,7 @@ button {
 .theme-panel,
 .settings-panel {
   background: linear-gradient(180deg, rgba(15, 17, 23, 0.95), rgba(10, 12, 16, 0.92));
-  border: 1px solid rgba(62, 207, 142, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -3405,7 +3405,7 @@ button {
 .theme-panel .node-editor-header,
 .settings-panel .node-editor-header {
   background: rgba(18, 21, 27, 0.94);
-  border-bottom: 1px solid rgba(62, 207, 142, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   padding: 0.6rem 0.85rem;
 }
 
@@ -3415,19 +3415,19 @@ button {
 }
 
 .node-editor-icon--pill {
-  background: rgba(62, 207, 142, 0.14);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--iconAccent, var(--accent));
   border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0.4rem;
-  border: 1px solid rgba(62, 207, 142, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
 }
 
 .theme-field {
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(14, 16, 22, 0.9);
   box-shadow: none;
   transition: border-color 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
@@ -3443,6 +3443,11 @@ button {
 
 .settings-tile:hover {
   transform: translateY(-1px);
-  border-color: rgba(62, 207, 142, 0.35);
+  border-color: rgba(255, 255, 255, 0.12);
 }
+
+
+
+
+
 

@@ -12,6 +12,7 @@ import {
   deleteWorkspaceApi,
   saveWorkspace,
   type ApiWorkspaceMeta,
+  type ApiUser,
 } from '../lib/api';
 import { WorkspaceProvider } from './WorkspaceContext';
 
@@ -34,7 +35,7 @@ const parseGraphFile = async (file: File): Promise<GraphData> => {
 };
 
 export const WorkspaceGate = ({ children }: WorkspaceGateProps) => {
-  const [user, setUser] = useState<{ id: string; name: string } | null>(null);
+  const [user, setUser] = useState<ApiUser | null>(null);
   const [workspaces, setWorkspaces] = useState<ApiWorkspaceMeta[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<ApiWorkspaceMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +69,8 @@ export const WorkspaceGate = ({ children }: WorkspaceGateProps) => {
 
   const sortedWorkspaces = useMemo(() => [...workspaces], [workspaces]);
 
-  const handleSelect = (workspace: ApiWorkspaceMeta) => {
+  const handleSelect = (workspaceId: string) => {
+    const workspace = workspaces.find((ws) => ws.id === workspaceId) ?? workspaces[0] ?? null;
     setError(null);
     setActiveWorkspace(workspace);
   };
@@ -82,7 +84,7 @@ export const WorkspaceGate = ({ children }: WorkspaceGateProps) => {
       const workspace = await createWorkspaceApi(user.id, name);
       const userWorkspaces = await listWorkspaces(user.id);
       setWorkspaces(userWorkspaces);
-      handleSelect(workspace);
+      handleSelect(workspace.id);
       setNewWorkspaceName('');
     } catch (err) {
       logger.error('Failed to create workspace', err as Error);
@@ -111,7 +113,7 @@ export const WorkspaceGate = ({ children }: WorkspaceGateProps) => {
       });
       const userWorkspaces = await listWorkspaces(user.id);
       setWorkspaces(userWorkspaces);
-      handleSelect(workspace);
+      handleSelect(workspace.id);
       setError(null);
     } catch (importError) {
       logger.error('Failed to import workspace', importError as Error);
@@ -273,15 +275,17 @@ export const WorkspaceGate = ({ children }: WorkspaceGateProps) => {
                   key={workspace.id}
                   type="button"
                   className="workspace-item"
-                  onClick={() => handleSelect(workspace)}
-                >
-                  <div>
-                    <p className="workspace-item-name">{workspace.name}</p>
+                onClick={() => handleSelect(workspace.id)}
+              >
+                <div>
+                  <p className="workspace-item-name">{workspace.name}</p>
                     <p className="workspace-item-meta">
-                      Last opened {new Date(workspace.lastOpenedAt).toLocaleString()}
-                    </p>
-                  </div>
-                </button>
+                      {(workspace as any)?.lastOpenedAt
+                        ? `Last opened ${new Date((workspace as any).lastOpenedAt).toLocaleString()}`
+                        : 'Recently opened'}
+                  </p>
+                </div>
+              </button>
               ))}
             </div>
           </div>

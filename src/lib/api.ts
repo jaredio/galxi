@@ -50,12 +50,25 @@ export type ApiLink = {
   relation?: string | null;
 };
 
+export type ApiDrawing = {
+  id: string;
+  type: 'rect' | 'circle' | 'pen' | 'text' | 'eraser';
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  radius?: number;
+  points?: { x: number; y: number }[];
+  text?: string;
+};
+
 export type ApiWorkspacePayload = {
   id: string;
   name: string;
   nodes: ApiNode[];
   groups: ApiGroup[];
   links: ApiLink[];
+  drawings: ApiDrawing[];
 };
 
 export const createUser = (name: string) => request<ApiUser>('/users', { method: 'POST', body: { name } });
@@ -67,7 +80,7 @@ export const createWorkspaceApi = (userId: string, name: string) =>
 export const getWorkspace = (workspaceId: string) => request<ApiWorkspacePayload>(`/workspaces/${workspaceId}`);
 export const saveWorkspace = (
   workspaceId: string,
-  payload: { name?: string; nodes?: ApiNode[]; groups?: ApiGroup[]; links?: ApiLink[] }
+  payload: { name?: string; nodes?: ApiNode[]; groups?: ApiGroup[]; links?: ApiLink[]; drawings?: ApiDrawing[] }
 ) => request<{ ok: true }>(`/workspaces/${workspaceId}`, { method: 'PUT', body: payload });
 export const deleteWorkspaceApi = (workspaceId: string) =>
   request<void>(`/workspaces/${workspaceId}`, { method: 'DELETE' });

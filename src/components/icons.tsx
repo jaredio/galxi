@@ -143,3 +143,77 @@ export const LinkIcon = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
+
+export const RectangleIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <rect x={4} y={4} width={12} height={12} rx={2.5} stroke="currentColor" strokeWidth="1.4" />
+  </svg>
+);
+
+export const CircleIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <circle cx={10} cy={10} r={6} stroke="currentColor" strokeWidth="1.4" />
+  </svg>
+);
+
+export const PenIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <path
+      d="M6 14l1.3-3.8 5.7-5.7a1.2 1.2 0 111.7 1.7l-5.7 5.7L6 14z"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinejoin="round"
+    />
+    <path d="M8 10l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+export const TextIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <path
+      d="M5 5.5h10M10 5.5v9m-2.5 0h5"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const EraserIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <path
+      d="M6.2 13.8l-1.6-1.6c-.6-.6-.6-1.6 0-2.2l4.8-4.8c.6-.6 1.6-.6 2.2 0l3 3c.6.6.6 1.6 0 2.2l-3.4 3.4"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M7.4 13.8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+export const MoveIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <path
+      d="M10 3l2 2m-2-2l-2 2m2-2v14m5-5l-2-2m2 2l-2 2m2-2H3m5-5l2 2m-2-2l-2 2m2-2H3m5 10l2-2m-2 2l-2-2"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const HandIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...largeIconProps} {...props}>
+    <path
+      d="M8.3 11.8V6.5a1.2 1.2 0 112.4 0v2m-2.4 0V5.7a1.2 1.2 0 112.4 0v2.8m0 0V5a1.2 1.2 0 112.4 0v3.8m0 0V6.7a1.2 1.2 0 112.4 0v5.3c0 1.8-1.5 3.3-3.3 3.3H9.5a3 3 0 01-2.1-.9l-1.8-1.8"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
+  </svg>
+);

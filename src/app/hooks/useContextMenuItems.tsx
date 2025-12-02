@@ -11,6 +11,8 @@ type UseContextMenuItemsOptions = {
   links: NetworkLink[];
   groupLinks: GroupLink[];
   onAddNodeAtPosition: () => void;
+  onClearDrawings: () => void;
+  hasDrawings: boolean;
   openProfileWindow: (
     kind: 'node' | 'group',
     resourceId: string,
@@ -30,6 +32,8 @@ export const useContextMenuItems = ({
   links,
   groupLinks,
   onAddNodeAtPosition,
+  onClearDrawings,
+  hasDrawings,
   openProfileWindow,
   openConnectionEditorByKey,
   removeConnectionByKey,
@@ -64,6 +68,17 @@ export const useContextMenuItems = ({
           icon: <PlusIcon />,
           onSelect: onAddNodeAtPosition,
         },
+        ...(hasDrawings
+          ? [
+              {
+                id: 'clear-drawings',
+                label: 'Remove all drawings',
+                icon: <TrashIcon />,
+                tone: 'danger',
+                onSelect: onClearDrawings,
+              } as ContextMenuItem,
+            ]
+          : []),
       ];
     }
 
@@ -204,6 +219,8 @@ export const useContextMenuItems = ({
     groupLinkByKey,
     linkByKey,
     onAddNodeAtPosition,
+    onClearDrawings,
+    hasDrawings,
     openConnectionEditorByKey,
     openGroupEditor,
     openNodeEditorById,

@@ -10,7 +10,6 @@ type UseSidebarActionsArgs = {
   getGraphCenterPosition: () => { x: number; y: number };
   openCreateNodeForm: (position: { x: number; y: number }, overrides?: Partial<NodeFormValues>) => void;
   openGroupDraft: (groupType: GroupType, position: { x: number; y: number }) => void;
-  showUtilityToast: (message: string) => void;
   setWelcomeDismissed: Dispatch<SetStateAction<boolean>>;
   openThemePanel: () => void;
   openSettingsPanel: () => void;
@@ -21,7 +20,6 @@ export const useSidebarActions = ({
   getGraphCenterPosition,
   openCreateNodeForm,
   openGroupDraft,
-  showUtilityToast,
   setWelcomeDismissed,
   openThemePanel,
   openSettingsPanel,

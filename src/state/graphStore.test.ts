@@ -8,6 +8,7 @@ beforeEach(() => {
     links: [],
     groups: [],
     groupLinks: [],
+    drawings: [],
   });
 });
 

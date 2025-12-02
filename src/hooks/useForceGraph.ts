@@ -1050,6 +1050,6 @@ export const useForceGraph = ({
     linkLabelSelectionRef,
     applyZoomScalar,
     resetZoom,
+    zoomTransformRef,
   };
 };
-

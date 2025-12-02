@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { CanvasGroup, GroupLink, NetworkLink, NetworkNode } from '../types/graph';
+import type { CanvasDrawing, CanvasGroup, GroupLink, NetworkLink, NetworkNode } from '../types/graph';
 import {
   getGroupProfileSchema,
   getNodeProfileSchema,
@@ -17,15 +17,18 @@ type GraphStore = {
   links: NetworkLink[];
   groups: CanvasGroup[];
   groupLinks: GroupLink[];
+  drawings: CanvasDrawing[];
   setNodes: (updater: Updater<NetworkNode[]>) => void;
   setLinks: (updater: Updater<NetworkLink[]>) => void;
   setGroups: (updater: Updater<CanvasGroup[]>) => void;
   setGroupLinks: (updater: Updater<GroupLink[]>) => void;
+  setDrawings: (updater: Updater<CanvasDrawing[]>) => void;
   replaceGraph: (payload: {
     nodes: NetworkNode[];
     links: NetworkLink[];
     groups?: CanvasGroup[];
     groupLinks?: GroupLink[];
+    drawings?: CanvasDrawing[];
   }) => void;
 };
 
@@ -34,6 +37,7 @@ export const useGraphStore = create<GraphStore>((set) => ({
   links: [],
   groups: [],
   groupLinks: [],
+  drawings: [],
   setNodes: (updater) =>
     set((state) => ({
       nodes: resolveUpdater(updater, state.nodes),
@@ -50,7 +54,11 @@ export const useGraphStore = create<GraphStore>((set) => ({
     set((state) => ({
       groupLinks: resolveUpdater(updater, state.groupLinks),
     })),
-  replaceGraph: ({ nodes, links, groups, groupLinks }) =>
+  setDrawings: (updater) =>
+    set((state) => ({
+      drawings: resolveUpdater(updater, state.drawings),
+    })),
+  replaceGraph: ({ nodes, links, groups, groupLinks, drawings }) =>
     set({
       nodes: nodes.map((node) => ({
         ...node,
@@ -64,5 +72,6 @@ export const useGraphStore = create<GraphStore>((set) => ({
           }))
         : [],
       groupLinks: groupLinks ? groupLinks.map((link) => ({ ...link })) : [],
+      drawings: drawings ? drawings.map((drawing) => ({ ...drawing })) : [],
     }),
 }));

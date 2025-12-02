@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from 'react';
-import type { ZoomTransform } from 'd3';
 import * as d3 from 'd3';
 
 import { useGraphOrchestration } from '../../hooks/useGraphOrchestration';
@@ -99,8 +98,7 @@ export const useCanvasInteractions = ({
   attachContextMenuDismiss,
 }: UseCanvasInteractionsArgs) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const zoomTransformRef = useRef<ZoomTransform>(d3.zoomIdentity);
-
+  const zoomRef = useRef(d3.zoomIdentity);
   const {
     state,
     actions,
@@ -195,6 +193,7 @@ export const useCanvasInteractions = ({
     linkLabelSelectionRef,
     applyZoomScalar,
     resetZoom,
+    zoomTransformRef,
   } = useForceGraph({
     svgRef,
     nodes,
@@ -203,7 +202,7 @@ export const useCanvasInteractions = ({
     groups,
     nodePositionsRef,
     groupPositionsRef,
-    zoomTransformRef,
+    zoomTransformRef: zoomRef,
     connectionDraft: state.connectionDraft,
     hoveredGroupLinkKey: state.hoveredGroupLinkKey,
     onNodeHover: handleNodeHover,
@@ -260,14 +259,14 @@ export const useCanvasInteractions = ({
       const [graphX, graphY] = transform.invert([centeredX, centeredY]);
       return { x: graphX, y: graphY };
     },
-    []
+    [zoomTransformRef]
   );
 
   const getGraphCenterPosition = useCallback(() => {
     const transform = zoomTransformRef.current ?? d3.zoomIdentity;
     const [x, y] = transform.invert([0, 0]);
     return { x, y };
-  }, []);
+  }, [zoomTransformRef]);
 
   const handleCanvasContextMenu = useCallback(
     (event: ReactMouseEvent<SVGSVGElement>) => {
@@ -337,6 +336,8 @@ export const useCanvasInteractions = ({
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
+    getZoomTransform: () => zoomTransformRef.current ?? d3.zoomIdentity,
+    zoomTransformRef,
     getGraphCenterPosition,
   };
 };

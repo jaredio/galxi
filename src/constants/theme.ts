@@ -14,8 +14,8 @@ export type Theme = {
 };
 
 export const baseTheme: Theme = {
-  accent: '#3ECF8E',
-  accentHover: '#2EB67D',
+  accent: '#2B2F36',
+  accentHover: '#4B5563',
   background: '#0F1117',
   surface: '#1C1F26',
   hover: '#16181E',
@@ -24,8 +24,8 @@ export const baseTheme: Theme = {
   textSecondary: '#9CA3AF',
   nodeFill: '#1C1F26',
   nodeBorder: '#2B2F36',
-  nodeGlow: '#3ECF8E',
-  iconAccent: '#3ECF8E',
+  nodeGlow: '#2B2F36',
+  iconAccent: '#D1D5DB',
 };
 
 export const applyTheme = (theme: Theme) => {

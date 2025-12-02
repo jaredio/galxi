@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { NetworkIcon, TrashIcon } from './icons';
+import { NetworkIcon } from './icons';
 
 import { getGroupIcon } from '../constants/groupIcons';
 import { groupTypeCategoryLabels, groupTypeCategoryOrder, groupTypeOptions } from '../constants/groupTypes';

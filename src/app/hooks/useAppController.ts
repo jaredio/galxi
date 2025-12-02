@@ -24,6 +24,7 @@ import type {
   ContextMenuState,
   ProfileWindowState,
 } from '../../types/appState';
+import type { DrawingTool } from '../../types/graph';
 import { useAppStateSlices } from './useAppStateSlices';
 import { useNotificationBanner } from './useNotificationBanner';
 import { useCanvasInteractions } from './useCanvasInteractions';
@@ -101,15 +102,21 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     links,
     groupLinks,
     groups,
+    drawings,
     setNodes,
     setLinks,
     setGroupLinks,
     setGroups,
+    setDrawings,
     replaceGraph,
   } = useAppStateSlices();
   const [activeTab, setActiveTab] = useState<TabId>('canvas');
   const isCanvasView = activeTab === 'canvas';
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [drawingTool, setDrawingTool] = useState<DrawingTool | null>(null);
+  const [penSize, setPenSize] = useState(6);
+  const [penColor, setPenColor] = useState('#6b7280');
+  const [eraserSize, setEraserSize] = useState(18);
   const { proxy: setActiveNodeIdProxy, attach: attachActiveNodeId } = useDispatchProxy<string | null>();
   const { proxy: setHoveredNodeIdProxy, attach: attachHoveredNodeId } = useDispatchProxy<string | null>();
   const { proxy: setHoveredEdgeKeyProxy, attach: attachHoveredEdgeKey } = useDispatchProxy<string | null>();
@@ -386,6 +393,7 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     links,
     groups,
     groupLinks,
+    drawings,
     nodePositionsRef,
     groupPositionsRef,
     replaceGraph,
@@ -450,6 +458,8 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
+    getZoomTransform,
+    zoomTransformRef,
     getGraphCenterPosition,
   } = useCanvasInteractions({
     nodes,
@@ -510,7 +520,6 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     getGraphCenterPosition,
     openCreateNodeForm,
     openGroupDraft,
-    showUtilityToast: showUtilityToastProxy,
     setWelcomeDismissed,
     openThemePanel: () => setThemePanelOpen(true),
     openSettingsPanel: () => setSettingsPanelOpen(true),
@@ -637,6 +646,8 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     links,
     groupLinks,
     onAddNodeAtPosition: handleContextMenuAddNode,
+    onClearDrawings: () => setDrawings([]),
+    hasDrawings: drawings.length > 0,
     openProfileWindow,
     openConnectionEditorByKey,
     removeConnectionByKey,
@@ -663,6 +674,8 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     onZoomIn: handleZoomIn,
     onZoomOut: handleZoomOut,
     onResetZoom: handleResetZoom,
+    zoomTransformRef,
+    getZoomTransform,
   };
 
   const contextMenuModel = {
@@ -674,6 +687,7 @@ export const useAppController = (options?: UseAppControllerOptions) => {
   const canvasViewModel: CanvasViewModel = useCanvasViewModel({
     nodes,
     groups,
+    drawings,
     welcomeDismissed,
     sidebar: sidebarModel,
     canvas: canvasHandlers,
@@ -685,6 +699,15 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     removeConnectionByKey,
     removeGroupConnectionByKey,
     handleGroupDelete,
+    drawingTool,
+    onDrawingToolChange: setDrawingTool,
+    onDrawingsChange: (next) => setDrawings(next),
+    penSize,
+    penColor,
+    eraserSize,
+    onPenSizeChange: setPenSize,
+    onPenColorChange: setPenColor,
+    onEraserSizeChange: setEraserSize,
   });
 
   const setAndPersistTheme = useCallback(
@@ -715,6 +738,7 @@ export const useAppController = (options?: UseAppControllerOptions) => {
       groupLinks,
       nodePositions: { ...nodePositionsRef.current },
       groupPositions: { ...groupPositionsRef.current },
+      drawings,
       theme,
     };
     const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
@@ -730,6 +754,7 @@ export const useAppController = (options?: UseAppControllerOptions) => {
     replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
     nodePositionsRef.current = {};
     groupPositionsRef.current = {};
+    setDrawings([]);
     clearGraph(workspaceId);
     clearThemeForWorkspace(workspaceId);
     setTheme(baseTheme);

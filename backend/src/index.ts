@@ -78,7 +78,7 @@ app.get('/workspaces/:id', async (request, reply) => {
   const { id } = request.params as { id: string };
   const workspace = await prisma.workspace.findUnique({
     where: { id },
-    include: { nodes: true, groups: true, links: true },
+    include: { nodes: true, groups: true, links: true, drawings: true },
   });
 
   if (!workspace) {
@@ -122,11 +122,22 @@ type WorkspacePayload = {
   nodes?: IncomingNode[];
   groups?: IncomingGroup[];
   links?: IncomingLink[];
+  drawings?: {
+    id: string;
+    type: string;
+    x?: number | null;
+    y?: number | null;
+    width?: number | null;
+    height?: number | null;
+    radius?: number | null;
+    points?: unknown;
+    text?: string | null;
+  }[];
 };
 
 app.put('/workspaces/:id', async (request, reply) => {
   const { id } = request.params as { id: string };
-  const { name, nodes = [], groups = [], links = [] } = (request.body as WorkspacePayload) ?? {};
+  const { name, nodes = [], groups = [], links = [], drawings = [] } = (request.body as WorkspacePayload) ?? {};
 
   const existing = await prisma.workspace.findUnique({ where: { id } });
   if (!existing) {
@@ -139,6 +150,7 @@ app.put('/workspaces/:id', async (request, reply) => {
       await tx.workspace.update({ where: { id }, data: { name: name.trim() } });
     }
 
+    await tx.drawing.deleteMany({ where: { workspaceId: id } });
     await tx.link.deleteMany({ where: { workspaceId: id } });
     await tx.node.deleteMany({ where: { workspaceId: id } });
     await tx.group.deleteMany({ where: { workspaceId: id } });
@@ -182,6 +194,23 @@ app.put('/workspaces/:id', async (request, reply) => {
           sourceId: link.sourceId,
           targetId: link.targetId,
           relation: link.relation ?? null,
+        })),
+      });
+    }
+
+    if (drawings.length) {
+      await tx.drawing.createMany({
+        data: drawings.map((d) => ({
+          id: d.id,
+          workspaceId: id,
+          type: d.type,
+          x: d.x ?? null,
+          y: d.y ?? null,
+          width: d.width ?? null,
+          height: d.height ?? null,
+          radius: d.radius ?? null,
+          points: d.points ?? null,
+          text: d.text ?? null,
         })),
       });
     }

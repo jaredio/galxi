@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 
 import type {
+  CanvasDrawing,
   CanvasGroup,
   GroupLink,
   GroupPositionMap,
@@ -12,13 +13,14 @@ import type {
 import { debounce, type GraphData } from '../lib/persistence';
 import { logger } from '../lib/logger';
 import type { Theme } from '../constants/theme';
-import { getWorkspace, saveWorkspace } from '../lib/api';
+import { getWorkspace, saveWorkspace, type ApiDrawing } from '../lib/api';
 
 type PersistencePayload = {
   nodes: NetworkNode[];
   links: NetworkLink[];
   groups: CanvasGroup[];
   groupLinks: GroupLink[];
+  drawings?: CanvasDrawing[];
 };
 
 type UseGraphPersistenceOptions = PersistencePayload & {
@@ -38,6 +40,7 @@ export const useGraphPersistence = ({
   links,
   groups,
   groupLinks,
+  drawings = [],
   nodePositionsRef,
   groupPositionsRef,
   replaceGraph,
@@ -58,6 +61,7 @@ export const useGraphPersistence = ({
         groupLinks: GroupLink[];
         nodePositions: NodePositionMap;
         groupPositions: GroupPositionMap;
+        drawings?: CanvasDrawing[];
       }) => void)
   >(null);
   const autosaveErrorRef = useRef(false);
@@ -69,6 +73,7 @@ export const useGraphPersistence = ({
         links: data.links,
         groups: data.groups,
         groupLinks: data.groupLinks,
+        drawings: data.drawings as CanvasDrawing[] | undefined,
       });
       nodePositionsRef.current = data.nodePositions ?? {};
       groupPositionsRef.current = data.groupPositions ?? {};
@@ -84,7 +89,7 @@ export const useGraphPersistence = ({
     let cancelled = false;
     const restoreFromBackend = async () => {
       if (!workspaceId) {
-        replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
+        replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [], drawings: [] });
         nodePositionsRef.current = {};
         groupPositionsRef.current = {};
         setReady(true);
@@ -96,12 +101,13 @@ export const useGraphPersistence = ({
         const restored: GraphData = {
           version: 1,
           nodes: data.nodes as NetworkNode[],
-          links: data.links as NetworkLink[],
+          links: data.links as unknown as NetworkLink[],
           groups: data.groups as CanvasGroup[],
           groupLinks: [],
           nodePositions: {},
           groupPositions: {},
-          timestamp: Date.now(),
+          drawings: (data.drawings as ApiDrawing[]) ?? [],
+          timestamp: new Date().toISOString(),
         };
         logger.info('Restored graph from backend', {
           nodes: restored.nodes.length,
@@ -111,7 +117,7 @@ export const useGraphPersistence = ({
         handleRestore(restored);
       } catch (err) {
         logger.error('Failed to load workspace from backend', err as Error);
-        replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [] });
+        replaceGraph({ nodes: [], links: [], groups: [], groupLinks: [], drawings: [] });
         nodePositionsRef.current = {};
         groupPositionsRef.current = {};
       } finally {
@@ -136,6 +142,7 @@ export const useGraphPersistence = ({
         nodes: payload.nodes,
         groups: payload.groups,
         links: payload.links,
+        drawings: payload.drawings ?? [],
         name: undefined,
       })
         .then(() => {
@@ -169,6 +176,7 @@ export const useGraphPersistence = ({
       groupLinks,
       nodePositions: { ...nodePositionsRef.current },
       groupPositions: { ...groupPositionsRef.current },
+      drawings,
     });
-  }, [ready, nodes, links, groups, groupLinks, nodePositionsRef, groupPositionsRef, layoutVersion]);
+  }, [ready, nodes, links, groups, groupLinks, drawings, nodePositionsRef, groupPositionsRef, layoutVersion]);
 };

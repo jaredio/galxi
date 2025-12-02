@@ -16,6 +16,16 @@ export const Topbar = ({ activeTab, onSelectTab }: TopbarProps) => {
   const { user, workspaces, activeWorkspace, selectWorkspace, createWorkspace, deleteWorkspace, logout } =
     useWorkspaceContext();
 
+  const handleCreateWorkspace = async () => {
+    const name = window.prompt('Workspace name?')?.trim() || 'New Workspace';
+    await createWorkspace(name);
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!activeWorkspace) return;
+    await deleteWorkspace(activeWorkspace.id);
+  };
+
   return (
     <header className={styles.topbar}>
       <div className={styles.inner}>
@@ -44,8 +54,8 @@ export const Topbar = ({ activeTab, onSelectTab }: TopbarProps) => {
             activeWorkspace={activeWorkspace}
             workspaces={workspaces}
             onSelect={selectWorkspace}
-            onCreate={createWorkspace}
-            onDelete={deleteWorkspace}
+            onCreate={handleCreateWorkspace}
+            onDelete={handleDeleteWorkspace}
           />
         </div>
       </div>

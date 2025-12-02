@@ -54,7 +54,7 @@
 
 .tabButton {
   background: #111418;
-  border: 1px solid rgba(62, 207, 142, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--textSecondary);
   font-size: 0.92rem;
   font-weight: 600;
@@ -68,16 +68,16 @@
 
 .tabButton:hover {
   color: var(--textPrimary);
-  background: rgba(62, 207, 142, 0.08);
-  border-color: rgba(62, 207, 142, 0.45);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
 
 .tabButtonActive {
-  color: var(--accent);
-  background: rgba(62, 207, 142, 0.12);
-  border: 1px solid rgba(62, 207, 142, 0.45);
+  color: var(--textPrimary);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .actionGroup {
@@ -94,7 +94,7 @@
 
 .trigger {
   background: #111418;
-  border: 1px solid rgba(62, 207, 142, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--textPrimary);
   border-radius: 8px;
   padding: 0.45rem 0.9rem;
@@ -108,9 +108,9 @@
 .trigger:hover,
 .trigger:focus-visible,
 .triggerActive {
-  border-color: rgba(62, 207, 142, 0.45);
-  background: rgba(62, 207, 142, 0.08);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(62, 207, 142, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
 
@@ -124,7 +124,7 @@
   right: 0;
   min-width: 220px;
   background: #111418;
-  border: 1px solid rgba(62, 207, 142, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
   padding: 0.25rem;
@@ -148,8 +148,8 @@
 }
 
 .dropdownItem:hover {
-  background: rgba(62, 207, 142, 0.08);
-  border: 1px solid rgba(62, 207, 142, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .dropdownItemDanger:hover {
@@ -170,3 +170,4 @@
   background: rgba(255, 255, 255, 0.22);
   margin: 0.35rem 0;
 }
+

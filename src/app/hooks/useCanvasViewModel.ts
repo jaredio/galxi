@@ -3,7 +3,7 @@ import type { MutableRefObject, MouseEvent as ReactMouseEvent } from 'react';
 
 import type { CanvasViewModel } from '../CanvasView';
 import type { ContextMenuItem } from '../../components/ContextMenu';
-import type { CanvasGroup, GroupType, NetworkNode } from '../../types/graph';
+import type { CanvasDrawing, CanvasGroup, DrawingTool, GroupType, NetworkNode } from '../../types/graph';
 import type { ContextMenuState } from '../../types/appState';
 import type { PanelStateApi } from './usePanelState';
 import type { NotificationBannerApi } from './useNotificationBanner';
@@ -25,6 +25,8 @@ type CanvasHandlers = {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
+  getZoomTransform: () => { x: number; y: number; k: number };
+  zoomTransformRef: MutableRefObject<{ x: number; y: number; k: number }>;
 };
 
 type ContextMenuModel = {
@@ -36,6 +38,7 @@ type ContextMenuModel = {
 type UseCanvasViewModelArgs = {
   nodes: NetworkNode[];
   groups: CanvasGroup[];
+  drawings: CanvasDrawing[];
   welcomeDismissed: boolean;
   sidebar: SidebarModel;
   canvas: CanvasHandlers;
@@ -47,11 +50,21 @@ type UseCanvasViewModelArgs = {
   removeConnectionByKey: (key: string) => void;
   removeGroupConnectionByKey: (key: string) => void;
   handleGroupDelete: () => void;
+  drawingTool: DrawingTool | null;
+  onDrawingToolChange: (tool: DrawingTool | null) => void;
+  onDrawingsChange: (next: CanvasDrawing[]) => void;
+  penSize: number;
+  penColor: string;
+  eraserSize: number;
+  onPenSizeChange: (value: number) => void;
+  onPenColorChange: (value: string) => void;
+  onEraserSizeChange: (value: number) => void;
 };
 
 export const useCanvasViewModel = ({
   nodes,
   groups,
+  drawings,
   welcomeDismissed,
   sidebar,
   canvas,
@@ -63,6 +76,15 @@ export const useCanvasViewModel = ({
   removeConnectionByKey,
   removeGroupConnectionByKey,
   handleGroupDelete,
+  drawingTool,
+  onDrawingToolChange,
+  onDrawingsChange,
+  penSize,
+  penColor,
+  eraserSize,
+  onPenSizeChange,
+  onPenColorChange,
+  onEraserSizeChange,
 }: UseCanvasViewModelArgs): CanvasViewModel => {
   const showWelcome = !welcomeDismissed && nodes.length === 0 && groups.length === 0;
   const {
@@ -95,6 +117,8 @@ export const useCanvasViewModel = ({
       canvasRef: canvas.canvasRef,
       onCanvasContextMenu: canvas.onCanvasContextMenu,
       onCanvasMouseMove: canvas.onCanvasMouseMove,
+      getZoomTransform: canvas.getZoomTransform,
+      zoomTransformRef: canvas.zoomTransformRef,
       emptyState: {
         visible: showWelcome,
         onCreateNode: sidebar.onEmptyStateCreate,
@@ -118,6 +142,18 @@ export const useCanvasViewModel = ({
         onClose: closeProfileWindowById,
         onFocus: focusProfileWindow,
         onFieldChange: onProfileFieldChange,
+      },
+      drawing: {
+        tool: drawingTool,
+        onToolChange: onDrawingToolChange,
+        drawings,
+        onDrawingsChange,
+        penSize,
+        penColor,
+        eraserSize,
+        onPenSizeChange,
+        onPenColorChange,
+        onEraserSizeChange,
       },
       nodePanel: {
         ...nodePanel,
@@ -149,12 +185,24 @@ export const useCanvasViewModel = ({
     canvas.onZoomIn,
     canvas.onZoomOut,
     canvas.onResetZoom,
+    canvas.getZoomTransform,
+    canvas.zoomTransformRef,
     contextMenu.items,
     contextMenu.onRequestClose,
     contextMenu.state,
+    drawings,
     groupPanel,
     groupForm,
     handleGroupDelete,
+    drawingTool,
+    onDrawingToolChange,
+    onDrawingsChange,
+    penSize,
+    penColor,
+    eraserSize,
+    onPenSizeChange,
+    onPenColorChange,
+    onEraserSizeChange,
     nodePanel,
     nodes,
     groups,
@@ -182,11 +230,5 @@ export const useCanvasViewModel = ({
     sidebar.onOpenSettings,
     sidebar.onEmptyStateCreate,
     connectionPanel,
-    canvas.canvasRef,
-    canvas.onCanvasContextMenu,
-    canvas.onCanvasMouseMove,
-    canvas.onZoomIn,
-    canvas.onZoomOut,
-    canvas.onResetZoom,
   ]);
 };

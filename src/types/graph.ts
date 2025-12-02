@@ -53,6 +53,23 @@ export type NodeType =
   ;
 
 export type GroupType = 'virtualNetwork' | 'subnet' | 'logicalGroup';
+export type DrawingTool = 'rect' | 'circle' | 'pen' | 'text' | 'eraser' | 'hand';
+
+export type CanvasDrawing = {
+  id: string;
+  type: 'rect' | 'circle' | 'pen' | 'text' | 'eraser';
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  radius?: number;
+  points?: { x: number; y: number }[];
+  text?: string;
+  size?: number;
+  color?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 export interface NetworkNode {
   id: string;

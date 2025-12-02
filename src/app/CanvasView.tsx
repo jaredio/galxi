@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState } from 'react';
 import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { MutableRefObject } from 'react';
 import { createPortal } from 'react-dom';
@@ -10,10 +11,12 @@ import { ProfileWindow } from '../components/ProfileWindow';
 import { NodeEditorPanel, type NodeConnection, type NodeFormValues } from '../components/NodeEditorPanel';
 import { ConnectionEditorPanel } from '../components/ConnectionEditorPanel';
 import { GroupEditorPanel } from '../components/GroupEditorPanel';
+import { DrawingLayer } from '../components/DrawingLayer';
 import { nodeTypeOptions } from '../constants/nodeOptions';
 import { buildGroupProfileContent, buildNodeProfileContent } from '../lib/profileData';
 import type { ProfileFormSection, ResourceProfileData } from '../types/profile';
 import type {
+  CanvasDrawing,
   CanvasGroup,
   GroupLink,
   GroupType,
@@ -50,6 +53,8 @@ export type CanvasViewModel = {
   canvasRef: MutableRefObject<SVGSVGElement | null>;
   onCanvasContextMenu: (event: ReactMouseEvent<SVGSVGElement>) => void;
   onCanvasMouseMove: (event: ReactMouseEvent<SVGSVGElement>) => void;
+  getZoomTransform: () => { x: number; y: number; k: number };
+  zoomTransformRef: MutableRefObject<{ x: number; y: number; k: number }>;
   emptyState: {
     visible: boolean;
     onCreateNode: () => void;
@@ -78,6 +83,18 @@ export type CanvasViewModel = {
       fieldKey: string,
       value: string
     ) => void;
+  };
+  drawing: {
+    tool: 'rect' | 'circle' | 'pen' | 'text' | 'eraser' | 'hand' | null;
+    onToolChange: (tool: 'rect' | 'circle' | 'pen' | 'text' | 'eraser' | 'hand' | null) => void;
+    drawings: CanvasDrawing[];
+    onDrawingsChange: (next: CanvasDrawing[]) => void;
+    penSize: number;
+    penColor: string;
+    eraserSize: number;
+    onPenSizeChange: (value: number) => void;
+    onPenColorChange: (value: string) => void;
+    onEraserSizeChange: (value: number) => void;
   };
   nodePanel: {
     form: NodeFormState | null;
@@ -142,10 +159,12 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
     canvasRef,
     onCanvasContextMenu,
     onCanvasMouseMove,
+    zoomTransformRef,
     emptyState,
     zoom,
     contextMenu,
     profileWindows,
+    drawing,
     nodePanel,
     connectionPanel,
     groupPanel,
@@ -154,11 +173,29 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
     deletion,
   } = model;
 
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0,
+  });
+
   const connectionForm = connectionPanel.form;
   const connectionSelection = connectionPanel.selection;
   const showConnectionPanel = !nodePanel.form && connectionForm && connectionSelection;
 
   const overlayTarget = typeof document !== 'undefined' ? document.body : null;
+
+  useLayoutEffect(() => {
+    const svg = canvasRef.current;
+    if (!svg) return;
+    const updateSize = () => {
+      const rect = svg.getBoundingClientRect();
+      setCanvasSize({ width: rect.width || window.innerWidth, height: rect.height || window.innerHeight });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, [canvasRef]);
 
   const overlayContent = (
     <>
@@ -331,6 +368,14 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
         onStartConnection={sidebar.onStartConnection}
         onOpenTheme={sidebar.onOpenTheme}
         onOpenSettings={sidebar.onOpenSettings}
+        onSelectDrawingTool={(tool) => drawing.onToolChange(tool === 'hand' ? null : tool)}
+        activeDrawingTool={drawing.tool}
+        penSize={drawing.penSize}
+        penColor={drawing.penColor}
+        eraserSize={drawing.eraserSize}
+        onPenSizeChange={drawing.onPenSizeChange}
+        onPenColorChange={drawing.onPenColorChange}
+        onEraserSizeChange={drawing.onEraserSizeChange}
       />
 
       <main className="canvas-shell view-fade">
@@ -339,6 +384,18 @@ export const CanvasView = ({ model }: CanvasViewProps) => {
           className="mindmap-canvas"
           onContextMenu={onCanvasContextMenu}
           onMouseMove={onCanvasMouseMove}
+        />
+
+        <DrawingLayer
+          tool={drawing.tool}
+          drawings={drawing.drawings}
+          onChange={drawing.onDrawingsChange}
+          penSize={drawing.penSize}
+          penColor={drawing.penColor}
+          eraserSize={drawing.eraserSize}
+          size={canvasSize}
+          canvasRef={canvasRef}
+          zoomTransformRef={zoomTransformRef}
         />
 
         {emptyState.visible && <EmptyState onCreateNode={emptyState.onCreateNode} />}

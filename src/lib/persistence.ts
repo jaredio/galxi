@@ -5,6 +5,7 @@
 
 import type {
   CanvasGroup,
+  CanvasDrawing,
   GroupLink,
   GroupPositionMap,
   NetworkLink,
@@ -108,6 +109,33 @@ const isGroupLink = (value: unknown): value is GroupLink => {
   );
 };
 
+const isCanvasDrawing = (value: unknown): value is CanvasDrawing => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const baseOk = typeof value.id === 'string' && typeof value.type === 'string';
+  if (!baseOk) {
+    return false;
+  }
+  if (value.points && !Array.isArray(value.points)) {
+    return false;
+  }
+  if (Array.isArray(value.points)) {
+    const pointsValid = value.points.every(
+      (point) =>
+        isRecord(point) &&
+        typeof point.x === 'number' &&
+        Number.isFinite(point.x) &&
+        typeof point.y === 'number' &&
+        Number.isFinite(point.y)
+    );
+    if (!pointsValid) {
+      return false;
+    }
+  }
+  return true;
+};
+
 const isTheme = (value: unknown): value is Theme => {
   if (!isRecord(value)) {
     return false;
@@ -160,6 +188,12 @@ const isGraphDataPayload = (value: unknown): value is GraphData => {
   if (value.theme && !isTheme(value.theme)) {
     return false;
   }
+  if (value.drawings && !Array.isArray(value.drawings)) {
+    return false;
+  }
+  if (Array.isArray(value.drawings) && !value.drawings.every(isCanvasDrawing)) {
+    return false;
+  }
   return true;
 };
 
@@ -172,6 +206,7 @@ export type GraphData = {
   groupLinks: GroupLink[];
   nodePositions: NodePositionMap;
   groupPositions: GroupPositionMap;
+  drawings?: CanvasDrawing[];
   theme?: Theme;
 };
 
@@ -186,6 +221,7 @@ export const saveGraph = (
     groupLinks: GroupLink[];
     nodePositions: NodePositionMap;
     groupPositions: GroupPositionMap;
+    drawings?: CanvasDrawing[];
     theme?: Theme;
   },
   workspaceId?: string
@@ -204,6 +240,7 @@ export const saveGraph = (
       nodeCount: data.nodes.length,
       linkCount: data.links.length,
       groupCount: data.groups.length,
+      drawingCount: data.drawings?.length ?? 0,
       nodePositions: Object.keys(data.nodePositions).length,
       groupPositions: Object.keys(data.groupPositions).length,
     });
@@ -213,6 +250,7 @@ export const saveGraph = (
     logger.error('Failed to save graph data', error as Error, {
       nodeCount: data.nodes.length,
       linkCount: data.links.length,
+      drawingCount: data.drawings?.length ?? 0,
     });
     return false;
   }
@@ -265,6 +303,7 @@ export const loadGraph = (workspaceId?: string): GraphData | null => {
       nodeCount: data.nodes?.length || 0,
       linkCount: data.links?.length || 0,
       groupCount: data.groups?.length || 0,
+      drawingCount: data.drawings?.length || 0,
       timestamp: data.timestamp,
     });
 
@@ -273,6 +312,7 @@ export const loadGraph = (workspaceId?: string): GraphData | null => {
       version: STORAGE_VERSION,
       nodePositions: data.nodePositions ?? {},
       groupPositions: data.groupPositions ?? {},
+      drawings: data.drawings ?? [],
       theme: data.theme,
     };
   } catch (error) {
